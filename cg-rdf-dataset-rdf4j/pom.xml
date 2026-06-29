@@ -10,7 +10,6 @@
     <version>${revision}</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
-  <groupId>io.kogn.rdf</groupId>
   <artifactId>rdf-dataset-rdf4j</artifactId>
   <name>ChangingGraph RDF Dataset RDF4J Implementation</name>
   <description
@@ -21,12 +20,10 @@
     <dependency>
       <groupId>io.kogn.rdf</groupId>
       <artifactId>rdf-terms</artifactId>
-      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.kogn.rdf</groupId>
       <artifactId>rdf-dataset</artifactId>
-      <version>${project.version}</version>
     </dependency>
 
     <!-- RDF4J: only what the moved classes actually import -->

@@ -51,7 +51,7 @@ class DatasetProviderRdf4jTest {
 
     @Override
     public Repository getOrCreateRepository(final String storagePath) {
-      return cache.computeIfAbsent(storagePath, path -> {
+      return cache.computeIfAbsent(storagePath, _ -> {
         final SailRepository repo = new SailRepository(new MemoryStore());
         repo.init();
         return repo;

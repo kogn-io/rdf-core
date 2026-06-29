@@ -10,7 +10,6 @@
 		<version>${revision}</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
-	<groupId>io.kogn.rdf</groupId>
 	<artifactId>rdf-dataset</artifactId>
 	<name>ChangingGraph RDF Dataset</name>
 	<description
@@ -21,7 +20,6 @@
 		<dependency>
 			<groupId>io.kogn.rdf</groupId>
 			<artifactId>rdf-terms</artifactId>
-			<version>${project.version}</version>
 		</dependency>
 
 		<!-- Lombok for convenience (not library-free like cg-rdf-terms) -->
