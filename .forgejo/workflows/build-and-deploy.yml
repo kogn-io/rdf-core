@@ -1,0 +1,62 @@
+name: Build, test and deploy library
+
+# Snapshot pipeline for the io.kogn.rdf OSS vertical. On push to develop the job
+# builds, tests and deploys the three artifacts (rdf-terms, rdf-dataset,
+# rdf-dataset-rdf4j) + parent POM to the kogn-io Forgejo Maven registry. Other
+# branches / PRs only build + test (no deploy).
+#
+# Credentials: only `forgejo-kogn-io` (WRITE) is needed — every dependency comes
+# from Maven Central, nothing is read from the changinggraph registry. The secret
+# account must have packages:write on org kogn-io.
+#
+# Interim CI image: reuses the changinggraph rdf CI image (Temurin 25); Maven
+# itself comes from the repo-pinned ./mvnw wrapper (Maven 4.0.0-rc-5), so the
+# version is repo-controlled. A kogn-io-owned image is the clean follow-up.
+
+on:
+  push:
+    branches:
+      - develop
+      - feature/**
+      - refactor/**
+  pull_request:
+    branches:
+      - develop
+  workflow_dispatch:
+
+jobs:
+  build-test-deploy:
+    runs-on: main
+    container:
+      image: registry.cg.internal/ci/rdf-maven:latest
+      volumes:
+        - /var/cache/maven-repo:/root/.m2/repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure Maven credentials
+        if: forgejo.ref_name == 'develop'
+        run: |
+          cat > /tmp/settings.xml << EOF
+          <settings>
+            <servers>
+              <server>
+                <id>forgejo-kogn-io</id>
+                <username>${MAVEN_REGISTRY_USER}</username>
+                <password>${MAVEN_REGISTRY_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+        env:
+          MAVEN_REGISTRY_USER: ${{ secrets.MAVEN_REGISTRY_USER }}
+          MAVEN_REGISTRY_TOKEN: ${{ secrets.MAVEN_REGISTRY_TOKEN }}
+
+      - name: Build, test and deploy (develop → kogn-io registry)
+        if: forgejo.ref_name == 'develop'
+        run: ./mvnw -B --no-transfer-progress -T 2C -s /tmp/settings.xml deploy
+
+      - name: Build and test
+        if: forgejo.ref_name != 'develop'
+        run: ./mvnw -B --no-transfer-progress -T 2C verify

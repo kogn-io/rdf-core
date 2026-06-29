@@ -1,0 +1,19 @@
+# Maven
+target/
+*.class
+
+# Eclipse
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated/
+bin/
+*.eclipse
+
+# IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/

@@ -1,0 +1,86 @@
+<project
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"
+>
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>io.kogn.rdf</groupId>
+    <artifactId>rdf-parent</artifactId>
+    <version>${revision}</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <groupId>io.kogn.rdf</groupId>
+  <artifactId>rdf-dataset-rdf4j</artifactId>
+  <name>ChangingGraph RDF Dataset RDF4J Implementation</name>
+  <description
+  >RDF4J-based implementation of the cg-rdf-dataset ports (GraphStore, SparqlUpdate, DatasetTransactor, DatasetProvider) plus RDF4J term/factory helpers. No dependency on cg-rdf-api or cg-rdf-cid.</description>
+
+  <dependencies>
+    <!-- Own RDF modules: terms + dataset ports only; zero api/cid -->
+    <dependency>
+      <groupId>io.kogn.rdf</groupId>
+      <artifactId>rdf-terms</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.kogn.rdf</groupId>
+      <artifactId>rdf-dataset</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- RDF4J: only what the moved classes actually import -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-model</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-model-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-repository-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-query</artifactId>
+    </dependency>
+
+    <!-- Lombok (annotation processor, not a runtime dep) -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- SLF4J for DatasetProviderRdf4j logging -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
+    <!-- Test: in-memory RDF4J store for DatasetRdf4jTest -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-repository-sail</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-sail-memory</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
