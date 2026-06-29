@@ -88,6 +88,40 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("add returns the net number of triples inserted")
+    void add_singleTriple_returnsOne() {
+      // when / then
+      assertThat(store.add(GRAPH_1, singleTripleGraph())).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("add returns 0 when all triples are already present (idempotent)")
+    void add_duplicate_returnsZero() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when / then
+      assertThat(store.add(GRAPH_1, singleTripleGraph())).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("remove returns the net number of triples removed")
+    void remove_existingTriple_returnsOne() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when / then
+      assertThat(store.remove(GRAPH_1, singleTripleGraph())).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("remove returns 0 when no triple was present")
+    void remove_absentTriple_returnsZero() {
+      // when / then
+      assertThat(store.remove(GRAPH_1, singleTripleGraph())).isEqualTo(0L);
+    }
+
+    @Test
     @DisplayName("export returns the added triples")
     void export_afterAdd_returnsTriples() {
       // given

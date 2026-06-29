@@ -32,21 +32,29 @@ public class GraphStoreRdf4j implements GraphStore {
   }
 
   @Override
-  public void add(final IRI namedGraph, final ReadableGraph triples) {
+  public long add(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    inTransaction(conn -> triples.stream()
-        .forEach(triple -> conn.add(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-            RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
-            context)));
+    return inTransaction(conn -> {
+      final long before = conn.size(context);
+      triples.stream()
+          .forEach(triple -> conn.add(RDF4JConverters.toRDF4JResource(triple.getSubject()),
+              RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
+              context));
+      return conn.size(context) - before;
+    });
   }
 
   @Override
-  public void remove(final IRI namedGraph, final ReadableGraph triples) {
+  public long remove(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    inTransaction(conn -> triples.stream()
-        .forEach(triple -> conn.remove(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-            RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
-            context)));
+    return inTransaction(conn -> {
+      final long before = conn.size(context);
+      triples.stream()
+          .forEach(triple -> conn.remove(RDF4JConverters.toRDF4JResource(triple.getSubject()),
+              RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
+              context));
+      return before - conn.size(context);
+    });
   }
 
   /**
@@ -54,13 +62,18 @@ public class GraphStoreRdf4j implements GraphStore {
    * triple set is applied atomically (commit on success, rollback on any
    * {@link RuntimeException}). Without this, RDF4J auto-commits per statement,
    * which leaves a half-applied graph on failure and is slow for large batches.
+   *
+   * <p>The graph size is sampled before and after the mutation inside the same
+   * transaction, so the net delta returned to callers is race-free against
+   * concurrent writers to the same named graph.</p>
    */
-  private void inTransaction(final java.util.function.Consumer<RepositoryConnection> work) {
+  private long inTransaction(final java.util.function.ToLongFunction<RepositoryConnection> work) {
     try (RepositoryConnection conn = repository.getConnection()) {
       conn.begin();
       try {
-        work.accept(conn);
+        final long result = work.applyAsLong(conn);
         conn.commit();
+        return result;
       } catch (RuntimeException e) {
         try {
           conn.rollback();

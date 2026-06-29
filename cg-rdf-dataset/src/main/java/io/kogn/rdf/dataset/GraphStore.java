@@ -25,8 +25,12 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the target named graph; must not be {@code null}
    * @param triples the triples to add; must not be {@code null}
+   * @return the net number of triples actually inserted — duplicates that were
+   *     already present do not count. Implementations must determine this exactly
+   *     (not as an estimate), measured atomically with the write so that concurrent
+   *     writers to the same named graph cannot distort the delta.
    */
-  void add(IRI namedGraph, ReadableGraph triples);
+  long add(IRI namedGraph, ReadableGraph triples);
 
   /**
    * Removes all triples in the given graph from the named graph.
@@ -36,8 +40,12 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the target named graph; must not be {@code null}
    * @param triples the triples to remove; must not be {@code null}
+   * @return the net number of triples actually removed — triples that were not
+   *     present do not count. Implementations must determine this exactly (not as an
+   *     estimate), measured atomically with the write so that concurrent writers to
+   *     the same named graph cannot distort the delta.
    */
-  void remove(IRI namedGraph, ReadableGraph triples);
+  long remove(IRI namedGraph, ReadableGraph triples);
 
   /**
    * Removes all triples from the named graph without deleting the graph itself.
