@@ -185,6 +185,9 @@
 					<version>${spotless-maven-plugin.version}</version>
 					<configuration>
 						<java>
+							<licenseHeader>
+								<file>${project.rootDirectory}/license-header-java.txt</file>
+							</licenseHeader>
 							<eclipse>
 								<file>${project.rootDirectory}/eclipse-java-formatter.xml</file>
 							</eclipse>

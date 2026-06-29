@@ -37,3 +37,8 @@ Push auf `develop`), nicht lokal.
 - Bestehenden Patterns folgen, nicht raten — im Code nachschauen.
 - Tests: JUnit 5 + AssertJ. Domänenlogik testen; Bugfix = Failing-Test-first.
 - **IMMER Datei lesen vor Edit** (Build formatiert via spotless automatisch).
+- **Lizenz-Header**: Jede `.java` trägt am Dateianfang den SPDX-Header
+  (`// SPDX-License-Identifier: Apache-2.0` + `// Copyright <Jahr> Fred Hauschel`).
+  Quelle ist `license-header-java.txt`; spotless (`licenseHeader`) schreibt/erzwingt
+  ihn — `spotless:apply` ergänzt fehlende, `spotless:check` (in `verify`) ist das
+  CI-Gate. Ausnahme: `package-info.java` (von spotless bewusst ausgelassen).
