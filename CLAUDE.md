@@ -8,7 +8,7 @@ austauschbares RDF4J-Backend. Veröffentlicht unter Apache-2.0.
 | Verzeichnis | Artefakt | Rolle |
 |---|---|---|
 | `cg-rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF-Datenmodell (Term-Interfaces, Graph-Typen, Vocab). **Library-frei** — keine externen Dependencies. |
-| `cg-rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Backend-agnostische Dataset-Ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetTransactor`, `DatasetTx`, `DatasetLifecycle` (open-or-create/close/delete/list per opakem `DatasetId`, Lease-geschützt). |
+| `cg-rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Backend-agnostische Dataset-Ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetTransactor`, `DatasetTx`, `DatasetLifecycle` (open-or-create/close/delete/list per opakem `DatasetId`, Lease-geschützt; `acquire` liefert ein geleastes `DatasetHandle` — Zugriffs-Handle, kein RDF-Dataset). |
 | `cg-rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J-Implementierung der Dataset-Ports. |
 
 Verzeichnisnamen sind historisch `cg-rdf-*`, die Artefakte/Packages `io.kogn.rdf.*`.

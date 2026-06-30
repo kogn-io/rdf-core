@@ -12,6 +12,15 @@ import io.kogn.rdf.terms.ReadableGraph;
  * <p>Provides basic triple management scoped to named graphs. Each operation targets
  * exactly one named graph identified by its {@link IRI}.</p>
  *
+ * <p><strong>Named graphs only — not an RDF 1.1 dataset.</strong> This store has no
+ * <a href="https://www.w3.org/TR/rdf11-concepts/#section-dataset">RDF 1.1</a> default
+ * graph: every operation requires a graph {@link IRI}, graph names are always IRIs
+ * (never blank nodes), and there is no unnamed graph to read from or write to. A
+ * context-less SPARQL read (no {@code GRAPH} clause) via {@link SparqlQuery} therefore
+ * ranges over the <em>union</em> of all named graphs, not over a default graph. The
+ * default graph is intentionally not modelled (YAGNI). See the package documentation
+ * for the full data-model contract.</p>
+ *
  * <p>Implementations may choose to buffer writes; callers must not assume immediate
  * persistence outside of a {@link DatasetTransactor} transaction.</p>
  */

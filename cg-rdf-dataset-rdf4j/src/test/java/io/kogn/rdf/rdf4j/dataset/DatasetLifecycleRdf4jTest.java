@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.kogn.rdf.dataset.Dataset;
+import io.kogn.rdf.dataset.DatasetHandle;
 import io.kogn.rdf.dataset.DatasetId;
 import io.kogn.rdf.dataset.DatasetStoreConfig;
 import io.kogn.rdf.dataset.DatasetStoreConfig.Persistence;
@@ -77,7 +77,7 @@ class DatasetLifecycleRdf4jTest {
     @Test
     @DisplayName("acquire opens a usable dataset; writes are visible through the same handle")
     void acquire_writeThenRead_visible() {
-      try (Dataset ds = inMemory().acquire(new DatasetId("a"))) {
+      try (DatasetHandle ds = inMemory().acquire(new DatasetId("a"))) {
         ds.graphStore().add(GRAPH, singleTriple());
 
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
@@ -89,7 +89,7 @@ class DatasetLifecycleRdf4jTest {
     void acquire_sameId_sharesState() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("shared");
-      try (Dataset writer = lc.acquire(id); Dataset reader = lc.acquire(id)) {
+      try (DatasetHandle writer = lc.acquire(id); DatasetHandle reader = lc.acquire(id)) {
         writer.graphStore().add(GRAPH, singleTriple());
 
         assertThat(reader.sparqlQuery().ask(ASK_GRAPH)).isTrue();
@@ -100,7 +100,7 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("list reflects acquired datasets")
     void list_afterAcquire_containsId() {
       final DatasetLifecycleRdf4j lc = inMemory();
-      try (Dataset ds = lc.acquire(new DatasetId("listed"))) {
+      try (DatasetHandle ds = lc.acquire(new DatasetId("listed"))) {
         assertThat(lc.list()).contains(new DatasetId("listed"));
       }
     }
@@ -110,7 +110,7 @@ class DatasetLifecycleRdf4jTest {
     void close_whileLeaseOpen_isNoOp() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("busy");
-      try (Dataset ds = lc.acquire(id)) {
+      try (DatasetHandle ds = lc.acquire(id)) {
         ds.graphStore().add(GRAPH, singleTriple());
 
         lc.close(id); // must not tear the store down under the open lease
@@ -131,7 +131,7 @@ class DatasetLifecycleRdf4jTest {
     void delete_whileLeaseOpen_throwsAndHandleSurvives() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("protected");
-      try (Dataset ds = lc.acquire(id)) {
+      try (DatasetHandle ds = lc.acquire(id)) {
         assertThatThrownBy(() -> lc.delete(id)).isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("open leases");
 
@@ -167,7 +167,7 @@ class DatasetLifecycleRdf4jTest {
         for (int w = 0; w < workers; w++) {
           pool.submit(() -> {
             for (int i = 0; i < iterations; i++) {
-              try (Dataset ds = lc.acquire(id)) {
+              try (DatasetHandle ds = lc.acquire(id)) {
                 ds.sparqlQuery().ask(ASK_GRAPH);
               } catch (final Throwable t) {
                 failures.add(t);
@@ -203,10 +203,10 @@ class DatasetLifecycleRdf4jTest {
           });
       final DatasetId id = new DatasetId("seeded");
 
-      try (Dataset ds = lifecycle.acquire(id)) {
+      try (DatasetHandle ds = lifecycle.acquire(id)) {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // seed already present on first handout
       }
-      try (Dataset ds = lifecycle.acquire(id)) {
+      try (DatasetHandle ds = lifecycle.acquire(id)) {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }
 
@@ -230,7 +230,7 @@ class DatasetLifecycleRdf4jTest {
         final List<Future<?>> futures = new ArrayList<>();
         for (int t = 0; t < threads; t++) {
           futures.add(pool.submit(() -> {
-            try (Dataset ds = lifecycle.acquire(id)) {
+            try (DatasetHandle ds = lifecycle.acquire(id)) {
               seen.add(ds.sparqlQuery().ask(ASK_GRAPH));
             }
           }));
@@ -266,7 +266,7 @@ class DatasetLifecycleRdf4jTest {
       // rolled back: nothing left behind, and the retry re-runs onCreate over a fresh store
       // (only possible if the failed store's lock was released and its dir removed).
       assertThat(lifecycle.list()).doesNotContain(id);
-      try (Dataset ds = lifecycle.acquire(id)) {
+      try (DatasetHandle ds = lifecycle.acquire(id)) {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }
       assertThat(calls).hasValue(2);
@@ -321,7 +321,7 @@ class DatasetLifecycleRdf4jTest {
       final Path root = tmp.resolve("stores");
       final DatasetLifecycleRdf4j lc = persistent(root);
 
-      try (Dataset ds = lc.acquire(new DatasetId("../escape"))) {
+      try (DatasetHandle ds = lc.acquire(new DatasetId("../escape"))) {
         ds.graphStore().add(GRAPH, singleTriple()); // dataset is fully usable
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }

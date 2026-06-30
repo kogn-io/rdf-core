@@ -4,8 +4,20 @@
 package io.kogn.rdf.dataset;
 
 /**
- * A leased handle to a single dataset, obtained from
- * {@link DatasetLifecycle#acquire(DatasetId)}.
+ * A leased, {@link AutoCloseable} access handle to a single dataset, obtained
+ * from {@link DatasetLifecycle#acquire(DatasetId)}.
+ *
+ * <p><strong>Not an RDF dataset.</strong> Despite the {@code Dataset} in its
+ * name this type is deliberately <em>not</em> a dataset in the sense of the
+ * <a href="https://www.w3.org/TR/rdf11-concepts/#section-dataset">RDF 1.1
+ * concepts</a> (a default graph plus zero or more named graphs) and it is
+ * <em>not</em> an {@code org.apache.commons.rdf.api.Dataset} (a collection of
+ * quads). It carries no triples or quads of its own and is not a value type. It
+ * is a short-lived, leased view onto the underlying store — conceptually the
+ * counterpart of an RDF4J {@code RepositoryConnection} — through which the
+ * neutral dataset ports are reached. The RDF data itself is reached via
+ * {@link #graphStore()} / {@link #sparqlQuery()} and is modelled as named graphs
+ * only (see the package documentation).</p>
  *
  * <p>The handle is the unit of <em>in-flight protection</em>. While at least one
  * handle for a dataset is open, the underlying store must not be shut down,
@@ -15,7 +27,7 @@ package io.kogn.rdf.dataset;
  * try-with-resources block:</p>
  *
  * <pre>{@code
- * try (Dataset ds = lifecycle.acquire(id)) {
+ * try (DatasetHandle ds = lifecycle.acquire(id)) {
  *     ds.graphStore().add(graphIri, triples);
  *     return ds.sparqlQuery().select(query).toList();
  * }
@@ -24,7 +36,7 @@ package io.kogn.rdf.dataset;
  * <p>A handle is scoped to one unit of work; do not retain the operation objects
  * returned by the accessors beyond the life of the handle.</p>
  */
-public interface Dataset extends AutoCloseable {
+public interface DatasetHandle extends AutoCloseable {
 
   /**
    * Returns the named-graph store for this dataset.

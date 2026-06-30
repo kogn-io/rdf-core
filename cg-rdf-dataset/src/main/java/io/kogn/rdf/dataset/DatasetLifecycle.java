@@ -11,7 +11,7 @@ import java.util.Set;
  *
  * <p>Datasets are addressed by an opaque {@link DatasetId}. A dataset is
  * obtained through {@link #acquire(DatasetId)}, which returns a leased
- * {@link Dataset} handle and never exposes a backend-specific store type. The
+ * {@link DatasetHandle} and never exposes a backend-specific store type. The
  * lease is what makes eviction and deletion safe: while a handle is open the
  * underlying store cannot be torn down.</p>
  *
@@ -27,7 +27,7 @@ public interface DatasetLifecycle {
    * Opens the dataset for {@code id}, creating it (and running the backend's
    * one-time on-create hook) if it does not yet exist, and takes a lease on it.
    *
-   * <p>The returned {@link Dataset} must be closed — ideally via
+   * <p>The returned {@link DatasetHandle} must be closed — ideally via
    * try-with-resources — to release the lease. While any lease is open the
    * dataset is protected from {@link #close(DatasetId)} and
    * {@link #delete(DatasetId)}. If the dataset is newly created the on-create
@@ -37,7 +37,7 @@ public interface DatasetLifecycle {
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}
    */
-  Dataset acquire(DatasetId id);
+  DatasetHandle acquire(DatasetId id);
 
   /**
    * Evicts the dataset for {@code id}: shuts the backing store down and drops it

@@ -25,7 +25,7 @@ import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 
-import io.kogn.rdf.dataset.Dataset;
+import io.kogn.rdf.dataset.DatasetHandle;
 import io.kogn.rdf.dataset.DatasetId;
 import io.kogn.rdf.dataset.DatasetLifecycle;
 import io.kogn.rdf.dataset.DatasetStoreConfig;
@@ -43,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
  * ({@link MemoryStore} for {@code IN_MEMORY}, {@link NativeStore} for
  * {@code PERSISTENT}, default index spec {@code "spoc,posc,cosp"}) and never
  * exposes the RDF4J {@code Repository} — callers only ever see the neutral port
- * types via a leased {@link Dataset} handle.</p>
+ * types via a leased {@link DatasetHandle}.</p>
  *
  * <h2>In-flight protection</h2>
  *
@@ -130,14 +130,14 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   }
 
   @Override
-  public Dataset acquire(final DatasetId id) {
+  public DatasetHandle acquire(final DatasetId id) {
     Objects.requireNonNull(id, "id");
     final ManagedDataset managed = datasets.compute(id, (key, existing) -> {
       final ManagedDataset md = existing != null ? existing : createAndSeed(key);
       md.leaseCount.incrementAndGet();
       return md;
     });
-    return new LeasedDataset(managed);
+    return new LeasedDatasetHandle(managed);
   }
 
   @Override
@@ -312,12 +312,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   }
 
   /** Lease handle: releases its lease exactly once on {@link #close()}. */
-  private static final class LeasedDataset implements Dataset {
+  private static final class LeasedDatasetHandle implements DatasetHandle {
 
     private final ManagedDataset managed;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private LeasedDataset(final ManagedDataset managed) {
+    private LeasedDatasetHandle(final ManagedDataset managed) {
       this.managed = managed;
     }
 
