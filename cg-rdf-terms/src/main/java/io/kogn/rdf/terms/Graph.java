@@ -7,8 +7,8 @@ package io.kogn.rdf.terms;
  * Mutable RDF Graph - a set of RDF triples that can be modified.
  *
  * <p>Extends {@link ReadableGraph} with mutation operations. Use this interface
- * when building or modifying graphs (e.g., in {@link Draft}). For read-only
- * access (e.g., in {@link Version}), use {@link ReadableGraph} instead.</p>
+ * when building or modifying graphs. For read-only access use
+ * {@link ReadableGraph} instead.</p>
  *
  * @see ReadableGraph
  */

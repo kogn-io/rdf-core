@@ -10,8 +10,9 @@ import io.kogn.rdf.terms.ReadableGraph;
 /**
  * SPARQL read port — non-transactional query access to a dataset.
  *
- * <p>Covers the three SPARQL query forms that read data: {@code SELECT},
- * {@code CONSTRUCT} and {@code ASK}. Each operation reads a consistent snapshot
+ * <p>Covers three of the four SPARQL 1.1 query forms that read data: {@code SELECT},
+ * {@code CONSTRUCT} and {@code ASK} ({@code DESCRIBE} is not supported). Each
+ * operation reads a consistent snapshot
  * of the dataset and never mutates it; for write operations see
  * {@link SparqlUpdate}, and for queries that must participate in an atomic
  * unit-of-work alongside writes see {@link DatasetTx}.</p>
