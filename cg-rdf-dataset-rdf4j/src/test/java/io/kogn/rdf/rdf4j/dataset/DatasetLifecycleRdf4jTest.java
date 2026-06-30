@@ -245,6 +245,32 @@ class DatasetLifecycleRdf4jTest {
       assertThat(calls).hasValue(1);
       assertThat(seen).hasSize(threads).containsOnly(true);
     }
+
+    @Test
+    @DisplayName("a throwing on-create rolls back: store not leaked, persistent dir removed, retry seeds cleanly")
+    void onCreate_throwsFirstTime_rollsBackAndRetrySucceeds(@TempDir final Path tmp) {
+      final AtomicInteger calls = new AtomicInteger();
+      final Path root = tmp.resolve("stores");
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
+            if (calls.incrementAndGet() == 1) {
+              throw new IllegalStateException("boom");
+            }
+            graphStore.add(GRAPH, singleTriple());
+          });
+      final DatasetId id = new DatasetId("rollback");
+
+      assertThatThrownBy(() -> lifecycle.acquire(id)).isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("boom");
+
+      // rolled back: nothing left behind, and the retry re-runs onCreate over a fresh store
+      // (only possible if the failed store's lock was released and its dir removed).
+      assertThat(lifecycle.list()).doesNotContain(id);
+      try (Dataset ds = lifecycle.acquire(id)) {
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
+      assertThat(calls).hasValue(2);
+    }
   }
 
   // ---------------------------------------------------------------------------

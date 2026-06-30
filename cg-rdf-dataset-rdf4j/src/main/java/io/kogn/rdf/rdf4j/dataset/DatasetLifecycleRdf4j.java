@@ -93,7 +93,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
    *     {@code PERSISTENT} (e.g. {@link #DEFAULT_INDEX_SPEC})
    * @param onCreate one-time hook run when a dataset is first created, before its
    *     handle is handed out; receives the id and a {@link GraphStore} to seed
-   *     through (never an RDF4J type). May be {@code null}
+   *     through (never an RDF4J type). It runs under the per-key map lock, so it
+   *     must only seed its own {@code GraphStore} and must not call back into this
+   *     lifecycle ({@code acquire}/{@code close}/{@code delete}/{@code list}). If it
+   *     throws, creation is rolled back (store shut down, a newly created persistent
+   *     store removed) and the exception propagates from {@code acquire}. May be
+   *     {@code null}
    * @throws UnsupportedOperationException if {@code config.fullTextSearch()} is
    *     {@code true}
    */
@@ -207,12 +212,24 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       isNew = isNewStore(dir);
       repository = new SailRepository(new NativeStore(dir, indexSpec));
     }
-    repository.init();
-    final ManagedDataset managed = new ManagedDataset(repository);
-    if (isNew && onCreate != null) {
-      onCreate.accept(id, managed.graphStore);
+    try {
+      repository.init();
+      final ManagedDataset managed = new ManagedDataset(repository);
+      if (isNew && onCreate != null) {
+        onCreate.accept(id, managed.graphStore);
+      }
+      return managed;
+    } catch (final RuntimeException e) {
+      // init or the on-create seed failed: don't leak the (possibly) initialised store, and
+      // don't leave a half-created persistent store on disk — that would make isNewStore false
+      // on the next acquire, so onCreate would never run again and the dataset would stay
+      // unseeded. Restore the invariant: a dataset is created-and-seeded atomically, or not at all.
+      shutDownQuietly(repository);
+      if (isNew && config.persistence() != Persistence.IN_MEMORY) {
+        deleteStorageOnDisk(id);
+      }
+      throw e;
     }
-    return managed;
   }
 
   private static boolean isNewStore(final File dir) {
@@ -238,7 +255,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
 
   private DatasetId decodeSegment(final String segment) {
     try {
-      return new DatasetId(new String(Base64.getUrlDecoder().decode(segment), StandardCharsets.UTF_8));
+      final byte[] decoded = Base64.getUrlDecoder().decode(segment);
+      final String reEncoded = Base64.getUrlEncoder().withoutPadding().encodeToString(decoded);
+      if (!reEncoded.equals(segment)) {
+        return null; // not the canonical encoding resolveDir produces — foreign directory, skip
+      }
+      return new DatasetId(new String(decoded, StandardCharsets.UTF_8));
     } catch (final IllegalArgumentException e) {
       return null; // foreign directory not produced by this lifecycle — skip
     }
