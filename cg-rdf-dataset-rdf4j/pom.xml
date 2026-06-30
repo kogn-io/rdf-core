@@ -13,7 +13,7 @@
   <artifactId>rdf-dataset-rdf4j</artifactId>
   <name>ChangingGraph RDF Dataset RDF4J Implementation</name>
   <description
-  >RDF4J-based implementation of the cg-rdf-dataset ports (GraphStore, SparqlUpdate, DatasetTransactor, DatasetProvider) plus RDF4J term/factory helpers. No dependency on cg-rdf-api or cg-rdf-cid.</description>
+  >RDF4J-based implementation of the cg-rdf-dataset ports (GraphStore, SparqlQuery, SparqlUpdate, DatasetTransactor, DatasetLifecycle) plus RDF4J term/factory helpers. No dependency on cg-rdf-api or cg-rdf-cid.</description>
 
   <dependencies>
     <!-- Own RDF modules: terms + dataset ports only; zero api/cid -->
@@ -44,6 +44,20 @@
       <artifactId>rdf4j-query</artifactId>
     </dependency>
 
+    <!-- Sail stores: DatasetLifecycleRdf4j builds them (NativeStore for persistent, MemoryStore for in-memory) -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-repository-sail</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-sail-memory</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-sail-nativerdf</artifactId>
+    </dependency>
+
     <!-- Lombok (annotation processor, not a runtime dep) -->
     <dependency>
       <groupId>org.projectlombok</groupId>
@@ -51,22 +65,10 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- SLF4J for DatasetProviderRdf4j logging -->
+    <!-- SLF4J for DatasetLifecycleRdf4j logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-    </dependency>
-
-    <!-- Test: in-memory RDF4J store for DatasetRdf4jTest -->
-    <dependency>
-      <groupId>org.eclipse.rdf4j</groupId>
-      <artifactId>rdf4j-repository-sail</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.rdf4j</groupId>
-      <artifactId>rdf4j-sail-memory</artifactId>
-      <scope>test</scope>
     </dependency>
 
     <dependency>

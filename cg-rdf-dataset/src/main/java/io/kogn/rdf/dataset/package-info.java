@@ -12,6 +12,9 @@
  *   <li>{@link io.kogn.rdf.dataset.SparqlUpdate} — SPARQL UPDATE (write)</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTransactor} — atomic unit-of-work boundary</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — dataset operations within a transaction</li>
+ *   <li>{@link io.kogn.rdf.dataset.DatasetLifecycle} — open-or-create/close/delete/list datasets,
+ *       addressed by opaque {@link io.kogn.rdf.dataset.DatasetId}, with lease-based in-flight
+ *       protection; each {@link io.kogn.rdf.dataset.Dataset} handle exposes the four ports above</li>
  * </ul>
  *
  * <p>All interfaces are purely Java-based; no framework or library annotations are required
