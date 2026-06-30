@@ -15,6 +15,7 @@ package io.kogn.rdf.dataset;
  * data directory.</p>
  *
  * @see GraphStore
+ * @see SparqlQuery
  * @see SparqlUpdate
  * @see DatasetTransactor
  */
@@ -31,12 +32,22 @@ public interface DatasetProvider {
   GraphStore getGraphStore(String storagePath);
 
   /**
+   * Returns a {@link SparqlQuery} for the given storage path.
+   *
+   * <p>The instance is created on first access and cached for subsequent calls.</p>
+   *
+   * @param storagePath path relative to the configured data directory
+   * @return the SparqlQuery for SPARQL SELECT, CONSTRUCT and ASK operations
+   */
+  SparqlQuery getSparqlQuery(String storagePath);
+
+  /**
    * Returns a {@link SparqlUpdate} for the given storage path.
    *
    * <p>The instance is created on first access and cached for subsequent calls.</p>
    *
    * @param storagePath path relative to the configured data directory
-   * @return the SparqlUpdate for SPARQL UPDATE and ASK operations
+   * @return the SparqlUpdate for SPARQL UPDATE operations
    */
   SparqlUpdate getSparqlUpdate(String storagePath);
 

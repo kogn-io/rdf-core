@@ -30,11 +30,4 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
       conn.prepareUpdate(QueryLanguage.SPARQL, sparql).execute();
     }
   }
-
-  @Override
-  public boolean ask(final String sparql) {
-    try (RepositoryConnection conn = repository.getConnection()) {
-      return conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql).evaluate();
-    }
-  }
 }

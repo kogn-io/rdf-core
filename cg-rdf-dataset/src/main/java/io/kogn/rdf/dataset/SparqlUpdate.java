@@ -4,11 +4,12 @@
 package io.kogn.rdf.dataset;
 
 /**
- * SPARQL Update and ASK port.
+ * SPARQL write port.
  *
- * <p>Covers write operations via SPARQL 1.1 Update language and boolean queries
- * via SPARQL ASK. Neither method returns RDF data; for SELECT or CONSTRUCT results
- * see {@link DatasetTx}.</p>
+ * <p>Covers write operations via the SPARQL 1.1 Update language. This port does
+ * not read data; for {@code SELECT}, {@code CONSTRUCT} and {@code ASK} queries
+ * see {@link SparqlQuery}, and for writes that participate in an atomic
+ * unit-of-work see {@link DatasetTx}.</p>
  */
 public interface SparqlUpdate {
 
@@ -23,16 +24,4 @@ public interface SparqlUpdate {
    * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
    */
   void update(String sparql);
-
-  /**
-   * Executes a SPARQL ASK query and returns its boolean result.
-   *
-   * <p>Returns {@code true} if the query pattern matches at least one solution in
-   * the dataset, {@code false} otherwise.</p>
-   *
-   * @param sparql the SPARQL ASK query string; must not be {@code null} or empty
-   * @return {@code true} if the pattern has at least one match
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
-   */
-  boolean ask(String sparql);
 }

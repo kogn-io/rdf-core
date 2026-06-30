@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.GraphStore;
+import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
 
 /**
@@ -108,6 +109,14 @@ class DatasetProviderRdf4jTest {
   }
 
   @Test
+  @DisplayName("getSparqlQuery returns the same cached instance for the same path")
+  void getSparqlQuery_samePath_returnsCachedInstance() {
+    final SparqlQuery first = provider.getSparqlQuery("repo-a");
+
+    assertThat(provider.getSparqlQuery("repo-a")).isSameAs(first);
+  }
+
+  @Test
   @DisplayName("getSparqlUpdate returns the same cached instance for the same path")
   void getSparqlUpdate_samePath_returnsCachedInstance() {
     final SparqlUpdate first = provider.getSparqlUpdate("repo-a");
@@ -133,12 +142,14 @@ class DatasetProviderRdf4jTest {
   @DisplayName("eviction drops all cached services so fresh instances are created on next access")
   void deleteRepository_evictsCachedServices() {
     final GraphStore firstStore = provider.getGraphStore("repo-a");
+    final SparqlQuery firstQuery = provider.getSparqlQuery("repo-a");
     final SparqlUpdate firstUpdate = provider.getSparqlUpdate("repo-a");
     final DatasetTransactor firstTransactor = provider.getDatasetTransactor("repo-a");
 
     source.deleteRepository("repo-a");
 
     assertThat(provider.getGraphStore("repo-a")).isNotSameAs(firstStore);
+    assertThat(provider.getSparqlQuery("repo-a")).isNotSameAs(firstQuery);
     assertThat(provider.getSparqlUpdate("repo-a")).isNotSameAs(firstUpdate);
     assertThat(provider.getDatasetTransactor("repo-a")).isNotSameAs(firstTransactor);
   }

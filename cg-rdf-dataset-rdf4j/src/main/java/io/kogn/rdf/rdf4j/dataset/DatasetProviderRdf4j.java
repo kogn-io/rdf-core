@@ -11,6 +11,7 @@ import org.eclipse.rdf4j.repository.Repository;
 import io.kogn.rdf.dataset.DatasetProvider;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.GraphStore;
+import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,6 +38,7 @@ public class DatasetProviderRdf4j implements DatasetProvider {
 
   private final Rdf4jRepositorySource repositorySource;
   private final Map<String, GraphStoreRdf4j> graphStoreCache = new ConcurrentHashMap<>();
+  private final Map<String, SparqlQueryRdf4j> sparqlQueryCache = new ConcurrentHashMap<>();
   private final Map<String, SparqlUpdateRdf4j> sparqlUpdateCache = new ConcurrentHashMap<>();
   private final Map<String, DatasetTransactorRdf4j> transactorCache = new ConcurrentHashMap<>();
 
@@ -61,6 +63,7 @@ public class DatasetProviderRdf4j implements DatasetProvider {
    */
   private void evict(final String storagePath) {
     graphStoreCache.remove(storagePath);
+    sparqlQueryCache.remove(storagePath);
     sparqlUpdateCache.remove(storagePath);
     transactorCache.remove(storagePath);
   }
@@ -71,6 +74,15 @@ public class DatasetProviderRdf4j implements DatasetProvider {
       log.info("Creating GraphStore for storage path: {}", path);
       final Repository repository = repositorySource.getOrCreateRepository(path);
       return new GraphStoreRdf4j(repository);
+    });
+  }
+
+  @Override
+  public SparqlQuery getSparqlQuery(final String storagePath) {
+    return sparqlQueryCache.computeIfAbsent(storagePath, path -> {
+      log.info("Creating SparqlQuery for storage path: {}", path);
+      final Repository repository = repositorySource.getOrCreateRepository(path);
+      return new SparqlQueryRdf4j(repository);
     });
   }
 

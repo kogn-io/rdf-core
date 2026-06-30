@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
@@ -191,14 +192,16 @@ class DatasetRdf4jTest {
   class SparqlUpdateTests {
 
     private SparqlUpdateRdf4j sparqlUpdate;
+    private SparqlQueryRdf4j sparqlQuery;
 
     @BeforeEach
     void setUp() {
       sparqlUpdate = new SparqlUpdateRdf4j(repository);
+      sparqlQuery = new SparqlQueryRdf4j(repository);
     }
 
     @Test
-    @DisplayName("INSERT DATA makes triple visible via ask")
+    @DisplayName("INSERT DATA makes triple visible")
     void update_insertData_tripleIsVisible() {
       // given
       final String insert = "INSERT DATA { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
@@ -210,14 +213,7 @@ class DatasetRdf4jTest {
       sparqlUpdate.update(insert);
 
       // then
-      assertThat(sparqlUpdate.ask(ask)).isTrue();
-    }
-
-    @Test
-    @DisplayName("ask returns false when the pattern has no match")
-    void ask_noMatch_returnsFalse() {
-      // when / then
-      assertThat(sparqlUpdate.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }")).isFalse();
+      assertThat(sparqlQuery.ask(ask)).isTrue();
     }
 
     @Test
@@ -233,7 +229,89 @@ class DatasetRdf4jTest {
       sparqlUpdate.update("DELETE DATA { GRAPH <" + graphIri + "> {" + triple + "} }");
 
       // then
-      assertThat(sparqlUpdate.ask("ASK { GRAPH <" + graphIri + "> { ?s ?p ?o } }")).isFalse();
+      assertThat(sparqlQuery.ask("ASK { GRAPH <" + graphIri + "> { ?s ?p ?o } }")).isFalse();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("SparqlQueryRdf4j")
+  class SparqlQueryTests {
+
+    private SparqlUpdateRdf4j sparqlUpdate;
+    private SparqlQueryRdf4j sparqlQuery;
+
+    @BeforeEach
+    void setUp() {
+      sparqlUpdate = new SparqlUpdateRdf4j(repository);
+      sparqlQuery = new SparqlQueryRdf4j(repository);
+    }
+
+    private void insertSingleTriple() {
+      sparqlUpdate.update("INSERT DATA { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
+          + PREDICATE.getIRIString() + "> <" + OBJECT.getIRIString() + "> } }");
+    }
+
+    @Test
+    @DisplayName("ask returns true when the pattern matches")
+    void ask_match_returnsTrue() {
+      // given
+      insertSingleTriple();
+
+      // when / then
+      assertThat(sparqlQuery.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }")).isTrue();
+    }
+
+    @Test
+    @DisplayName("ask returns false when the pattern has no match")
+    void ask_noMatch_returnsFalse() {
+      // when / then
+      assertThat(sparqlQuery.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }")).isFalse();
+    }
+
+    @Test
+    @DisplayName("select returns one binding set per matching row")
+    void select_matchingPattern_returnsRows() {
+      // given
+      insertSingleTriple();
+
+      // when
+      final List<BindingSet> results = sparqlQuery.select("SELECT ?s WHERE { GRAPH <" + GRAPH_1.getIRIString()
+          + "> { ?s <" + PREDICATE.getIRIString() + "> <" + OBJECT.getIRIString() + "> } }").toList();
+
+      // then
+      assertThat(results).hasSize(1);
+      assertThat(results.get(0).getValue("s"))
+          .hasValueSatisfying(term -> assertThat(((IRI) term).getIRIString()).isEqualTo(SUBJECT.getIRIString()));
+    }
+
+    @Test
+    @DisplayName("select stream is consumable after the call returns")
+    void select_streamMaterialised_consumableAfterReturn() {
+      // given
+      insertSingleTriple();
+
+      // when
+      final Stream<BindingSet> stream = sparqlQuery
+          .select("SELECT ?s WHERE { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }");
+
+      // then — connection already closed, stream still consumable
+      assertThat(stream.toList()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("construct returns a graph with the matching triples")
+    void construct_matchingPattern_returnsGraph() {
+      // given
+      insertSingleTriple();
+
+      // when
+      final ReadableGraph constructed = sparqlQuery
+          .construct("CONSTRUCT { ?s ?p ?o } WHERE { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }");
+
+      // then
+      assertThat(constructed.size()).isEqualTo(1L);
     }
   }
 
