@@ -12,7 +12,7 @@ Licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-
 | Directory | Maven artifact | Role |
 |---|---|---|
 | `cg-rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF data model — technology-agnostic term interfaces, graph types and vocabulary constants. Zero external dependencies. |
-| `cg-rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset ports: `GraphStore`, `SparqlUpdate`, `DatasetTransactor`, `DatasetTx`. |
+| `cg-rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetTransactor`, `DatasetTx`. |
 | `cg-rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J backend implementing the dataset ports. No dependency on api/cid modules. |
 
 ## Build
