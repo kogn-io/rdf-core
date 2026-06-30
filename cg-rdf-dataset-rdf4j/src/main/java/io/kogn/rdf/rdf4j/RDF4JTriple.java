@@ -3,6 +3,8 @@
 
 package io.kogn.rdf.rdf4j;
 
+import java.util.Objects;
+
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.Value;
@@ -12,14 +14,12 @@ import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.Triple;
-import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 /**
  * RDF4J-based implementation of Triple.
  */
 @RequiredArgsConstructor
-@EqualsAndHashCode
 public class RDF4JTriple implements Triple {
 
   private final Resource subject;
@@ -51,6 +51,21 @@ public class RDF4JTriple implements Triple {
       return new RDF4JBlankNode((org.eclipse.rdf4j.model.BNode) object);
     }
     throw new IllegalStateException("Unknown object type: " + object.getClass());
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj)
+      return true;
+    if (!(obj instanceof Triple other))
+      return false;
+    return getSubject().equals(other.getSubject()) && getPredicate().equals(other.getPredicate())
+        && getObject().equals(other.getObject());
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(getSubject(), getPredicate(), getObject());
   }
 
   /**

@@ -4,6 +4,7 @@
 package io.kogn.rdf.terms;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -148,10 +149,7 @@ public class SimpleRdf implements RDF {
 
     @Override
     public int hashCode() {
-      int result = lexicalForm.hashCode();
-      result = 31 * result + datatype.hashCode();
-      result = 31 * result + getLanguageTag().hashCode();
-      return result;
+      return Objects.hash(getLexicalForm(), getDatatype(), getLanguageTag());
     }
 
     @Override
@@ -175,6 +173,21 @@ public class SimpleRdf implements RDF {
     @Override
     public RDFTerm getObject() {
       return object;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (this == obj)
+        return true;
+      if (!(obj instanceof Triple other))
+        return false;
+      return subject.equals(other.getSubject()) && predicate.equals(other.getPredicate())
+          && object.equals(other.getObject());
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(subject, predicate, object);
     }
 
     @Override
