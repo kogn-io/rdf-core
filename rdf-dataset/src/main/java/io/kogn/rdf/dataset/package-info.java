@@ -1,8 +1,7 @@
 /**
  * Named-graph-addressed dataset ports for RDF store access.
  *
- * <p>This package sits between the pure data-model layer ({@code cg-rdf-terms}) and the
- * higher-level content-addressed service layer ({@code cg-rdf-api}). It defines
+ * <p>This package sits above the pure data-model layer ({@code rdf-terms}) and defines
  * technology-neutral port interfaces that cover the basic operations a dataset consumer
  * needs:</p>
  *
@@ -40,6 +39,6 @@
  * value-typed RDF dataset and not an {@code org.apache.commons.rdf.api.Dataset}.</p>
  *
  * <p>All interfaces are purely Java-based; no framework or library annotations are required
- * to implement them. Implementations live in adapter modules (e.g. {@code cg-rdf-rdf4j}).</p>
+ * to implement them. Implementations live in adapter modules (e.g. {@code rdf-dataset-rdf4j}).</p>
  */
 package io.kogn.rdf.dataset;

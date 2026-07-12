@@ -11,9 +11,9 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>rdf-dataset-rdf4j</artifactId>
-  <name>ChangingGraph RDF Dataset RDF4J Implementation</name>
+  <name>Kogn RDF Dataset RDF4J Implementation</name>
   <description
-  >RDF4J-based implementation of the cg-rdf-dataset ports (GraphStore, SparqlQuery, SparqlUpdate, DatasetTransactor, DatasetLifecycle) plus RDF4J term/factory helpers. No dependency on cg-rdf-api or cg-rdf-cid.</description>
+  >RDF4J-based implementation of the rdf-dataset ports (GraphStore, SparqlQuery, SparqlUpdate, DatasetTransactor, DatasetLifecycle) plus RDF4J term/factory helpers.</description>
 
   <dependencies>
     <!-- Own RDF modules: terms + dataset ports only; zero api/cid -->

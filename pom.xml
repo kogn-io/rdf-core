@@ -15,9 +15,9 @@
   >Technology-agnostic RDF data model, dataset ports and RDF4J backend</description>
 
 	<modules>
-		<module>cg-rdf-terms</module>
-		<module>cg-rdf-dataset</module>
-		<module>cg-rdf-dataset-rdf4j</module>
+		<module>rdf-terms</module>
+		<module>rdf-dataset</module>
+		<module>rdf-dataset-rdf4j</module>
 	</modules>
 
 	<properties>

@@ -10,31 +10,12 @@
 		<version>${revision}</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
-	<artifactId>rdf-dataset</artifactId>
-	<name>ChangingGraph RDF Dataset</name>
+	<artifactId>rdf-terms</artifactId>
+	<name>Kogn RDF Terms</name>
 	<description
-  >Named-graph-addressed dataset ports: GraphStore, SparqlUpdate, DatasetTransactor and DatasetTx</description>
+  >RDF data model - technology-agnostic term interfaces, graph types, and vocabulary constants (Commons-RDF aligned, zero external dependencies)</description>
 
 	<dependencies>
-		<!-- RDF Terms data model -->
-		<dependency>
-			<groupId>io.kogn.rdf</groupId>
-			<artifactId>rdf-terms</artifactId>
-		</dependency>
-
-		<!-- Lombok for convenience (not library-free like cg-rdf-terms) -->
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<scope>provided</scope>
-		</dependency>
-
-		<!-- JMolecules for DDD annotations -->
-		<dependency>
-			<groupId>org.jmolecules</groupId>
-			<artifactId>jmolecules-ddd</artifactId>
-		</dependency>
-
 		<!-- JUnit 5 for testing -->
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
@@ -47,4 +28,5 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
 </project>

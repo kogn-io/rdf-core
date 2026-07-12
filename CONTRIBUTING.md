@@ -1,0 +1,81 @@
+# Contributing
+
+Thanks for your interest in Kogn RDF.
+
+## Maintenance status
+
+This project is maintained on a best-effort basis by a single maintainer, in
+spare time. Issues and pull requests are read and reviewed as capacity allows —
+there is no service-level promise and no guaranteed turnaround. A slow or absent
+response is not a judgement on your contribution; it just reflects available
+time.
+
+## Before you open a pull request
+
+For anything beyond a trivial fix (typo, obvious one-line bug), **open an issue
+first** and wait for a short go-ahead. This protects your time as much as the
+maintainer's: a large or unsolicited PR that does not fit the project's scope or
+design may not be merged, and it is frustrating for everyone to discover that
+after the work is done.
+
+Good candidates that rarely need discussion:
+
+- Fixing a clearly wrong behaviour, with a failing test that the fix makes pass.
+- Correcting documentation.
+
+Things to raise in an issue first:
+
+- New public API, ports, or backends.
+- Anything touching the design of the term model or dataset ports.
+- Dependency additions (note that `rdf-terms` is intentionally
+  dependency-free).
+
+## Working on a change
+
+- Branch off `develop`; pull requests target `develop`.
+- Keep pull requests **small and focused** — one concern per PR. Split unrelated
+  changes.
+- Follow existing patterns in the code; look before you guess.
+- Add or adjust tests. Bug fixes start with a failing test.
+- Build and test locally before pushing:
+
+  ```bash
+  ./mvnw verify
+  ```
+
+  This runs the tests and the Spotless check, which enforces the SPDX license
+  header on every `.java` file. Run `./mvnw spotless:apply` to add missing
+  headers and formatting.
+
+See the [README](README.md) for the required toolchain. Maven comes from the
+pinned `./mvnw` wrapper — no local Maven install is needed. Deployment to the
+package registry and releases happen exclusively through CI; contributors never
+deploy.
+
+## Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+`type(scope): subject` (e.g. `fix(dataset): …`). Common types: `feat`, `fix`,
+`docs`, `refactor`, `test`, `build`, `ci`, `chore`, `perf`. Breaking changes get
+a `!` after the type or a `BREAKING CHANGE:` footer. The project follows
+[Semantic Versioning](https://semver.org/).
+
+## AI-assisted contributions
+
+AI-assisted contributions are allowed. If you use such tools, you remain
+responsible for what you submit: understand the change, make sure it is correct,
+and test it as you would any other code. Unreviewed machine-generated output is
+not a shortcut around the bar above — and large or sweeping AI-generated changes
+may be rejected on scope alone, regardless of correctness.
+
+## Licensing
+
+By submitting a contribution you agree that it is licensed under the project's
+[Apache 2.0 license](LICENSE). Do not submit code you do not have the right to
+contribute under that license.
+
+## Reporting bugs
+
+Open an issue with a minimal reproduction and the expected vs. actual behaviour.
+For anything security-sensitive, please contact the maintainer privately rather
+than filing a public issue.
