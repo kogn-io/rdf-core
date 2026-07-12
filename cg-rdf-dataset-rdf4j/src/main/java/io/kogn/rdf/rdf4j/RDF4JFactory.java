@@ -115,13 +115,13 @@ public class RDF4JFactory implements RDF {
   }
 
   @Override
-  public RDFList createRDFList(List<IRI> items) {
+  public RDFList createRDFList(List<RDFTerm> items) {
     if (items == null || items.isEmpty()) {
       return RDFList.empty();
     }
 
-    // Convert IRIs to RDF4J Values
-    List<Value> values = items.stream().map(iri -> (Value) Values.iri(iri.getIRIString())).toList();
+    // Convert RDF terms to RDF4J Values
+    List<Value> values = items.stream().map(this::toRDF4JValue).toList();
 
     // Create RDF collection with head node
     Resource listHead = Values.bnode();

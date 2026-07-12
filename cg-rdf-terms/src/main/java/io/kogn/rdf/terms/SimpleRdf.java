@@ -54,7 +54,7 @@ public class SimpleRdf implements RDF {
   }
 
   @Override
-  public RDFList createRDFList(List<IRI> items) {
+  public RDFList createRDFList(List<RDFTerm> items) {
     if (items == null || items.isEmpty()) {
       return RDFList.empty();
     }

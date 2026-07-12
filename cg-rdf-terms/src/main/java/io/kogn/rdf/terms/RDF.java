@@ -81,13 +81,14 @@ public interface RDF extends IRIFactory {
   Graph createGraph();
 
   /**
-   * Creates an RDF list (collection) from a list of IRIs.
+   * Creates an RDF list (collection) from a list of RDF terms.
    *
    * <p>The resulting RDF list uses standard RDF list vocabulary
-   * (rdf:first, rdf:rest, rdf:nil) to represent the ordered collection.</p>
+   * (rdf:first, rdf:rest, rdf:nil) to represent the ordered collection.
+   * Per RDF 1.1, list items may be any RDF term (IRIs, literals, or blank nodes).</p>
    *
-   * @param items the IRIs to include in the list
+   * @param items the RDF terms to include in the list
    * @return an RDF list with head blank node and graph containing list triples
    */
-  RDFList createRDFList(List<IRI> items);
+  RDFList createRDFList(List<RDFTerm> items);
 }

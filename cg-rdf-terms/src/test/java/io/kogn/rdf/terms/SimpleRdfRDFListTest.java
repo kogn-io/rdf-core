@@ -69,4 +69,32 @@ class SimpleRdfRDFListTest {
     assertThat(graph.stream(list.head(), VocabRdf.FIRST, null).map(Triple::getObject)).containsExactly(a);
     assertThat(graph.stream(list.head(), VocabRdf.REST, null).map(Triple::getObject)).containsExactly(VocabRdf.NIL);
   }
+
+  @Test
+  void buildsRdfListWithMixedTermTypes() {
+    Literal literal = rdf.createLiteral("hello", "en");
+    BlankNode blankNode = rdf.createBlankNode("b1");
+    List<RDFTerm> items = List.of(a, literal, blankNode);
+
+    RDFList list = rdf.createRDFList(items);
+
+    assertThat(list.hasItems()).isTrue();
+    ReadableGraph graph = list.graph();
+    // 3 first + 3 rest triples
+    assertThat(graph.size()).isEqualTo(6);
+
+    BlankNode head = list.head();
+    assertThat(graph.stream(head, VocabRdf.FIRST, null).map(Triple::getObject)).containsExactly(a);
+
+    Triple restOfHead = graph.stream(head, VocabRdf.REST, null).findFirst().orElseThrow();
+    BlankNodeOrIRI node2 = (BlankNodeOrIRI) restOfHead.getObject();
+    assertThat(graph.stream(node2, VocabRdf.FIRST, null).map(Triple::getObject)).containsExactly(literal);
+
+    Triple restOfNode2 = graph.stream(node2, VocabRdf.REST, null).findFirst().orElseThrow();
+    BlankNodeOrIRI node3 = (BlankNodeOrIRI) restOfNode2.getObject();
+    assertThat(graph.stream(node3, VocabRdf.FIRST, null).map(Triple::getObject)).containsExactly(blankNode);
+
+    // last rest points to rdf:nil
+    assertThat(graph.stream(node3, VocabRdf.REST, null).map(Triple::getObject)).containsExactly(VocabRdf.NIL);
+  }
 }
