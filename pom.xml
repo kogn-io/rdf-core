@@ -364,6 +364,13 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-gpg-plugin</artifactId>
 						<version>${maven-gpg-plugin.version}</version>
+						<configuration>
+							<!-- Pin the signing key by full fingerprint: two signing keys
+							     exist for info@hauschel.de, so the GPG "default" is
+							     ambiguous. Both public keys are on keyserver.ubuntu.com,
+							     so Central verifies either — this only fixes WHICH one. -->
+							<keyname>D6B939930E95253586DEC004EB4699DCB89510FF</keyname>
+						</configuration>
 						<executions>
 							<execution>
 								<id>sign-artifacts</id>
