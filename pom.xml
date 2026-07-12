@@ -14,6 +14,25 @@
 	<description
   >Technology-agnostic RDF data model, dataset ports and RDF4J backend</description>
 
+	<!-- Maven Central requires <licenses> and <developers>. Host-independent, so
+	     set now. <url> and <scm> are host-coupled and added after the GitHub move
+	     (see kogn-io/rdf#2). -->
+	<licenses>
+		<license>
+			<name>Apache License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<developers>
+		<developer>
+			<id>hauschel.fred</id>
+			<name>Fred Hauschel</name>
+			<email>info@hauschel.de</email>
+		</developer>
+	</developers>
+
 	<modules>
 		<module>rdf-terms</module>
 		<module>rdf-dataset</module>
@@ -33,6 +52,13 @@
 		<maven-surefire-plugin.version>3.5.4</maven-surefire-plugin.version>
 		<spotless-maven-plugin.version>2.43.0</spotless-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
+		<!-- Maven Central release (central-release profile): sources + javadoc jars,
+		     GPG signing, Sonatype Central publishing. Host-independent (talks to
+		     Sonatype, not the git host), so pinned here regardless of the git move. -->
+		<maven-source-plugin.version>3.4.0</maven-source-plugin.version>
+		<maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+		<maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+		<central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
 		<!-- Maven 4 default-binding plugins, pinned to silence the "version not
 		     locked" warnings (previously inherited from spring-boot-starter-parent). -->
 		<maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
@@ -282,4 +308,88 @@
 			<url>https://git.changinggraph.org/api/packages/kogn-io/maven</url>
 		</repository>
 	</distributionManagement>
+
+	<profiles>
+		<!-- Maven Central release. Activate with -Pcentral-release on the deploy that
+		     targets Sonatype Central. Everyday `./mvnw verify` and the Forgejo
+		     snapshot/release deploys are unaffected: no GPG, no extra jars, no Central
+		     upload unless this profile is active. Host-independent (talks to Sonatype,
+		     not the git host). The Central CI workflow itself is deferred until after
+		     the GitHub move (see kogn-io/rdf#2). -->
+		<profile>
+			<id>central-release</id>
+			<properties>
+				<!-- Central publishing takes over deployment; skip the default
+				     deploy-plugin so nothing is also pushed to the Forgejo registry. -->
+				<maven.deploy.skip>true</maven.deploy.skip>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-source-plugin</artifactId>
+						<version>${maven-source-plugin.version}</version>
+						<executions>
+							<execution>
+								<id>attach-sources</id>
+								<phase>package</phase>
+								<goals>
+									<goal>jar-no-fork</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-javadoc-plugin</artifactId>
+						<version>${maven-javadoc-plugin.version}</version>
+						<configuration>
+							<!-- Central requires a javadoc jar to exist, not that it is
+							     doclint-clean. Java 25 doclint is strict and would fail the
+							     release on missing/loose comments; disable it for the jar. -->
+							<doclint>none</doclint>
+							<quiet>true</quiet>
+						</configuration>
+						<executions>
+							<execution>
+								<id>attach-javadoc</id>
+								<phase>package</phase>
+								<goals>
+									<goal>jar</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-gpg-plugin</artifactId>
+						<version>${maven-gpg-plugin.version}</version>
+						<executions>
+							<execution>
+								<id>sign-artifacts</id>
+								<phase>verify</phase>
+								<goals>
+									<goal>sign</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.sonatype.central</groupId>
+						<artifactId>central-publishing-maven-plugin</artifactId>
+						<version>${central-publishing-maven-plugin.version}</version>
+						<extensions>true</extensions>
+						<configuration>
+							<!-- Sonatype token lives under this <server><id> in settings.xml. -->
+							<publishingServerId>central</publishingServerId>
+							<!-- Keep early releases manual: the bundle is uploaded and
+							     validated, then you click "Publish" in the Central portal.
+							     Flip to true once the pipeline is trusted. -->
+							<autoPublish>false</autoPublish>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>
