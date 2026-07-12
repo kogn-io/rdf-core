@@ -24,6 +24,12 @@ Use the CI-friendly `${revision}` approach with tag-triggered releases:
   the tag and builds with `-Drevision=X.Y.Z deploy`. The POM itself is never
   modified. [Semantic Versioning](https://semver.org/) applies.
 - Deployment to the package registry happens exclusively through CI.
+- A separate `central-release` Maven profile (`-Pcentral-release`) adds
+  source/javadoc jars, GPG signing and the Sonatype `central-publishing` plugin
+  for a future Maven Central release. It is inactive by default, so everyday
+  `verify` and the Forgejo snapshot/release deploys are unaffected. The Central
+  release CI workflow is deferred until after the GitHub move (see
+  [kogn-io/rdf#2](https://git.changinggraph.org/kogn-io/rdf/issues/2)).
 
 This relies on Maven 4, whose native consumer-POM resolves `${revision}` at
 deploy time, so no `flatten-maven-plugin` is needed. Maven comes from the pinned
