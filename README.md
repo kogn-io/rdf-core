@@ -15,6 +15,10 @@ Licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetTransactor`, `DatasetTx`, `DatasetLifecycle` (open-or-create/close/delete/list by opaque `DatasetId`, lease-protected; `acquire` returns a leased `DatasetHandle` — an access handle, not an RDF dataset). |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J backend implementing the dataset ports. |
 
+These modules were extracted from a larger RDF stack; the `io.kogn.*` group id
+reflects that origin. The library itself is deliberately framework- and
+application-agnostic, with no ties to any specific product.
+
 ## Build
 
 Requires JDK 25; Maven itself comes from the pinned `./mvnw` wrapper.
