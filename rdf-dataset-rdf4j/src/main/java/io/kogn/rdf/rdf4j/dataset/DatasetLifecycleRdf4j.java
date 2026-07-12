@@ -84,8 +84,8 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
    * Creates a lifecycle.
    *
    * @param config backend-neutral store configuration; must not be {@code null}.
-   *     {@code fullTextSearch == true} is rejected until FTS store assembly lands
-   *     (changinggraph/rdf#67)
+   *     {@code fullTextSearch == true} is rejected until full-text-search store
+   *     assembly is implemented
    * @param storageRoot root directory under which persistent datasets live;
    *     required (non-{@code null}) for {@code PERSISTENT}, ignored for
    *     {@code IN_MEMORY}
