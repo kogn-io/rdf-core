@@ -4,6 +4,7 @@
 package io.kogn.rdf.rdf4j;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Value;
@@ -110,6 +111,15 @@ public class RDF4JFactory implements RDF {
       return ((RDF4JBlankNode) term).getRDF4JValue();
     } else if (term instanceof IRI) {
       return Values.iri(((IRI) term).getIRIString());
+    } else if (term instanceof Literal) {
+      Literal literal = (Literal) term;
+      Optional<String> languageTag = literal.getLanguageTag();
+      if (languageTag.isPresent()) {
+        return Values.literal(literal.getLexicalForm(), languageTag.get());
+      }
+      return Values.literal(literal.getLexicalForm(), Values.iri(literal.getDatatype().getIRIString()));
+    } else if (term instanceof BlankNode) {
+      return Values.bnode(((BlankNode) term).uniqueReference());
     }
     throw new IllegalArgumentException("Unknown RDFTerm type: " + term.getClass());
   }
