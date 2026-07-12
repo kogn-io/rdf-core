@@ -32,6 +32,11 @@ Push auf `develop`), nicht lokal.
 ## Konventionen
 
 - **Conventional Commits** (`type(scope): subject`), **Semantic Versioning**.
+- **Committer = Author-Identity**: `git commit` stempelt den Committer aus der
+  lokalen git-config (hier `naturzukunft <naturzukunft@hauschel.de>`); `--author`
+  setzt nur den Author. Damit Author *und* Committer einheitlich
+  `Fred Hauschel <info@hauschel.de>` bleiben, pro Commit auch `GIT_COMMITTER_NAME`
+  und `GIT_COMMITTER_EMAIL` mitsetzen — sonst driftet die Historie wieder.
 - `record` für Value Objects (Commons-RDF-orientierte Term-Typen).
 - `rdf-terms` bleibt **library-frei** — dort keine Dependencies hinzufügen.
 - Bestehenden Patterns folgen, nicht raten — im Code nachschauen.
