@@ -18,8 +18,8 @@ import org.eclipse.rdf4j.repository.RepositoryConnection;
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.RDF4JBindingSet;
-import io.kogn.rdf.rdf4j.RDF4JConverters;
 import io.kogn.rdf.rdf4j.RDF4JGraph;
+import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.ReadableGraph;
 

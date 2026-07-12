@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.rdf4j;
+package io.kogn.rdf.rdf4j.internal;
 
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.util.Values;
 
+import io.kogn.rdf.rdf4j.RDF4JIRI;
+import io.kogn.rdf.rdf4j.RDF4JTerm;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -13,14 +15,14 @@ import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDFTerm;
 
 /**
- * Package-private utility class for converting between our RDF API types and RDF4J types.
+ * Internal adapter glue: converts between the {@code io.kogn.rdf.terms} API types and the RDF4J
+ * value model. <strong>Not public API</strong> — this class lives in an {@code internal} package
+ * and may change or move without notice; consumers must not depend on it.
  *
- * <p>This class provides static conversion methods that support both native RDF4J implementations
- * (direct access) and foreign implementations (conversion via string representation).</p>
+ * <p>The static conversion methods support both native RDF4J implementations (direct access) and
+ * foreign implementations (conversion via string representation).</p>
  */
-public class RDF4JConverters {
-
-  // TODO package private, wenn wir mit io.kogn.rdf.repository durch sind!
+public final class RDF4JConverters {
 
   private RDF4JConverters() {
     // Utility class - no instantiation
@@ -34,8 +36,6 @@ public class RDF4JConverters {
    * @return RDF4J IRI
    */
   public static org.eclipse.rdf4j.model.IRI toRDF4JIRI(IRI iri) {
-    // TODO package private, wenn wir mit
-    // io.kogn.rdf.repository durch sind!
     if (iri instanceof RDF4JIRI) {
       return ((RDF4JIRI) iri).getRDF4JValue();
     }
