@@ -14,9 +14,9 @@
 	<description
   >Technology-agnostic RDF data model, dataset ports and RDF4J backend</description>
 
-	<!-- Maven Central requires <licenses> and <developers>. Host-independent, so
-	     set now. <url> and <scm> are host-coupled and added after the GitHub move
-	     (see kogn-io/rdf#2). -->
+	<url>https://github.com/kogn-io/rdf-core</url>
+
+	<!-- Maven Central requires <licenses>, <developers>, <url> and <scm>. -->
 	<licenses>
 		<license>
 			<name>Apache License, Version 2.0</name>
@@ -38,6 +38,12 @@
 		<module>rdf-dataset</module>
 		<module>rdf-dataset-rdf4j</module>
 	</modules>
+
+	<scm>
+		<connection>scm:git:https://github.com/kogn-io/rdf-core.git</connection>
+		<developerConnection>scm:git:https://github.com/kogn-io/rdf-core.git</developerConnection>
+		<url>https://github.com/kogn-io/rdf-core</url>
+	</scm>
 
 	<properties>
 		<revision>0.0.1-SNAPSHOT</revision>
@@ -303,10 +309,16 @@
 	</build>
 
 	<distributionManagement>
-		<repository>
-			<id>forgejo-kogn-io</id>
-			<url>https://git.changinggraph.org/api/packages/kogn-io/maven</url>
-		</repository>
+		<!-- Releases go to the Sonatype Central Portal via the central-publishing
+		     plugin (see the central-release profile), not through this section.
+		     Snapshots (default ${revision} = *-SNAPSHOT) are deployed here by the
+		     GitHub snapshot workflow on push to develop. The <id> matches the
+		     Central token <server> in the CI settings.xml. -->
+		<snapshotRepository>
+			<id>central</id>
+			<name>Central Portal Snapshots</name>
+			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
+		</snapshotRepository>
 	</distributionManagement>
 
 	<profiles>
