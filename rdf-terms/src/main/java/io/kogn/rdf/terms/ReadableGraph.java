@@ -54,5 +54,10 @@ public interface ReadableGraph {
    */
   Stream<Triple> stream(BlankNodeOrIRI subject, IRI predicate, RDFTerm object);
 
+  /**
+   * Returns whether the graph contains no triples.
+   *
+   * @return {@code true} if the graph is empty
+   */
   boolean isEmpty();
 }

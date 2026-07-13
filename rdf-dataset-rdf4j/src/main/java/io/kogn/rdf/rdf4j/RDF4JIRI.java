@@ -12,6 +12,11 @@ import io.kogn.rdf.terms.IRI;
  */
 public class RDF4JIRI extends RDF4JTerm implements IRI {
 
+  /**
+   * Wraps the given RDF4J IRI.
+   *
+   * @param rdf4jIRI the RDF4J IRI to adapt
+   */
   public RDF4JIRI(org.eclipse.rdf4j.model.IRI rdf4jIRI) {
     super(rdf4jIRI);
   }

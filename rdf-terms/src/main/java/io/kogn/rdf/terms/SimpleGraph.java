@@ -13,7 +13,7 @@ import java.util.stream.Stream;
  *
  * <p>Pure Java, no external dependencies. Triple identity relies on the
  * value-based {@code equals}/{@code hashCode} of the term implementations
- * (see {@link SimpleTriple}), so duplicate triples are deduplicated and
+ * (see {@link SimpleRdf.SimpleTriple}), so duplicate triples are deduplicated and
  * iteration order is insertion order.</p>
  *
  * <p>This is the default {@link Graph} returned by {@link SimpleRdf#createGraph()}.
@@ -22,6 +22,10 @@ import java.util.stream.Stream;
 public final class SimpleGraph implements Graph {
 
   private final Set<Triple> triples = new LinkedHashSet<>();
+
+  /** Creates an empty in-memory graph. */
+  public SimpleGraph() {
+  }
 
   @Override
   public void add(Triple triple) {

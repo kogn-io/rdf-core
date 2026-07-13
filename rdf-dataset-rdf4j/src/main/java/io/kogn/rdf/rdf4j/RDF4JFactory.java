@@ -32,6 +32,7 @@ public class RDF4JFactory implements RDF {
 
   private final ValueFactory valueFactory;
 
+  /** Creates a factory using RDF4J's default {@link SimpleValueFactory}. */
   public RDF4JFactory() {
     this.valueFactory = SimpleValueFactory.getInstance();
   }

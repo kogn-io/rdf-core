@@ -14,17 +14,28 @@ import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.Triple;
-import lombok.RequiredArgsConstructor;
 
 /**
  * RDF4J-based implementation of Triple.
  */
-@RequiredArgsConstructor
 public class RDF4JTriple implements Triple {
 
   private final Resource subject;
   private final org.eclipse.rdf4j.model.IRI predicate;
   private final Value object;
+
+  /**
+   * Creates a triple from RDF4J subject, predicate and object values.
+   *
+   * @param subject the RDF4J subject (IRI or blank node)
+   * @param predicate the RDF4J predicate IRI
+   * @param object the RDF4J object value
+   */
+  public RDF4JTriple(Resource subject, org.eclipse.rdf4j.model.IRI predicate, Value object) {
+    this.subject = subject;
+    this.predicate = predicate;
+    this.object = object;
+  }
 
   @Override
   public BlankNodeOrIRI getSubject() {
@@ -70,6 +81,8 @@ public class RDF4JTriple implements Triple {
 
   /**
    * Converts to RDF4J Statement.
+   *
+   * @return the equivalent RDF4J {@link Statement}
    */
   public Statement toRDF4JStatement() {
     return SimpleValueFactory.getInstance().createStatement(subject, predicate, object);

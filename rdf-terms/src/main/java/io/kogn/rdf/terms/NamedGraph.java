@@ -21,6 +21,12 @@ import java.util.Objects;
  * @param iri the IRI that names this named graph
  */
 public record NamedGraph(IRI iri) {
+
+  /**
+   * Validates the naming IRI.
+   *
+   * @throws NullPointerException if {@code iri} is null
+   */
   public NamedGraph {
     Objects.requireNonNull(iri, "iri must not be null");
   }

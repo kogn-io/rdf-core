@@ -26,10 +26,16 @@ public class RDF4JGraph implements Graph {
 
   private final Model model;
 
+  /** Creates an empty RDF4J-backed graph. */
   public RDF4JGraph() {
     this.model = new LinkedHashModel();
   }
 
+  /**
+   * Wraps the given RDF4J model.
+   *
+   * @param model the RDF4J model to wrap
+   */
   public RDF4JGraph(Model model) {
     this.model = model;
   }
@@ -105,6 +111,8 @@ public class RDF4JGraph implements Graph {
 
   /**
    * Returns the wrapped RDF4J Model.
+   *
+   * @return the underlying RDF4J {@link Model}
    */
   public Model getRDF4JModel() {
     return model;
