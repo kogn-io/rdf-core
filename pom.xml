@@ -369,11 +369,9 @@
 
 	<profiles>
 		<!-- Maven Central release. Activate with -Pcentral-release on the deploy that
-		     targets Sonatype Central. Everyday `./mvnw verify` and the Forgejo
-		     snapshot/release deploys are unaffected: no GPG, no extra jars, no Central
-		     upload unless this profile is active. Host-independent (talks to Sonatype,
-		     not the git host). The Central CI workflow itself is deferred until after
-		     the GitHub move (see kogn-io/rdf#2). -->
+		     targets Sonatype Central. Everyday `./mvnw verify` and the snapshot deploy
+		     are unaffected: no GPG, no extra jars, no Central upload unless this profile
+		     is active. The tag-triggered release workflow activates it (see ADR-0006). -->
 		<profile>
 			<id>central-release</id>
 			<build>
