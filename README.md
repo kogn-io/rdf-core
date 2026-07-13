@@ -22,6 +22,33 @@ These modules were extracted from a larger RDF stack; the `io.kogn.*` group id
 reflects that origin. The library itself is deliberately framework- and
 application-agnostic, with no ties to any specific product.
 
+## Consuming snapshots
+
+Releases (`vX.Y.Z`) are published to Maven Central and need no extra
+configuration. Development snapshots (`*-SNAPSHOT`) are **not** in Central — they
+go to the Central Portal snapshot repository, which consumers must declare
+explicitly:
+
+```xml
+<repositories>
+  <repository>
+    <id>central-portal-snapshots</id>
+    <name>Central Portal Snapshots</name>
+    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+    <releases>
+      <enabled>false</enabled>
+    </releases>
+    <snapshots>
+      <enabled>true</enabled>
+    </snapshots>
+  </repository>
+</repositories>
+```
+
+The snapshot repository is publicly readable — no credentials are required to
+consume it. (Alternatively, declare the same repository in your `settings.xml`
+if several projects share these snapshots.)
+
 ## Build
 
 Requires JDK 25; Maven itself comes from the pinned `./mvnw` wrapper.
