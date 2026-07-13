@@ -14,6 +14,11 @@ import io.kogn.rdf.terms.Literal;
  */
 public class RDF4JLiteral extends RDF4JTerm implements Literal {
 
+  /**
+   * Wraps the given RDF4J literal.
+   *
+   * @param rdf4jLiteral the RDF4J literal to adapt
+   */
   public RDF4JLiteral(org.eclipse.rdf4j.model.Literal rdf4jLiteral) {
     super(rdf4jLiteral);
   }

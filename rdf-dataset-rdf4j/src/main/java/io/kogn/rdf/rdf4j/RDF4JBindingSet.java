@@ -8,7 +8,6 @@ import java.util.Set;
 
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.terms.RDFTerm;
-import lombok.RequiredArgsConstructor;
 
 /**
  * RDF4J-based implementation of BindingSet.
@@ -16,10 +15,18 @@ import lombok.RequiredArgsConstructor;
  * <p>Wraps an RDF4J {@link org.eclipse.rdf4j.query.BindingSet} and adapts it
  * to our API.</p>
  */
-@RequiredArgsConstructor
 public class RDF4JBindingSet implements BindingSet {
 
   private final org.eclipse.rdf4j.query.BindingSet rdf4jBindingSet;
+
+  /**
+   * Wraps the given RDF4J binding set.
+   *
+   * @param rdf4jBindingSet the RDF4J binding set to adapt
+   */
+  public RDF4JBindingSet(org.eclipse.rdf4j.query.BindingSet rdf4jBindingSet) {
+    this.rdf4jBindingSet = rdf4jBindingSet;
+  }
 
   @Override
   public Set<String> getBindingNames() {

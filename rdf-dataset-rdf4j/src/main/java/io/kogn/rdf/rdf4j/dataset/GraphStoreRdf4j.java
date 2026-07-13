@@ -27,6 +27,11 @@ public class GraphStoreRdf4j implements GraphStore {
 
   private final Repository repository;
 
+  /**
+   * Creates a graph store backed by the given RDF4J repository.
+   *
+   * @param repository the repository to open connections against
+   */
   public GraphStoreRdf4j(final Repository repository) {
     this.repository = repository;
   }

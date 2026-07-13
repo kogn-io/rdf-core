@@ -32,6 +32,11 @@ public class SparqlQueryRdf4j implements SparqlQuery {
 
   private final Repository repository;
 
+  /**
+   * Creates a SPARQL query port backed by the given RDF4J repository.
+   *
+   * @param repository the repository to open connections against
+   */
   public SparqlQueryRdf4j(final Repository repository) {
     this.repository = repository;
   }

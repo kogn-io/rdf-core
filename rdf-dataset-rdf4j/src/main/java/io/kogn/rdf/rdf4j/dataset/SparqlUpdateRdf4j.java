@@ -20,6 +20,11 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
 
   private final Repository repository;
 
+  /**
+   * Creates a SPARQL update port backed by the given RDF4J repository.
+   *
+   * @param repository the repository to open connections against
+   */
   public SparqlUpdateRdf4j(final Repository repository) {
     this.repository = repository;
   }

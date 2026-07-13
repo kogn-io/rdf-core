@@ -10,7 +10,19 @@ import java.util.UUID;
 
 import io.kogn.rdf.terms.vocab.VocabRdf;
 
+/**
+ * Default library-free {@link RDF} factory backed by value-based term records.
+ *
+ * <p>Creates {@link SimpleIRI} IRIs, in-memory {@link SimpleGraph}s and the
+ * pure-Java term implementations ({@code SimpleBlankNode}, {@code SimpleLiteral},
+ * {@code SimpleTriple}) without depending on any RDF backend. This is the
+ * reference implementation used when no backend-specific {@link RDF} is wired in.</p>
+ */
 public class SimpleRdf implements RDF {
+
+  /** Creates a new {@code SimpleRdf} factory. */
+  public SimpleRdf() {
+  }
 
   @Override
   public IRI createIRI(String iri) {

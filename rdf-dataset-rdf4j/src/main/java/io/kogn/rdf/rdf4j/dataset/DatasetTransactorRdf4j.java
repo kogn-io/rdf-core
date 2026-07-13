@@ -27,6 +27,11 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
 
   private final Repository repository;
 
+  /**
+   * Creates a transactor backed by the given RDF4J repository.
+   *
+   * @param repository the repository to open transactional connections against
+   */
   public DatasetTransactorRdf4j(final Repository repository) {
     this.repository = repository;
   }
