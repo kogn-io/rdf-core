@@ -332,6 +332,22 @@
 			<id>central-release</id>
 			<build>
 				<plugins>
+					<!-- Under Maven 4 the central-publishing extension does NOT replace
+					     the stock deploy binding, so maven-deploy-plugin:deploy still runs
+					     and fails (no <repository> in distributionManagement, only
+					     snapshots). Unbind it; central-publishing:publish below owns the
+					     deploy phase. -->
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-deploy-plugin</artifactId>
+						<version>${maven-deploy-plugin.version}</version>
+						<executions>
+							<execution>
+								<id>default-deploy</id>
+								<phase>none</phase>
+							</execution>
+						</executions>
+					</plugin>
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-source-plugin</artifactId>
@@ -401,6 +417,19 @@
 							     Flip to true once the pipeline is trusted. -->
 							<autoPublish>false</autoPublish>
 						</configuration>
+						<!-- Bind publish to deploy explicitly. With Maven 4 the
+						     extension's default-phase auto-binding does not fire, so the
+						     deploy phase runs no goal and nothing is uploaded (build still
+						     goes green). The explicit execution forces the upload. -->
+						<executions>
+							<execution>
+								<id>injected-central-publishing</id>
+								<phase>deploy</phase>
+								<goals>
+									<goal>publish</goal>
+								</goals>
+							</execution>
+						</executions>
 					</plugin>
 				</plugins>
 			</build>
