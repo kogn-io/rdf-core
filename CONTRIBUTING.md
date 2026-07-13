@@ -77,5 +77,6 @@ contribute under that license.
 ## Reporting bugs
 
 Open an issue with a minimal reproduction and the expected vs. actual behaviour.
-For anything security-sensitive, please contact the maintainer privately rather
-than filing a public issue.
+For anything security-sensitive, do **not** file a public issue — use GitHub's
+private vulnerability reporting instead ("Report a vulnerability" under the
+repository's **Security** tab), which reaches the maintainer privately.

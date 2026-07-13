@@ -229,7 +229,7 @@
 					<configuration>
 						<java>
 							<licenseHeader>
-								<file>${project.rootDirectory}/license-header-java.txt</file>
+								<file>${project.rootDirectory}/java-license-header.txt</file>
 							</licenseHeader>
 							<eclipse>
 								<file>${project.rootDirectory}/eclipse-java-formatter.xml</file>

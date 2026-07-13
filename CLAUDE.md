@@ -45,7 +45,7 @@ Central release (`-Pcentral-release`).
 - **ALWAYS read a file before editing** (the build formats via spotless automatically).
 - **License header**: every `.java` carries the SPDX header at the top of the file
   (`// SPDX-License-Identifier: Apache-2.0` + `// Copyright <year> Fred Hauschel`).
-  The source is `license-header-java.txt`; spotless (`licenseHeader`) writes/enforces
+  The source is `java-license-header.txt`; spotless (`licenseHeader`) writes/enforces
   it — `spotless:apply` adds missing ones, `spotless:check` (in `verify`) is the
   CI gate. Exception: `package-info.java` (deliberately skipped by spotless).
 - **Javadoc gate**: the public/protected API must be fully documented.

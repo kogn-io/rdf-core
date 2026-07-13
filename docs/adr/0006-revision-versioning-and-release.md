@@ -35,8 +35,8 @@ The `central-publishing` plugin is the community fork
 official `org.sonatype.central:central-publishing-maven-plugin:0.11.0`: under
 Maven 4 the official plugin stages the raw build POM (with an unresolved
 `${revision}`) as the main POM, which the Portal validator rejects; the fork
-stages the resolved consumer POM. Full analysis in
-`maven4-revision-consumerpom-mre/FINDINGS.md`.
+stages the resolved consumer POM, so the uploaded main POM carries the
+interpolated version and the validator accepts it.
 
 This relies on Maven 4 (pinned via the `./mvnw` wrapper), whose consumer POM
 carries the resolved `${revision}`, so no `flatten-maven-plugin` is needed.
