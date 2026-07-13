@@ -330,11 +330,6 @@
 		     the GitHub move (see kogn-io/rdf#2). -->
 		<profile>
 			<id>central-release</id>
-			<properties>
-				<!-- Central publishing takes over deployment; skip the default
-				     deploy-plugin so nothing is also pushed to the Forgejo registry. -->
-				<maven.deploy.skip>true</maven.deploy.skip>
-			</properties>
 			<build>
 				<plugins>
 					<plugin>
