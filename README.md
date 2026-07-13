@@ -1,5 +1,8 @@
 # Kogn RDF
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Build](https://github.com/kogn-io/rdf-core/actions/workflows/snapshot.yml/badge.svg)](https://github.com/kogn-io/rdf-core/actions/workflows/snapshot.yml)
+
 Technology-agnostic RDF data model, dataset ports and RDF4J backend.
 Provides a clean, framework-free abstraction layer over RDF term types and
 named-graph dataset operations, with an RDF4J implementation that can be swapped
