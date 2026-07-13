@@ -33,11 +33,6 @@ Central release (`-Pcentral-release`).
 ## Conventions
 
 - **Conventional Commits** (`type(scope): subject`), **Semantic Versioning**.
-- **Committer = author identity**: `git commit` stamps the committer from the
-  local git config (here `naturzukunft <naturzukunft@hauschel.de>`); `--author`
-  only sets the author. To keep author *and* committer consistently
-  `Fred Hauschel <info@hauschel.de>`, also set `GIT_COMMITTER_NAME` and
-  `GIT_COMMITTER_EMAIL` per commit — otherwise the history drifts again.
 - `record` for value objects (Commons-RDF-oriented term types).
 - `rdf-terms` stays **library-free** — do not add dependencies there.
 - Follow existing patterns, don't guess — look it up in the code.
