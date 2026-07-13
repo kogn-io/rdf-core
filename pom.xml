@@ -64,7 +64,13 @@
 		<maven-source-plugin.version>3.4.0</maven-source-plugin.version>
 		<maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
 		<maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
-		<central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
+		<!-- Community fork io.github.mavenplugins (not org.sonatype.central): the
+		     official 0.11.0 bundles the raw build POM under Maven 4, staging
+		     <version>${revision}</version> / <revision>*-SNAPSHOT</revision> as the
+		     main POM, which the Central Portal validator rejects. The fork stages
+		     the resolved consumer POM as the main POM, so ${revision} is interpolated
+		     before upload. See ADR-0006. -->
+		<central-publishing-maven-plugin.version>1.3.0</central-publishing-maven-plugin.version>
 		<!-- Maven 4 default-binding plugins, pinned to silence the "version not
 		     locked" warnings (previously inherited from spring-boot-starter-parent). -->
 		<maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
@@ -440,7 +446,7 @@
 						</executions>
 					</plugin>
 					<plugin>
-						<groupId>org.sonatype.central</groupId>
+						<groupId>io.github.mavenplugins</groupId>
 						<artifactId>central-publishing-maven-plugin</artifactId>
 						<version>${central-publishing-maven-plugin.version}</version>
 						<extensions>true</extensions>
