@@ -17,6 +17,8 @@ Licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF data model — technology-agnostic term interfaces, graph types and vocabulary constants. Zero external dependencies. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetTransactor`, `DatasetTx`, `DatasetLifecycle` (open-or-create/close/delete/list by opaque `DatasetId`, lease-protected; `acquire` returns a leased `DatasetHandle` — an access handle, not an RDF dataset). |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J backend implementing the dataset ports. |
+| `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Standalone SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning a neutral `ShaclReport`. Depends only on `rdf-terms` — no rdf4j. |
+| `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J backend for the SHACL port (wraps `ShaclValidator`). Store-independent — no dependency on the dataset modules. |
 
 These modules were extracted from a larger RDF stack; the `io.kogn.*` group id
 reflects that origin. The library itself is deliberately framework- and

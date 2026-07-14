@@ -15,3 +15,4 @@ not a historical log of every change that led here.
 | [0004](0004-converter-based-interop.md) | Converter-based cross-implementation interop |
 | [0005](0005-rdf4j-backend-for-dataset-ports.md) | RDF4J backend for the dataset ports |
 | [0006](0006-revision-versioning-and-release.md) | CI-friendly versioning with `${revision}` and tag-triggered releases |
+| [0007](0007-standalone-shacl-validation-port.md) | Standalone, non-transactional SHACL validation port |
