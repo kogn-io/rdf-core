@@ -37,6 +37,8 @@
 		<module>rdf-terms</module>
 		<module>rdf-dataset</module>
 		<module>rdf-dataset-rdf4j</module>
+		<module>rdf-shacl</module>
+		<module>rdf-shacl-rdf4j</module>
 	</modules>
 
 	<scm>
@@ -110,6 +112,11 @@
 			</dependency>
 			<dependency>
 				<groupId>org.eclipse.rdf4j</groupId>
+				<artifactId>rdf4j-model-vocabulary</artifactId>
+				<version>${rdf4j.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.rdf4j</groupId>
 				<artifactId>rdf4j-repository-api</artifactId>
 				<version>${rdf4j.version}</version>
 			</dependency>
@@ -131,6 +138,16 @@
 			<dependency>
 				<groupId>org.eclipse.rdf4j</groupId>
 				<artifactId>rdf4j-sail-nativerdf</artifactId>
+				<version>${rdf4j.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.rdf4j</groupId>
+				<artifactId>rdf4j-sail-api</artifactId>
+				<version>${rdf4j.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.eclipse.rdf4j</groupId>
+				<artifactId>rdf4j-shacl</artifactId>
 				<version>${rdf4j.version}</version>
 			</dependency>
 			<dependency>
@@ -166,6 +183,16 @@
 			<dependency>
 				<groupId>io.kogn.rdf</groupId>
 				<artifactId>rdf-dataset-rdf4j</artifactId>
+				<version>${revision}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.kogn.rdf</groupId>
+				<artifactId>rdf-shacl</artifactId>
+				<version>${revision}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.kogn.rdf</groupId>
+				<artifactId>rdf-shacl-rdf4j</artifactId>
 				<version>${revision}</version>
 			</dependency>
 		</dependencies>
