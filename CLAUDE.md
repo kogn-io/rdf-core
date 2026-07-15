@@ -34,6 +34,16 @@ Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.
 it, pull requests target it. There is no `develop`; a maintenance branch is cut
 only if an older line ever needs a patch.
 
+A **ruleset enforces this**, it is not a habit you can skip: `main` takes no
+direct pushes, and there is no bypass — the rule binds admins as well. Every
+change lands through a pull request on which CodeQL must have reported. No
+approving review is required (single maintainer), so a green pull request can be
+merged by its own author. Only `error`-level alerts and security alerts of `high`
+or worse block the merge; `note`-level findings do not — they surface in the
+Security tab instead of standing in the way, so quality findings still need
+someone to look. Releases are unaffected: `release.yml` pushes the `vX.Y.Z` tag
+only, never a commit on `main`.
+
 Deployment runs **exclusively through CI** (GitHub Actions), never locally:
 
 - **Snapshot** — every push to `main` deploys the current `${revision}` (default
