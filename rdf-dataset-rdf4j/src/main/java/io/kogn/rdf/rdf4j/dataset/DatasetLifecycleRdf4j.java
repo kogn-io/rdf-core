@@ -45,6 +45,23 @@ import lombok.extern.slf4j.Slf4j;
  * exposes the RDF4J {@code Repository} — callers only ever see the neutral port
  * types via a leased {@link DatasetHandle}.</p>
  *
+ * <h2>One instance per storage location</h2>
+ *
+ * <p>An instance <strong>owns its {@code storageRoot} exclusively</strong>. Each
+ * dataset's store is cached in this instance and held open, and RDF4J's
+ * {@link NativeStore} locks its directory. Two lifecycles over the same
+ * {@code storageRoot} therefore do not share the physical store: the second one
+ * fails with RDF4J's {@code RepositoryLockedException} as soon as it touches the
+ * same {@link DatasetId}.</p>
+ *
+ * <p>So construct <strong>one</strong> lifecycle per storage location and share it
+ * across every logical repository that reads or writes there — a single injected
+ * bean, not one instance per consuming component. Sharing the instance is also what
+ * makes cross-repository reads within one dataset work at all, since only then do
+ * the readers see the same store. The lock is held by the operating-system process,
+ * so a second JVM over the same directory fails the same way; no in-process
+ * arrangement can avoid that.</p>
+ *
  * <h2>In-flight protection</h2>
  *
  * <p>Each dataset is held in a {@link ManagedDataset} carrying a lease count.
