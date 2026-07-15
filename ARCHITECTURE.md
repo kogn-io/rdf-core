@@ -112,10 +112,11 @@ types to callers ([ADR-0005](docs/adr/0005-rdf4j-backend-for-dataset-ports.md)):
 ## Build & release
 
 Java 25, built with the pinned Maven wrapper (`./mvnw`). The version is a single
-`${revision}` property; releases are Git tags, deployed only by CI
-([ADR-0006](docs/adr/0006-revision-versioning-and-release.md)). See the
-[README](README.md) and [CONTRIBUTING](CONTRIBUTING.md) for the day-to-day
-commands.
+`${revision}` property; a release is a manually triggered CI workflow on `main`,
+which tags the commit `vX.Y.Z` only after a successful upload — pushing a tag by
+hand triggers nothing ([ADR-0006](docs/adr/0006-revision-versioning-and-release.md)).
+Deployment runs exclusively through CI, never locally. See the [README](README.md)
+and [CONTRIBUTING](CONTRIBUTING.md) for the day-to-day commands.
 
 ## Non-goals
 
