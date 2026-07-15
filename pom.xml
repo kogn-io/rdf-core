@@ -52,14 +52,14 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<maven.compiler.release>25</maven.compiler.release>
-		<maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
+		<maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
 		<rdf4j.version>6.0.0</rdf4j.version>
 		<slf4j.version>2.0.18</slf4j.version>
 		<lombok.version>1.18.46</lombok.version>
 		<jmolecules.version>2.0.1</jmolecules.version>
-		<maven-surefire-plugin.version>3.5.4</maven-surefire-plugin.version>
+		<maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
 		<spotless-maven-plugin.version>2.43.0</spotless-maven-plugin.version>
-		<jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
+		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
 		<!-- Maven Central release (central-release profile): sources + javadoc jars,
 		     GPG signing, Sonatype Central publishing. Host-independent (talks to
 		     Sonatype, not the git host), so pinned here regardless of the git move. -->
@@ -75,13 +75,13 @@
 		<central-publishing-maven-plugin.version>1.3.0</central-publishing-maven-plugin.version>
 		<!-- Maven 4 default-binding plugins, pinned to silence the "version not
 		     locked" warnings (previously inherited from spring-boot-starter-parent). -->
-		<maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
-		<maven-jar-plugin.version>3.4.2</maven-jar-plugin.version>
-		<maven-install-plugin.version>3.1.3</maven-install-plugin.version>
-		<maven-deploy-plugin.version>3.1.3</maven-deploy-plugin.version>
+		<maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
+		<maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
+		<maven-install-plugin.version>3.1.4</maven-install-plugin.version>
+		<maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
 		<!-- Test-scope only (zero consumer impact). No parent BOM to inherit these
 		     from, so they are pinned here to current stable versions. -->
-		<junit.version>6.1.1</junit.version>
+		<junit.version>6.1.2</junit.version>
 		<assertj.version>3.27.7</assertj.version>
 	</properties>
 
