@@ -83,6 +83,15 @@ idle/TTL *policy* lives with the consumer. `DatasetStoreConfig` carries only
 backend-neutral knobs (persistence, full-text-search requirement); engine
 specifics never enter the port layer.
 
+A persistent lifecycle **owns its storage location exclusively**: it caches each
+dataset's store and holds it open, and the backing engine locks the directory.
+Two lifecycles over the same storage root therefore do not share the physical
+store — the second one fails on the lock. Construct one lifecycle per storage
+location and share it across every logical repository that reads or writes
+there; that is also what makes cross-repository reads within a dataset possible
+at all. The lock is process-held, so a second JVM over the same directory fails
+the same way — no in-process arrangement avoids it.
+
 ## The RDF4J adapter (`rdf-dataset-rdf4j`)
 
 Implements every port on top of an RDF4J `Repository`, without leaking RDF4J
