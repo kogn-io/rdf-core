@@ -32,7 +32,7 @@ Things to raise in an issue first:
 
 ## Working on a change
 
-- Branch off `develop`; pull requests target `develop`.
+- Branch off `main`; pull requests target `main`.
 - Keep pull requests **small and focused** — one concern per PR. Split unrelated
   changes.
 - Follow existing patterns in the code; look before you guess.

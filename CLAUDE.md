@@ -28,9 +28,27 @@ Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.
 ./mvnw -pl <module> test
 ```
 
-Deployment runs **exclusively through CI** (GitHub Actions), not locally: push to
-`develop` → snapshot to the Maven Central Portal snapshot repo; tag `vX.Y.Z` →
-Central release (`-Pcentral-release`).
+## Branches & releases
+
+`main` is the only long-lived branch and the default — feature branches fork off
+it, pull requests target it. There is no `develop`; a maintenance branch is cut
+only if an older line ever needs a patch.
+
+Deployment runs **exclusively through CI** (GitHub Actions), never locally:
+
+- **Snapshot** — every push to `main` deploys the current `${revision}` (default
+  `0.0.1-SNAPSHOT`) to the Maven Central Portal snapshot repository.
+- **Release** — start the *Release to Maven Central* workflow by hand on `main`
+  (Actions tab, or `gh workflow run release.yml -f version=X.Y.Z --ref main`);
+  the version goes in without a leading `v`. It builds with `-Drevision=X.Y.Z
+  -Pcentral-release`, GPG-signs, uploads the bundle, and only then tags the
+  commit `vX.Y.Z` and cuts a GitHub release — so a failed run leaves no tag
+  behind. Pushing a `v*` tag by hand triggers nothing.
+
+The POM sets `autoPublish=false`: Central validates the bundle, and the final
+"Publish" is confirmed by hand in the portal. The tag therefore marks *uploaded*,
+not *published*. Afterwards bump `<revision>` in the root POM to the next
+`-SNAPSHOT`.
 
 ## Conventions
 

@@ -385,7 +385,7 @@
 		<!-- Releases go to the Sonatype Central Portal via the central-publishing
 		     plugin (see the central-release profile), not through this section.
 		     Snapshots (default ${revision} = *-SNAPSHOT) are deployed here by the
-		     GitHub snapshot workflow on push to develop. The <id> matches the
+		     GitHub snapshot workflow on push to main. The <id> matches the
 		     Central token <server> in the CI settings.xml. -->
 		<snapshotRepository>
 			<id>central</id>

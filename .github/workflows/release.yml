@@ -1,13 +1,23 @@
 name: Release to Maven Central
 
-# Release = a Git tag `vX.Y.Z`. The version is derived from the tag name (leading
-# `v` stripped) and passed via -Drevision=X.Y.Z so Maven 4 resolves ${revision}
-# in all module POMs and writes fully-resolved consumer POMs. The default
-# <revision> in pom.xml is NOT changed; snapshots keep running via snapshot.yml.
+# Release = a MANUAL run of this workflow on main (Actions tab → "Run workflow",
+# or `gh workflow run release.yml -f version=X.Y.Z --ref main`). Pushing a `v*`
+# tag by hand triggers nothing — that is deliberate: a stray tag on a feature
+# branch can no longer publish unmerged code.
+#
+# The version comes from the `version` input and is passed via -Drevision=X.Y.Z,
+# so Maven 4 resolves ${revision} in all module POMs and writes fully-resolved
+# consumer POMs. The default <revision> in pom.xml is NOT changed; snapshots keep
+# running via snapshot.yml.
 #
 # The `central-release` profile signs the artifacts (GPG) and uploads a bundle to
 # the Sonatype Central Portal. autoPublish=false (see pom.xml): the bundle is
 # validated, then "Publish" is confirmed manually in the Central portal.
+#
+# The tag `vX.Y.Z` and the GitHub release are created only AFTER the upload
+# succeeds, so a failed run never leaves a tag behind. Note what they mark:
+# "bundle uploaded and validated", not "published" — the portal confirmation is
+# still a manual step afterwards.
 #
 # Required repository secrets:
 #   CENTRAL_TOKEN_USERNAME / CENTRAL_TOKEN_PASSWORD  Sonatype Central portal token
@@ -15,14 +25,14 @@ name: Release to Maven Central
 #   GPG_PASSPHRASE                                   passphrase for that key
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Release version, e.g. 0.1.0 (no leading v)'
         required: true
+
+permissions:
+  contents: write # push the tag and cut the GitHub release
 
 jobs:
   release:
@@ -30,6 +40,27 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags are needed to reject a version that already exists
+
+      # The "Run workflow" dropdown offers every branch, so the ref is checked
+      # here rather than trusted. A loud failure beats a silently skipped job.
+      - name: Validate release ref and version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_REF_NAME" != 'main' ]; then
+            echo "::error::Releases are cut from main only — this run targets '$GITHUB_REF_NAME'."
+            exit 1
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::'$VERSION' is not a SemVer release version (expected X.Y.Z, no leading v)."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists — a released version is never rebuilt."
+            exit 1
+          fi
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -42,24 +73,26 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
-      - name: Resolve release version
-        id: version
-        run: |
-          VERSION="${{ github.event.inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          fi
-          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION"
-
-      - name: Build, sign and publish to Central
-        run: >
-          ./mvnw -B --no-transfer-progress -T 2C
-          -Pcentral-release
-          -Drevision=${{ steps.version.outputs.value }}
-          -Dgpg.pinentryMode=loopback
-          deploy
+      - name: Build, sign and upload the bundle to Central
         env:
+          VERSION: ${{ inputs.version }}
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: >
+          ./mvnw -B --no-transfer-progress -T 2C
+          -Pcentral-release
+          -Drevision="$VERSION"
+          -Dgpg.pinentryMode=loopback
+          deploy
+
+      - name: Tag the released commit and cut the GitHub release
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "v$VERSION" -m "Release $VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes --verify-tag

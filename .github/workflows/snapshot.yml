@@ -1,10 +1,10 @@
 name: Deploy snapshot to Central
 
-# Snapshot pipeline for the io.kogn.rdf OSS vertical. On push to develop the job
-# builds, tests and deploys the three artifacts (rdf-terms, rdf-dataset,
-# rdf-dataset-rdf4j) + parent POM as SNAPSHOT (default ${revision} =
-# 0.0.1-SNAPSHOT) to the Sonatype Central Portal snapshot repository. Other
-# branches / PRs only build + test (no deploy).
+# Snapshot pipeline for the io.kogn.rdf OSS vertical. On push to main the job
+# builds, tests and deploys the module artifacts (rdf-terms, rdf-dataset,
+# rdf-dataset-rdf4j, rdf-shacl, rdf-shacl-rdf4j) + parent POM as SNAPSHOT
+# (default ${revision} = 0.0.1-SNAPSHOT) to the Sonatype Central Portal snapshot
+# repository. Pull requests and other branches only build + test (no deploy).
 #
 # The Central snapshot repo does not require signatures, so no GPG here — plain
 # `deploy` targets the <snapshotRepository id=central> from the POM's
@@ -16,10 +16,10 @@ name: Deploy snapshot to Central
 on:
   push:
     branches:
-      - develop
+      - main
   pull_request:
     branches:
-      - develop
+      - main
   workflow_dispatch:
 
 jobs:
@@ -38,15 +38,15 @@ jobs:
           server-username: CENTRAL_TOKEN_USERNAME
           server-password: CENTRAL_TOKEN_PASSWORD
 
-      # Deploy only from the canonical repo's develop branch. Forks that push to
-      # their own develop (workflow copy, no secrets) skip this and just build.
-      - name: Build, test and deploy snapshot (develop → Central)
-        if: github.ref_name == 'develop' && github.repository == 'kogn-io/rdf-core'
+      # Deploy only from the canonical repo's main branch. Forks that push to
+      # their own main (workflow copy, no secrets) skip this and just build.
+      - name: Build, test and deploy snapshot (main → Central)
+        if: github.ref_name == 'main' && github.repository == 'kogn-io/rdf-core'
         run: ./mvnw -B --no-transfer-progress -T 2C deploy
         env:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
 
       - name: Build and test (PRs / other branches / forks)
-        if: ${{ !(github.ref_name == 'develop' && github.repository == 'kogn-io/rdf-core') }}
+        if: ${{ !(github.ref_name == 'main' && github.repository == 'kogn-io/rdf-core') }}
         run: ./mvnw -B --no-transfer-progress -T 2C verify
