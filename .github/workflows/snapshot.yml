@@ -22,6 +22,11 @@ on:
       - main
   workflow_dispatch:
 
+# Least privilege, pinned rather than inherited: the job only reads the code —
+# the Central credentials come from secrets, not from GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
