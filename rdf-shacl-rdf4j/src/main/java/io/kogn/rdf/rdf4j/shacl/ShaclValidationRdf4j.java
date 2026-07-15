@@ -37,6 +37,15 @@ import io.kogn.rdf.terms.ReadableGraph;
  * no state is shared across calls, matching the stateless, non-transactional contract
  * of the port.</p>
  *
+ * <h2>Where RDFS axioms may live</h2>
+ *
+ * <p>With {@link ValidationOptions#rdfsSubClassReasoning()} enabled, this adapter picks the
+ * {@code rdfs:subClassOf} axioms up from <em>either</em> input graph — they may sit with the
+ * {@code data} or with the {@code shapes}, and both make a shape targeting a superclass fire
+ * on subclass-typed instances. Consumers therefore need not merge ontology axioms into their
+ * candidate data. Note the axioms must be present <em>somewhere</em>: without them the option
+ * is a silent no-op, as described on {@link ValidationOptions}.</p>
+ *
  * <h2>Conformance differs from RDF4J's own {@code ValidationReport.conforms()}</h2>
  *
  * <p>RDF4J's native report considers <em>any</em> reported result — regardless of

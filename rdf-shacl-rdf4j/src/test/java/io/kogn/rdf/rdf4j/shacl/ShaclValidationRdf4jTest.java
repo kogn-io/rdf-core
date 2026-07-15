@@ -146,6 +146,46 @@ class ShaclValidationRdf4jTest {
     assertThat(report.results().get(0).severity()).isEqualTo(Severity.VIOLATION);
   }
 
+  /**
+   * Pins where the {@code rdfs:subClassOf} axioms may live: this backend picks them up from the
+   * <em>shapes</em> graph too, not only from the data graph (as
+   * {@link #rdfsSubClassReasoningEnabledFiresOnSubclassInstances()} covers). Both placements
+   * work, so a consumer need not merge ontology axioms into its candidate data.
+   */
+  @Test
+  void rdfsSubClassReasoningAlsoFiresWhenAxiomsLiveInTheShapesGraph() {
+    Graph shapes = animalShapeRequiringName();
+    shapes.add(ex("Dog"), subClassOf(), ex("Animal"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("rex"), a(), ex("Dog"));
+    // no ex:name -> violates sh:minCount 1 once the shape fires via subclass reasoning
+
+    ShaclReport report = validation.validate(data, shapes, new ValidationOptions(true));
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).hasSize(1);
+    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex").getIRIString());
+  }
+
+  /**
+   * Pins the actual trap: the flag reasons over axioms that are present, it does not invent
+   * them. With no {@code rdfs:subClassOf} axiom in either input graph, enabling the option is a
+   * silent no-op — the shape never fires and validation reports success.
+   */
+  @Test
+  void rdfsSubClassReasoningWithoutAnyAxiomIsASilentNoOp() {
+    Graph shapes = animalShapeRequiringName();
+
+    Graph data = rdf.createGraph();
+    data.add(ex("rex"), a(), ex("Dog"));
+
+    ShaclReport report = validation.validate(data, shapes, new ValidationOptions(true));
+
+    assertThat(report.conforms()).isTrue();
+    assertThat(report.results()).isEmpty();
+  }
+
   private Graph personShapeRequiringName() {
     Graph shapes = rdf.createGraph();
     IRI personShape = ex("PersonShape");
