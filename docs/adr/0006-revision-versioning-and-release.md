@@ -67,8 +67,7 @@ carries the resolved `${revision}`, so no `flatten-maven-plugin` is needed.
 - Maven 4 is currently a release candidate — a deliberate interim until GA.
 - After each release the `<revision>` property is moved to the next development
   version by hand.
-- The `${revision}` + `central-publishing` mechanism is proven end-to-end (a
-  Portal-validated bundle was produced under the earlier tag trigger); the
-  dispatch trigger itself is unproven until the first real release. The first
-  `io.kogn.rdf` release is deferred by choice; consumers use `0.0.1-SNAPSHOT`
-  until then.
+- The `${revision}` + `central-publishing` mechanism, including the
+  `workflow_dispatch` trigger itself, is proven end-to-end: `v0.1.0` (2026-07-17)
+  was built, signed, uploaded, tagged and published through this exact workflow
+  with no surprises.

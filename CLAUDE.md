@@ -46,8 +46,9 @@ only, never a commit on `main`.
 
 Deployment runs **exclusively through CI** (GitHub Actions), never locally:
 
-- **Snapshot** — every push to `main` deploys the current `${revision}` (default
-  `0.0.1-SNAPSHOT`) to the Maven Central Portal snapshot repository.
+- **Snapshot** — every push to `main` deploys the current `${revision}` (a
+  `*-SNAPSHOT`, see the root POM for the exact value) to the Maven Central
+  Portal snapshot repository.
 - **Release** — start the *Release to Maven Central* workflow by hand on `main`
   (Actions tab, or `gh workflow run release.yml -f version=X.Y.Z --ref main`);
   the version goes in without a leading `v`. It builds with `-Drevision=X.Y.Z
