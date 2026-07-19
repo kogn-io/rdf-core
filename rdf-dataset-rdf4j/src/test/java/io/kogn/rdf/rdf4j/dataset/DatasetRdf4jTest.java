@@ -7,10 +7,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
+import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
+import org.eclipse.rdf4j.sail.SailConflictException;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -423,6 +429,82 @@ class DatasetRdf4jTest {
 
       // then
       assertThat(found).isTrue();
+    }
+
+    @Test
+    @DisplayName("overlapping transactions racing an ASK-guarded write — the loser's commit fails, only one write wins")
+    void inTransaction_overlappingAskGuardedWrites_loserCommitFails() throws InterruptedException {
+      // given — both transactions check "does this resource already have a value?" before writing.
+      // A barrier makes both ASKs happen before either write (the ASK-guard-defeat scenario from
+      // issue #17); a latch then forces the second transaction's commit to happen strictly after the
+      // first's, so the outcome — who wins the race — is deterministic instead of flaky.
+      final String askGuard = "ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
+          + PREDICATE.getIRIString() + "> ?o } }";
+      final CyclicBarrier bothGuardsChecked = new CyclicBarrier(2);
+      final CountDownLatch firstCommitted = new CountDownLatch(1);
+      final AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+
+      final Thread winner = new Thread(() -> {
+        transactor.inTransaction(tx -> {
+          tx.ask(askGuard);
+          awaitUninterruptibly(bothGuardsChecked);
+          tx.add(GRAPH_1, valueTriple("value-1"));
+          return null;
+        });
+        firstCommitted.countDown();
+      });
+      final Thread loser = new Thread(() -> {
+        try {
+          transactor.inTransaction(tx -> {
+            final boolean alreadyPresent = tx.ask(askGuard);
+            awaitUninterruptibly(bothGuardsChecked);
+            awaitUninterruptibly(firstCommitted);
+            if (!alreadyPresent) {
+              tx.add(GRAPH_1, valueTriple("value-2"));
+            }
+            return null;
+          });
+        } catch (RuntimeException e) {
+          secondFailure.set(e);
+        }
+      });
+
+      // when
+      winner.start();
+      loser.start();
+      winner.join();
+      loser.join();
+
+      // then — the loser's commit is rejected as a conflict, the store holds exactly the winner's write
+      assertThat(secondFailure.get()).isInstanceOf(RepositoryException.class)
+          .hasRootCauseInstanceOf(SailConflictException.class);
+      assertThat(store.count(GRAPH_1)).isEqualTo(1L);
+    }
+
+    private Graph valueTriple(final String value) {
+      final Graph graph = rdf.createGraph();
+      graph.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral(value)));
+      return graph;
+    }
+
+    private void awaitUninterruptibly(final CyclicBarrier barrier) {
+      try {
+        barrier.await();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(e);
+      } catch (BrokenBarrierException e) {
+        throw new IllegalStateException(e);
+      }
+    }
+
+    private void awaitUninterruptibly(final CountDownLatch latch) {
+      try {
+        latch.await();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(e);
+      }
     }
   }
 }

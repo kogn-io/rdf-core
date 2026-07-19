@@ -23,6 +23,21 @@ import java.util.function.Function;
  *
  * <p>Implementations must not allow nested transactions. Callers must not retain
  * a reference to the {@link DatasetTx} instance after the function returns.</p>
+ *
+ * <p><strong>Isolation:</strong> implementations must serialize overlapping
+ * transactions against the same dataset — two concurrent {@code inTransaction}
+ * calls that observe (read) and then act on the same state must not both
+ * succeed if a concurrently committed change would have invalidated what either
+ * one observed. Concretely, if a caller reads a condition (e.g. "does this
+ * business identifier already exist?") and writes based on it, and two such
+ * calls race, at most one may commit unchanged; the other must fail with a
+ * {@link RuntimeException} rather than silently commit on stale state. This is
+ * what makes an {@code ASK}-then-write guard inside {@code work} safe under
+ * concurrency: a losing transaction is rejected loudly at commit time, not
+ * merged silently. Callers that rely on such a guard should be prepared to
+ * catch that {@link RuntimeException} and retry the whole
+ * {@code inTransaction} call; the exact exception type is
+ * implementation-specific (see the implementing class's Javadoc).</p>
  */
 public interface DatasetTransactor {
 
@@ -36,7 +51,9 @@ public interface DatasetTransactor {
    * @param <T> the result type produced by {@code work}
    * @param work the operations to execute; must not be {@code null}
    * @return the value returned by {@code work}
-   * @throws RuntimeException re-thrown from {@code work} after rollback
+   * @throws RuntimeException re-thrown from {@code work} after rollback, or thrown
+   *     on commit if this transaction lost a race against a concurrently
+   *     committed, conflicting transaction on the same dataset (see class Javadoc)
    */
   <T> T inTransaction(Function<DatasetTx, T> work);
 }
