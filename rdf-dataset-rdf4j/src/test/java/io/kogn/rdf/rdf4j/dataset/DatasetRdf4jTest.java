@@ -438,6 +438,13 @@ class DatasetRdf4jTest {
       // A barrier makes both ASKs happen before either write (the ASK-guard-defeat scenario from
       // issue #17); a latch then forces the second transaction's commit to happen strictly after the
       // first's, so the outcome — who wins the race — is deterministic instead of flaky.
+      //
+      // The seed is load-bearing, not scenery: it puts GRAPH_1, SUBJECT and PREDICATE into the store
+      // *before* the race, without satisfying the guard. A SERIALIZABLE guard read over IRIs the
+      // store has never seen does not reliably register an observation, so the conflict below goes
+      // undetected in roughly 6% of runs — see the "Limits" section on DatasetTransactorRdf4j and
+      // issue #23. Without the seed this test is flaky because the guarantee itself is.
+      store.add(GRAPH_1, seedTriples());
       final String askGuard = "ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
           + PREDICATE.getIRIString() + "> ?o } }";
       final CyclicBarrier bothGuardsChecked = new CyclicBarrier(2);
@@ -475,10 +482,24 @@ class DatasetRdf4jTest {
       winner.join();
       loser.join();
 
-      // then — the loser's commit is rejected as a conflict, the store holds exactly the winner's write
+      // then — the loser's commit is rejected as a conflict, the store holds the two seed triples
+      // plus exactly one of the two racing writes
       assertThat(secondFailure.get()).isInstanceOf(RepositoryException.class)
           .hasRootCauseInstanceOf(SailConflictException.class);
-      assertThat(store.count(GRAPH_1)).isEqualTo(1L);
+      assertThat(store.count(GRAPH_1)).isEqualTo(3L);
+    }
+
+    /**
+     * Two triples that make GRAPH_1, SUBJECT and PREDICATE known to the store without satisfying
+     * {@code ASK { GRAPH GRAPH_1 { SUBJECT PREDICATE ?o } }}.
+     */
+    private Graph seedTriples() {
+      final Graph graph = rdf.createGraph();
+      graph
+          .add(rdf.createTriple(SUBJECT, RDF4JIRI.of("https://example.org/seed-predicate"), rdf.createLiteral("seed")));
+      graph
+          .add(rdf.createTriple(RDF4JIRI.of("https://example.org/seed-subject"), PREDICATE, rdf.createLiteral("seed")));
+      return graph;
     }
 
     private Graph valueTriple(final String value) {
