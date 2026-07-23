@@ -68,9 +68,10 @@ concern:
   unit-of-work (`inTransaction(work)`; roll back on any exception). Besides the
   SPARQL operations, `DatasetTx` carries `contains(graph, s, p, o)` with `null`
   as wildcard: a guard read stated as a statement pattern rather than as a query,
-  so a backend can register it as an observation and protect it under its
-  isolation level. Optimistic-concurrency guards belong here, not in `ask` — see
-  the "Limits" notes on `DatasetTransactorRdf4j`.
+  so a backend can answer it from its own pattern lookup instead of through query
+  evaluation — the longer path, and the one on which a backend can lose the
+  conflict. Optimistic-concurrency guards belong here, not in `ask` — see the
+  "Limits" notes on `DatasetTransactorRdf4j`.
 - **`DatasetLifecycle`** — open-or-create / close / delete / list datasets,
   addressed by an opaque `DatasetId`.
 

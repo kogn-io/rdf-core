@@ -84,14 +84,16 @@ public interface DatasetTx {
    * "does {@code s} already have any value for {@code p} in {@code g}?".</p>
    *
    * <p><strong>Prefer this over {@link #ask(String)} for optimistic-concurrency
-   * guards.</strong> A guard read is only protected by the transaction's isolation
-   * level if the backend recorded the statement pattern as observed, and a SPARQL
-   * evaluation path need not do so for a pattern whose terms the store has never
-   * seen — precisely the "is this brand-new resource already taken?" case. This
-   * method states the pattern directly, so implementations can hand it to the
-   * backend's own pattern lookup and the observation is registered. See the
-   * implementation notes on {@link DatasetTransactor} for what its isolation
-   * guarantee does and does not cover.</p>
+   * guards.</strong> Whether a guard read is protected by the transaction's isolation
+   * level depends on how the backend evaluates it, and evaluating a query is the
+   * longer path: it may rewrite the pattern's terms before matching them, which is
+   * where a backend can lose the connection between the guard and the write it is
+   * meant to guard — precisely in the "is this brand-new resource already taken?"
+   * case. This method states the pattern directly, so an implementation can answer it
+   * from the backend's own pattern lookup. For the RDF4J backend the difference is
+   * measured and the cause identified; see the implementation notes on
+   * {@link DatasetTransactor} for what its isolation guarantee does and does not
+   * cover.</p>
    *
    * @param namedGraph IRI identifying the named graph to search; must not be {@code null}
    * @param subject the subject to match, or {@code null} for any subject
