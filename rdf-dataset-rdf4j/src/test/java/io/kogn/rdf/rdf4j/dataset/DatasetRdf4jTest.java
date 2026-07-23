@@ -432,8 +432,10 @@ class DatasetRdf4jTest {
     }
 
     @Test
-    @DisplayName("overlapping transactions racing an ASK-guarded write — the loser's commit fails, only one write wins")
-    void inTransaction_overlappingAskGuardedWrites_loserCommitFails() throws InterruptedException {
+    @DisplayName("overlapping transactions racing an ASK-guarded write, guard IRIs already known to the store"
+        + " — the loser's commit fails, only one write wins")
+    void inTransaction_overlappingAskGuardedWrites_whenGuardIrisKnownToStore_loserCommitFails()
+        throws InterruptedException {
       // given — both transactions check "does this resource already have a value?" before writing.
       // A barrier makes both ASKs happen before either write (the ASK-guard-defeat scenario from
       // issue #17); a latch then forces the second transaction's commit to happen strictly after the

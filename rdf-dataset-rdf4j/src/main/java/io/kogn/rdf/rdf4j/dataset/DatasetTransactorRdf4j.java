@@ -52,10 +52,8 @@ import io.kogn.rdf.dataset.DatasetTx;
  * likewise when the guard reads through
  * {@code RepositoryConnection#hasStatement} instead of SPARQL. So: this is optimistic
  * concurrency that holds for updates to existing data, and must not be leaned on as
- * the sole uniqueness gate for first-time inserts. Tracked in issue #23.</p>
- *
- * <p>The transaction pattern mirrors the batch path in
- * {@code GraphCommandServiceImpl.saveDraftAndPublishBatch}.</p>
+ * the sole uniqueness gate for first-time inserts. Tracked in
+ * <a href="https://github.com/kogn-io/rdf-core/issues/23">issue 23</a>.</p>
  */
 public class DatasetTransactorRdf4j implements DatasetTransactor {
 
