@@ -31,7 +31,8 @@ independent of the store:
 - **`rdf-shacl`** (port) — `ShaclValidation.validate(data, shapes, options)`
   operating on `io.kogn.rdf.terms.ReadableGraph`, returning a neutral value
   object `ShaclReport(conforms, results)` / `ShaclResult(focusNode, path,
-  severity, message)` / `Severity{VIOLATION, WARNING, INFO}`, plus
+  severity, messages)` / `ShaclMessage(text, language)` /
+  `Severity{VIOLATION, WARNING, INFO}`, plus
   `ValidationOptions`. The module depends **only on `rdf-terms`** — no rdf4j,
   no `File`, no backend type on the port (enforced by a structural test).
 - **`rdf-shacl-rdf4j`** (adapter) — wraps `ShaclValidator` and maps its report
@@ -48,6 +49,18 @@ Settled semantics:
   result (regardless of severity) as non-conforming, which contradicts this — so
   the adapter ignores it and recomputes `conforms` from the mapped severities,
   re-checked by `ShaclReport`'s own invariant.
+- **Messages are handed over whole; language selection is not the port's job.**
+  A shape may carry one `sh:message` per language, so `ShaclResult.messages`
+  carries *every* `sh:resultMessage` as a `ShaclMessage` with its language tag
+  intact (`language == null` for an untagged literal; a blank tag is rejected so
+  `""` cannot pass for a language). The port picks none of them and ships no
+  picker: a fallback chain is a deployment decision — which language was
+  requested, which the deployment defaults to, whether an untagged literal beats
+  a foreign-tagged one — and belongs where that context exists. The order of
+  `messages` is a parse-order artifact of the shapes graph and carries no
+  meaning; callers select by tag. Superseding the earlier single `String
+  message`, which reduced multilingual shapes to one arbitrarily chosen,
+  tag-stripped text (issue #20).
 - **RDFS subclass reasoning is an opt-in option** (`ValidationOptions
   .rdfsSubClassReasoning`, default `false`). Real and load-bearing: a shape may
   `sh:targetClass` an abstract superclass while instances carry only a subclass

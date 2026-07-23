@@ -22,6 +22,7 @@ import org.eclipse.rdf4j.sail.shacl.results.ValidationReport;
 
 import io.kogn.rdf.rdf4j.shacl.internal.GraphModelConverter;
 import io.kogn.rdf.shacl.Severity;
+import io.kogn.rdf.shacl.ShaclMessage;
 import io.kogn.rdf.shacl.ShaclReport;
 import io.kogn.rdf.shacl.ShaclResult;
 import io.kogn.rdf.shacl.ShaclValidation;
@@ -53,6 +54,14 @@ import io.kogn.rdf.terms.ReadableGraph;
  * itself: only {@link Severity#VIOLATION} results make the report non-conforming;
  * {@code sh:Warning} and {@code sh:Info} results are carried in
  * {@link ShaclReport#results()} but never flip {@code conforms} to {@code false}.</p>
+ *
+ * <h2>Every {@code sh:resultMessage} is mapped</h2>
+ *
+ * <p>All {@code sh:resultMessage} statements of a validation result reach
+ * {@link ShaclResult#messages()} as {@link io.kogn.rdf.shacl.ShaclMessage}s with their
+ * language tags intact — a shape carrying one message per language surfaces all of them,
+ * and this adapter selects none. Their order is whatever the underlying report model
+ * yields (in practice the parse order of the shapes graph) and carries no meaning.</p>
  */
 public final class ShaclValidationRdf4j implements ShaclValidation {
 
@@ -114,8 +123,25 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     String path = firstObject(model, resultId, SHACL.RESULT_PATH).map(Value::stringValue).orElse(null);
     Severity severity = firstObject(model, resultId, SHACL.RESULT_SEVERITY).map(ShaclValidationRdf4j::toSeverity)
         .orElse(Severity.VIOLATION);
-    String message = firstObject(model, resultId, SHACL.RESULT_MESSAGE).map(Value::stringValue).orElse(null);
-    return new ShaclResult(focusNode, path, severity, message);
+    List<ShaclMessage> messages = model.filter(resultId, SHACL.RESULT_MESSAGE, null)
+        .stream()
+        .map(Statement::getObject)
+        .map(ShaclValidationRdf4j::toShaclMessage)
+        .toList();
+    return new ShaclResult(focusNode, path, severity, messages);
+  }
+
+  /**
+   * Maps one {@code sh:resultMessage} object, keeping its language tag. A tag reported as
+   * blank is normalised to "untagged" rather than passed on: {@link ShaclMessage} rejects a
+   * blank tag, and an empty string is not a language.
+   */
+  private static ShaclMessage toShaclMessage(Value message) {
+    if (message instanceof org.eclipse.rdf4j.model.Literal literal) {
+      String language = literal.getLanguage().filter(tag -> !tag.isBlank()).orElse(null);
+      return new ShaclMessage(literal.getLabel(), language);
+    }
+    return ShaclMessage.untagged(message.stringValue());
   }
 
   private static Severity toSeverity(Value severityIri) {
