@@ -19,6 +19,9 @@ bin/
 .vscode/
 
 # Claude Code — local scratch, in particular the git worktrees it checks out
-# inside the repo. These are separate repositories; committing one lands as a
-# gitlink that no clone can resolve.
+# inside the repo. A worktree is not repo content: committing one lands as a
+# gitlink (mode 160000) with no matching .gitmodules entry, so every clone gets
+# an empty directory that git reports forever as an uninitialised submodule and
+# that `git submodule update --init` refuses with "No url found for submodule
+# path".
 .claude/worktrees/
