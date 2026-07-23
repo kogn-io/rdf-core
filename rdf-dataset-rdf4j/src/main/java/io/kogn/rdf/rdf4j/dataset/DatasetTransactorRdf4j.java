@@ -45,8 +45,10 @@ import io.kogn.rdf.dataset.DatasetTx;
  * as observed. A SPARQL guard read whose IRIs are not yet known to the store — the
  * "is this brand-new resource already taken?" case — does <em>not</em> reliably
  * register such an observation: in a two-thread race where both guards run before
- * either write, both transactions committed in roughly 6% of 1000 runs, leaving the
- * duplicate the guard was meant to prevent. The same race detects the conflict in
+ * either write, both transactions committed in a single-digit to low double-digit
+ * percentage of 1000 runs — 6% and 12% on two machines, so treat the rate as
+ * timing-dependent rather than as a constant — leaving the duplicate the guard was
+ * meant to prevent. The same race detects the conflict in
  * 1000 of 1000 runs as soon as the guard's subject, predicate and graph IRIs are
  * already present in the store (any earlier statement mentioning them suffices), and
  * likewise when the guard reads through
