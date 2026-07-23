@@ -444,8 +444,9 @@ class DatasetRdf4jTest {
       // The seed is load-bearing, not scenery: it puts GRAPH_1, SUBJECT and PREDICATE into the store
       // *before* the race, without satisfying the guard. A SERIALIZABLE guard read over IRIs the
       // store has never seen does not reliably register an observation, so the conflict below goes
-      // undetected in roughly 6% of runs — see the "Limits" section on DatasetTransactorRdf4j and
-      // issue #23. Without the seed this test is flaky because the guarantee itself is.
+      // undetected in a timing-dependent 6–12% of runs — see the "Limits" section on
+      // DatasetTransactorRdf4j and issue #23. Without the seed this test is flaky because the
+      // guarantee itself is.
       store.add(GRAPH_1, seedTriples());
       final String askGuard = "ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
           + PREDICATE.getIRIString() + "> ?o } }";
