@@ -61,6 +61,15 @@ Settled semantics:
   meaning; callers select by tag. Superseding the earlier single `String
   message`, which reduced multilingual shapes to one arbitrarily chosen,
   tag-stripped text (issue #20).
+- **Language tags are lower-cased on the way in.** BCP 47 tags are
+  case-insensitive, so `@DE` and `@de` name one language, but a shapes graph may
+  write either and RDF4J passes the case through. Since selecting by tag is the
+  whole point of handing the messages over, `ShaclMessage` normalises to lower
+  case (`Locale.ROOT`) — RDF 1.1's canonical form — so record equality and a
+  plain `"de".equals(language())` both mean what they look like. This is the one
+  place the port does touch a tag, and it is the minimum that makes the
+  caller-side selection it mandates actually work; no other subtag rewriting and
+  no registry validation happen.
 - **RDFS subclass reasoning is an opt-in option** (`ValidationOptions
   .rdfsSubClassReasoning`, default `false`). Real and load-bearing: a shape may
   `sh:targetClass` an abstract superclass while instances carry only a subclass

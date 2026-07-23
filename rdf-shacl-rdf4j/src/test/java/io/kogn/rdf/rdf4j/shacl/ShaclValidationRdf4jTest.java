@@ -249,6 +249,25 @@ class ShaclValidationRdf4jTest {
   }
 
   /**
+   * A shapes graph may write a language tag in any case — BCP 47 says they mean the same
+   * language. The tag arrives lower-cased, so a caller selecting with
+   * {@code "de".equals(message.language())} finds a message tagged {@code @DE}.
+   */
+  @Test
+  void languageTagArrivesLowerCasedWhateverTheShapesGraphWrote() {
+    Graph shapes = personShapeRequiringName(rdf.createLiteral("Name fehlt.", "DE"),
+        rdf.createLiteral("Name is required.", "en-GB"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.results().get(0).messages()).extracting(ShaclMessage::language)
+        .containsExactlyInAnyOrder("de", "en-gb");
+  }
+
+  /**
    * {@code sh:message} is optional in SHACL and the backend synthesizes none, so a result
    * without any message is reachable. It carries an empty list, never {@code null}.
    */
