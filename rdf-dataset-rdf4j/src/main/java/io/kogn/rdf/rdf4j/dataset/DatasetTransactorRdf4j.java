@@ -41,30 +41,38 @@ import io.kogn.rdf.dataset.DatasetTx;
  * {@link RepositoryException} to retry the whole {@code inTransaction} call.</p>
  *
  * <p><strong>Limits of that guarantee (measured, RDF4J 6.0.0 + {@code MemoryStore}):</strong>
- * conflict detection only covers statement patterns the backend actually recorded
- * as observed. A SPARQL guard read whose IRIs are not yet known to the store — the
- * "is this brand-new resource already taken?" case — does <em>not</em> reliably
- * register such an observation: in a two-thread race where both guards run before
- * either write, both transactions committed in a single-digit to low double-digit
- * percentage of 1000 runs — 6% and 12% on two machines, so treat the rate as
- * timing-dependent rather than as a constant — leaving the duplicate the guard was
- * meant to prevent. The same race detects the conflict in
- * 1000 of 1000 runs as soon as the guard's subject, predicate and graph IRIs are
- * already present in the store (any earlier statement mentioning them suffices), and
- * likewise when the guard reads through
- * {@code RepositoryConnection#hasStatement} instead of SPARQL. So: a SPARQL guard is
- * optimistic concurrency that holds for updates to existing data, and must not be leaned
- * on as the sole uniqueness gate for first-time inserts. Tracked in
+ * a SPARQL guard read whose IRIs are not yet known to the store — the "is this
+ * brand-new resource already taken?" case — is not reliably conflict-protected. In a
+ * two-thread race where both guards run before either write, both transactions
+ * committed in a single-digit to low double-digit percentage of 1000 runs — 6% and 12%
+ * on two machines, so treat the rate as timing-dependent rather than as a constant —
+ * leaving the duplicate the guard was meant to prevent. The same race detects the
+ * conflict in 1000 of 1000 runs as soon as the guard's subject, predicate and graph IRIs
+ * are already present in the store (any earlier statement mentioning them suffices), and
+ * likewise when the guard reads through {@code RepositoryConnection#hasStatement}
+ * instead of SPARQL. So: a SPARQL guard is optimistic concurrency that holds for updates
+ * to existing data, and must not be leaned on as the sole uniqueness gate for first-time
+ * inserts. Tracked in
  * <a href="https://github.com/kogn-io/rdf-core/issues/23">issue 23</a>.</p>
+ *
+ * <p>The cause is in RDF4J, not in this class or in the port. The observation
+ * <em>is</em> registered in the failing runs; what differs is value interning. Evaluating
+ * a SPARQL statement pattern interns its constants into the store's own value registry,
+ * and two threads interning the same unknown IRI concurrently can each end up with their
+ * own instance, because the registry's duplicate recovery cannot fire. Conflict detection
+ * then walks the statement list of the wrong instance, finds it empty, and both commits
+ * pass. A guard that only looks values up never enters that path. The analysis, with a
+ * standalone reproducer, is in issue 23.</p>
  *
  * <p><strong>Write the guard with
  * {@link DatasetTx#contains(io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.BlankNodeOrIRI,
  * io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.RDFTerm) DatasetTx#contains} instead.</strong>
  * It states the statement pattern directly and is implemented here via
- * {@code RepositoryConnection#hasStatement}, so the observation is registered and the
- * conflict is detected even for IRIs the store has never seen — that is the case measured
- * at 1000 of 1000 above. An {@code ASK} guard remains a legitimate read; it is only the
- * <em>first-insert uniqueness</em> use of it that this backend does not protect.</p>
+ * {@code RepositoryConnection#hasStatement}, which looks values up rather than interning
+ * them — so the conflict is detected even for IRIs the store has never seen, the case
+ * measured at 1000 of 1000 above. An {@code ASK} guard remains a legitimate read; it is
+ * only the <em>first-insert uniqueness</em> use of it that this backend does not
+ * protect.</p>
  */
 public class DatasetTransactorRdf4j implements DatasetTransactor {
 
