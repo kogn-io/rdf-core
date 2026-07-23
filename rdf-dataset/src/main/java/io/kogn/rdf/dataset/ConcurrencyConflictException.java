@@ -36,13 +36,16 @@ package io.kogn.rdf.dataset;
  *     if (attempt == MAX_ATTEMPTS) {
  *       throw e;
  *     }
+ *     backOff(attempt); // wait before retrying, with jitter
  *   }
  * }
  * }</pre>
  *
  * <p>Retry the call, not the {@link DatasetTx} — the transaction object handed to the
  * failed attempt is dead. Bound the attempts: a guard that keeps losing against a
- * steady stream of writers will not converge on its own.</p>
+ * steady stream of writers will not converge on its own. Back off between attempts,
+ * and jitter the wait: contenders that lost the same race retry in lockstep otherwise
+ * and keep colliding.</p>
  */
 public class ConcurrencyConflictException extends RuntimeException {
 

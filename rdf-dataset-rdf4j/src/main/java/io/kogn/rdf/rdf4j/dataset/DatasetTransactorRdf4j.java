@@ -130,7 +130,7 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
   private static RuntimeException translateConflict(final RuntimeException commitFailure) {
     for (Throwable t = commitFailure; t != null; t = t.getCause()) {
       if (t instanceof SailConflictException) {
-        return new ConcurrencyConflictException("transaction lost an optimistic-concurrency race and was rolled back",
+        return new ConcurrencyConflictException("commit rejected: transaction lost an optimistic-concurrency race",
             commitFailure);
       }
     }
