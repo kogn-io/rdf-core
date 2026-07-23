@@ -5,7 +5,9 @@ package io.kogn.rdf.dataset;
 
 import java.util.stream.Stream;
 
+import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 
 /**
@@ -71,6 +73,33 @@ public interface DatasetTx {
    * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
    */
   Stream<BindingSet> select(String sparql);
+
+  /**
+   * Checks whether the named graph contains a triple matching the given pattern,
+   * without going through SPARQL.
+   *
+   * <p>Use {@code null} as a wildcard for any of subject, predicate and object,
+   * following {@link ReadableGraph#stream(io.kogn.rdf.terms.BlankNodeOrIRI, IRI,
+   * io.kogn.rdf.terms.RDFTerm)}. {@code contains(g, s, p, null)} therefore asks
+   * "does {@code s} already have any value for {@code p} in {@code g}?".</p>
+   *
+   * <p><strong>Prefer this over {@link #ask(String)} for optimistic-concurrency
+   * guards.</strong> A guard read is only protected by the transaction's isolation
+   * level if the backend recorded the statement pattern as observed, and a SPARQL
+   * evaluation path need not do so for a pattern whose terms the store has never
+   * seen — precisely the "is this brand-new resource already taken?" case. This
+   * method states the pattern directly, so implementations can hand it to the
+   * backend's own pattern lookup and the observation is registered. See the
+   * implementation notes on {@link DatasetTransactor} for what its isolation
+   * guarantee does and does not cover.</p>
+   *
+   * @param namedGraph IRI identifying the named graph to search; must not be {@code null}
+   * @param subject the subject to match, or {@code null} for any subject
+   * @param predicate the predicate to match, or {@code null} for any predicate
+   * @param object the object to match, or {@code null} for any object
+   * @return {@code true} if the named graph contains at least one matching triple
+   */
+  boolean contains(IRI namedGraph, BlankNodeOrIRI subject, IRI predicate, RDFTerm object);
 
   /**
    * Executes a SPARQL ASK query within this transaction.
