@@ -1,6 +1,6 @@
 # ADR-0008: `DatasetTx#contains` as the conflict-protected guard read
 
-Status: Accepted
+Status: Proposed
 
 ## Context
 
