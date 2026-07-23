@@ -52,10 +52,19 @@ import io.kogn.rdf.dataset.DatasetTx;
  * 1000 of 1000 runs as soon as the guard's subject, predicate and graph IRIs are
  * already present in the store (any earlier statement mentioning them suffices), and
  * likewise when the guard reads through
- * {@code RepositoryConnection#hasStatement} instead of SPARQL. So: this is optimistic
- * concurrency that holds for updates to existing data, and must not be leaned on as
- * the sole uniqueness gate for first-time inserts. Tracked in
+ * {@code RepositoryConnection#hasStatement} instead of SPARQL. So: a SPARQL guard is
+ * optimistic concurrency that holds for updates to existing data, and must not be leaned
+ * on as the sole uniqueness gate for first-time inserts. Tracked in
  * <a href="https://github.com/kogn-io/rdf-core/issues/23">issue 23</a>.</p>
+ *
+ * <p><strong>Write the guard with
+ * {@link DatasetTx#contains(io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.BlankNodeOrIRI,
+ * io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.RDFTerm) DatasetTx#contains} instead.</strong>
+ * It states the statement pattern directly and is implemented here via
+ * {@code RepositoryConnection#hasStatement}, so the observation is registered and the
+ * conflict is detected even for IRIs the store has never seen — that is the case measured
+ * at 1000 of 1000 above. An {@code ASK} guard remains a legitimate read; it is only the
+ * <em>first-insert uniqueness</em> use of it that this backend does not protect.</p>
  */
 public class DatasetTransactorRdf4j implements DatasetTransactor {
 

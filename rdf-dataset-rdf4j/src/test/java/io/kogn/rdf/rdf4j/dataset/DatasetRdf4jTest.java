@@ -492,6 +492,130 @@ class DatasetRdf4jTest {
       assertThat(store.count(GRAPH_1)).isEqualTo(3L);
     }
 
+    @Test
+    @DisplayName("overlapping transactions racing a contains-guarded first insert, guard IRIs unknown"
+        + " to the store — the loser's commit fails, only one write wins")
+    void inTransaction_overlappingContainsGuardedWrites_whenGuardIrisUnknownToStore_loserCommitFails()
+        throws InterruptedException {
+      // given — the same race as the ASK test above, minus the seed: nothing in the store mentions
+      // GRAPH_1, SUBJECT or PREDICATE yet, so this is the first-insert uniqueness case of issue #23.
+      // The guard reads through contains() rather than SPARQL, which registers the observation the
+      // SPARQL path fails to register — so the conflict is detected here where the ASK variant
+      // misses it in a timing-dependent share of runs.
+      final CyclicBarrier bothGuardsChecked = new CyclicBarrier(2);
+      final CountDownLatch firstCommitted = new CountDownLatch(1);
+      final AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+
+      final Thread winner = new Thread(() -> {
+        transactor.inTransaction(tx -> {
+          tx.contains(GRAPH_1, SUBJECT, PREDICATE, null);
+          awaitUninterruptibly(bothGuardsChecked);
+          tx.add(GRAPH_1, valueTriple("value-1"));
+          return null;
+        });
+        firstCommitted.countDown();
+      });
+      final Thread loser = new Thread(() -> {
+        try {
+          transactor.inTransaction(tx -> {
+            final boolean alreadyPresent = tx.contains(GRAPH_1, SUBJECT, PREDICATE, null);
+            awaitUninterruptibly(bothGuardsChecked);
+            awaitUninterruptibly(firstCommitted);
+            if (!alreadyPresent) {
+              tx.add(GRAPH_1, valueTriple("value-2"));
+            }
+            return null;
+          });
+        } catch (RuntimeException e) {
+          secondFailure.set(e);
+        }
+      });
+
+      // when
+      winner.start();
+      loser.start();
+      winner.join();
+      loser.join();
+
+      // then — the loser's commit is rejected as a conflict, exactly one of the two writes landed
+      assertThat(secondFailure.get()).isInstanceOf(RepositoryException.class)
+          .hasRootCauseInstanceOf(SailConflictException.class);
+      assertThat(store.count(GRAPH_1)).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("contains — exact triple pattern matches")
+    void contains_exactPattern_returnsTrue() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final boolean found = transactor.inTransaction(tx -> tx.contains(GRAPH_1, SUBJECT, PREDICATE, OBJECT));
+
+      // then
+      assertThat(found).isTrue();
+    }
+
+    @Test
+    @DisplayName("contains — absent pattern does not match")
+    void contains_absentPattern_returnsFalse() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final boolean found = transactor
+          .inTransaction(tx -> tx.contains(GRAPH_1, SUBJECT, PREDICATE, rdf.createLiteral("other")));
+
+      // then
+      assertThat(found).isFalse();
+    }
+
+    @Test
+    @DisplayName("contains — null matches any component")
+    void contains_nullWildcards_match() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final boolean objectWildcard = transactor.inTransaction(tx -> tx.contains(GRAPH_1, SUBJECT, PREDICATE, null));
+      final boolean subjectWildcard = transactor.inTransaction(tx -> tx.contains(GRAPH_1, null, PREDICATE, null));
+      final boolean allWildcards = transactor.inTransaction(tx -> tx.contains(GRAPH_1, null, null, null));
+
+      // then
+      assertThat(objectWildcard).isTrue();
+      assertThat(subjectWildcard).isTrue();
+      assertThat(allWildcards).isTrue();
+    }
+
+    @Test
+    @DisplayName("contains — is scoped to the named graph")
+    void contains_otherNamedGraph_returnsFalse() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final boolean found = transactor.inTransaction(tx -> tx.contains(GRAPH_2, SUBJECT, PREDICATE, OBJECT));
+
+      // then
+      assertThat(found).isFalse();
+    }
+
+    @Test
+    @DisplayName("read-your-writes — contains sees a triple added in the same transaction")
+    void inTransaction_containsAfterAdd_returnsTrue() {
+      // given
+      final Graph graph = singleTripleGraph();
+
+      // when
+      final boolean found = transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, graph);
+        return tx.contains(GRAPH_1, SUBJECT, PREDICATE, null);
+      });
+
+      // then
+      assertThat(found).isTrue();
+    }
+
     /**
      * Two triples that make GRAPH_1, SUBJECT and PREDICATE known to the store without satisfying
      * {@code ASK { GRAPH GRAPH_1 { SUBJECT PREDICATE ?o } }}.

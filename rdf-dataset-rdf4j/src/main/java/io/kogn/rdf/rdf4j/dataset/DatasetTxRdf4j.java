@@ -20,7 +20,9 @@ import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.RDF4JBindingSet;
 import io.kogn.rdf.rdf4j.RDF4JGraph;
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
+import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 
 /**
@@ -34,6 +36,12 @@ import io.kogn.rdf.terms.ReadableGraph;
  * <p>{@link #select(String)} collects results eagerly so that the
  * {@link TupleQueryResult} is closed before returning, preventing resource leaks
  * across transaction boundaries.</p>
+ *
+ * <p>{@link #contains(IRI, io.kogn.rdf.terms.BlankNodeOrIRI, IRI, io.kogn.rdf.terms.RDFTerm)}
+ * maps to {@link RepositoryConnection#hasStatement} rather than to a SPARQL {@code ASK}, which
+ * is what makes it usable as a conflict-protected guard — see the "Limits" section on
+ * {@link DatasetTransactorRdf4j}. Inferred statements are excluded, matching
+ * {@link GraphStoreRdf4j}.</p>
  */
 class DatasetTxRdf4j implements DatasetTx {
 
@@ -81,6 +89,14 @@ class DatasetTxRdf4j implements DatasetTx {
       }
     }
     return results.stream();
+  }
+
+  @Override
+  public boolean contains(final IRI namedGraph, final BlankNodeOrIRI subject, final IRI predicate,
+      final RDFTerm object) {
+    return connection.hasStatement(subject == null ? null : RDF4JConverters.toRDF4JResource(subject),
+        predicate == null ? null : RDF4JConverters.toRDF4JIRI(predicate),
+        object == null ? null : RDF4JConverters.toRDF4JValue(object), false, RDF4JConverters.toRDF4JIRI(namedGraph));
   }
 
   @Override
