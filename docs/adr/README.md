@@ -16,3 +16,4 @@ not a historical log of every change that led here.
 | [0005](0005-rdf4j-backend-for-dataset-ports.md) | RDF4J backend for the dataset ports |
 | [0006](0006-revision-versioning-and-release.md) | CI-friendly versioning with `${revision}` and manually triggered releases |
 | [0007](0007-standalone-shacl-validation-port.md) | Standalone, non-transactional SHACL validation port |
+| [0008](0008-datasettx-contains-guard.md) | `DatasetTx#contains` as the conflict-protected guard read |
