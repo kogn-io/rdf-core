@@ -44,6 +44,13 @@ Security tab instead of standing in the way, so quality findings still need
 someone to look. Releases are unaffected: `release.yml` pushes the `vX.Y.Z` tag
 only, never a commit on `main`.
 
+Pull requests land by **rebase** — `gh pr merge <nr> --rebase`. GitHub allows all
+three strategies on this repository, so the convention is not enforced and has to
+be followed by hand: `main` stays linear, and a pull request keeps its individual
+commits rather than collapsing into one. Squashing would fold a review round
+("fix the finding") back into the commit it corrected, which is exactly the
+history worth keeping. Write commits that are worth reading on `main`, then.
+
 Deployment runs **exclusively through CI** (GitHub Actions), never locally:
 
 - **Snapshot** — every push to `main` deploys the current `${revision}` (a
