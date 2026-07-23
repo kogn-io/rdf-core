@@ -14,7 +14,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
+import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryException;
+import org.eclipse.rdf4j.repository.base.RepositoryConnectionWrapper;
+import org.eclipse.rdf4j.repository.base.RepositoryWrapper;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.sail.SailConflictException;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
@@ -378,6 +381,31 @@ class DatasetRdf4jTest {
       assertThatThrownBy(() -> transactor.inTransaction(tx -> {
         throw new NullPointerException("bug in the caller's work");
       })).isInstanceOf(NullPointerException.class).isNotInstanceOf(ConcurrencyConflictException.class);
+    }
+
+    @Test
+    @DisplayName("a commit failure that is not a conflict passes through untranslated")
+    void inTransaction_nonConflictCommitFailure_isNotTranslatedToConflict() {
+      // given — a repository whose commit fails for a reason unrelated to a lost race. Only a
+      // SailConflictException in the cause chain may become a ConcurrencyConflictException:
+      // translating anything else would make a retry loop spin on a permanent failure.
+      final Repository failingCommit = new RepositoryWrapper(repository) {
+        @Override
+        public RepositoryConnection getConnection() {
+          return new RepositoryConnectionWrapper(this, super.getConnection()) {
+            @Override
+            public void commit() {
+              throw new RepositoryException("storage failure, not a conflict");
+            }
+          };
+        }
+      };
+
+      // when, then
+      assertThatThrownBy(() -> new DatasetTransactorRdf4j(failingCommit).inTransaction(tx -> null))
+          .isInstanceOf(RepositoryException.class)
+          .hasMessage("storage failure, not a conflict")
+          .isNotInstanceOf(ConcurrencyConflictException.class);
     }
 
     @Test
