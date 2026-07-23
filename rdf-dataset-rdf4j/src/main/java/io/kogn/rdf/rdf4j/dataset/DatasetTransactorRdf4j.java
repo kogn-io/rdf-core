@@ -40,6 +40,20 @@ import io.kogn.rdf.dataset.DatasetTx;
  * fails loudly instead of silently double-committing, and can catch
  * {@link RepositoryException} to retry the whole {@code inTransaction} call.</p>
  *
+ * <p><strong>Limits of that guarantee (measured, RDF4J 6.0.0 + {@code MemoryStore}):</strong>
+ * conflict detection only covers statement patterns the backend actually recorded
+ * as observed. A SPARQL guard read whose IRIs are not yet known to the store — the
+ * "is this brand-new resource already taken?" case — does <em>not</em> reliably
+ * register such an observation: in a two-thread race where both guards run before
+ * either write, both transactions committed in roughly 6% of 1000 runs, leaving the
+ * duplicate the guard was meant to prevent. The same race detects the conflict in
+ * 1000 of 1000 runs as soon as the guard's subject, predicate and graph IRIs are
+ * already present in the store (any earlier statement mentioning them suffices), and
+ * likewise when the guard reads through
+ * {@code RepositoryConnection#hasStatement} instead of SPARQL. So: this is optimistic
+ * concurrency that holds for updates to existing data, and must not be leaned on as
+ * the sole uniqueness gate for first-time inserts. Tracked in issue #23.</p>
+ *
  * <p>The transaction pattern mirrors the batch path in
  * {@code GraphCommandServiceImpl.saveDraftAndPublishBatch}.</p>
  */

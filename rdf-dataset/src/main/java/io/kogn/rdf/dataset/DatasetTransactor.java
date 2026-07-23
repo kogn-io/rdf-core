@@ -38,6 +38,13 @@ import java.util.function.Function;
  * catch that {@link RuntimeException} and retry the whole
  * {@code inTransaction} call; the exact exception type is
  * implementation-specific (see the implementing class's Javadoc).</p>
+ *
+ * <p>That paragraph states what an implementation is <em>required</em> to provide,
+ * not what every backend delivers today: the RDF4J implementation meets it for
+ * guards over data the store already holds, but not reliably for a guard against a
+ * resource that does not exist yet. Before using an {@code ASK}-then-write guard as
+ * a uniqueness gate, read the "Limits of that guarantee" section on the
+ * implementation you bind to.</p>
  */
 public interface DatasetTransactor {
 
