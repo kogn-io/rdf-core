@@ -26,6 +26,11 @@ class ShaclMessageTest {
    * graph writing {@code @DE} names the same language as one writing {@code @de}. Passing
    * the case through would make the obvious selection — {@code "de".equals(language())} —
    * silently miss the message, in the one operation this type exists to enable.
+   *
+   * <p>If this test goes red because {@code de-AT} is now expected in place of
+   * {@code de-at}, the change under review is a move to BCP 47's canonical form. That is
+   * not a correction — see {@link ShaclMessage} for why comparison, not display, is what
+   * is normalised here.</p>
    */
   @Test
   void languageTagIsLowerCased() {

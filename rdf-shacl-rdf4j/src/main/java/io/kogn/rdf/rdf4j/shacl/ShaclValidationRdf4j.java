@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
@@ -132,12 +133,19 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
   }
 
   /**
-   * Maps one {@code sh:resultMessage} object, keeping its language tag. A tag reported as
-   * blank is normalised to "untagged" rather than passed on: {@link ShaclMessage} rejects a
-   * blank tag, and an empty string is not a language.
+   * Maps one {@code sh:resultMessage} object, keeping its language tag.
+   *
+   * <p>A tag reported as blank is mapped to {@code null} here rather than handed on.
+   * That is not a disagreement with {@link ShaclMessage}, which <em>rejects</em> a blank
+   * tag: the type stays strict because {@code ""} is not a language, and this boundary
+   * maps to "untagged" beforehand so a backend artifact would degrade to an untagged
+   * message instead of throwing out of a validation run. RDF4J does not produce such a
+   * literal — an {@code rdf:langString} with an empty tag is not constructible through
+   * Rio — so no test reaches this branch; it guards the port's invariant against a
+   * backend that behaves differently, at no cost.</p>
    */
   private static ShaclMessage toShaclMessage(Value message) {
-    if (message instanceof org.eclipse.rdf4j.model.Literal literal) {
+    if (message instanceof Literal literal) {
       String language = literal.getLanguage().filter(tag -> !tag.isBlank()).orElse(null);
       return new ShaclMessage(literal.getLabel(), language);
     }

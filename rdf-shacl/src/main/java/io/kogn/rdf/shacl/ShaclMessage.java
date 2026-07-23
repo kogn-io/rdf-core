@@ -21,12 +21,22 @@ import java.util.Locale;
  * the obvious thing ({@code "de".equals(message.language())}) silently misses a message
  * tagged {@code @DE}, in the one operation this type exists to enable.</p>
  *
- * <p>{@code language} is therefore normalised to lower case ({@link Locale#ROOT}), which
- * RDF 1.1 names the canonical form, so equality on this record and a plain
- * {@code equals} on the tag both mean what they look like. Only case changes:
+ * <p>{@code language} is therefore normalised to lower case ({@link Locale#ROOT}), so
+ * equality on this record and a plain {@code equals} on the tag both mean what they look
+ * like. Lower case is what RDF 1.1 Concepts §3.3 defines as the <em>value space</em> of
+ * language tags, which is the level this type operates at. Only case changes:
  * {@code "de-AT"} is stored as {@code "de-at"}, which
  * {@link java.util.Locale#forLanguageTag(String)} parses identically. Subtags are not
  * otherwise rewritten and no tag is validated against the BCP 47 registry.</p>
+ *
+ * <p><strong>Not to be "fixed" towards BCP 47's canonical form.</strong> BCP 47 §2.1.1
+ * formats region subtags upper case and script subtags in title case — {@code de-AT},
+ * {@code zh-Hant} — which is the opposite of what happens here, and reaching for it would
+ * look like a correction. It is not one: this type normalises for <em>comparison</em>, and
+ * upper-casing part of the tag reintroduces exactly the case-sensitivity gap the lower-casing
+ * closes. Display formatting, where BCP 47's conventions do belong, is the caller's business
+ * and can be recovered with {@link java.util.Locale#forLanguageTag(String)} plus
+ * {@link java.util.Locale#toLanguageTag()}.</p>
  *
  * <h2>Untagged messages</h2>
  *
