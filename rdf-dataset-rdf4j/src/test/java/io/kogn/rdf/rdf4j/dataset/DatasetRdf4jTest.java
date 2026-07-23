@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.dataset.BindingSet;
+import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.Graph;
@@ -369,6 +370,17 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("a failure in the work lambda is not reported as a concurrency conflict")
+    void inTransaction_exceptionInWork_isNotTranslatedToConflict() {
+      // given — a bug in the caller's own work function. It must stay distinguishable from a lost
+      // race, otherwise a retry loop catching conflicts would spin forever on a programming error.
+      // when, then
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> {
+        throw new NullPointerException("bug in the caller's work");
+      })).isInstanceOf(NullPointerException.class).isNotInstanceOf(ConcurrencyConflictException.class);
+    }
+
+    @Test
     @DisplayName("read-your-writes — select sees triples added in the same transaction")
     void inTransaction_selectAfterAdd_seesUncommittedTriples() {
       // given
@@ -486,8 +498,10 @@ class DatasetRdf4jTest {
       loser.join();
 
       // then — the loser's commit is rejected as a conflict, the store holds the two seed triples
-      // plus exactly one of the two racing writes
-      assertThat(secondFailure.get()).isInstanceOf(RepositoryException.class)
+      // plus exactly one of the two racing writes. The failure reaches the caller as the port's
+      // neutral ConcurrencyConflictException, with the backend's signal kept as cause.
+      assertThat(secondFailure.get()).isInstanceOf(ConcurrencyConflictException.class)
+          .hasCauseInstanceOf(RepositoryException.class)
           .hasRootCauseInstanceOf(SailConflictException.class);
       assertThat(store.count(GRAPH_1)).isEqualTo(3L);
     }
@@ -538,7 +552,8 @@ class DatasetRdf4jTest {
       loser.join();
 
       // then — the loser's commit is rejected as a conflict, exactly one of the two writes landed
-      assertThat(secondFailure.get()).isInstanceOf(RepositoryException.class)
+      assertThat(secondFailure.get()).isInstanceOf(ConcurrencyConflictException.class)
+          .hasCauseInstanceOf(RepositoryException.class)
           .hasRootCauseInstanceOf(SailConflictException.class);
       assertThat(store.count(GRAPH_1)).isEqualTo(1L);
     }

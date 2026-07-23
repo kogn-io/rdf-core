@@ -11,6 +11,7 @@ import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.sail.SailConflictException;
 
+import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 
@@ -32,13 +33,18 @@ import io.kogn.rdf.dataset.DatasetTx;
  * application-level guard, e.g. an {@code ASK} check, and then both committing
  * conflicting writes). Under {@code SERIALIZABLE}, RDF4J tracks the statement
  * patterns a transaction read and fails the <em>later</em> commit with a
- * {@link SailConflictException} — surfaced here as a {@link RepositoryException}
- * whose cause is the {@link SailConflictException} — if a concurrently committed
- * transaction changed the state of a pattern this transaction observed. Callers
- * that use {@code inTransaction} as an optimistic-concurrency guard (read a
- * condition, then write based on it) can rely on this: the losing side of a race
- * fails loudly instead of silently double-committing, and can catch
- * {@link RepositoryException} to retry the whole {@code inTransaction} call.</p>
+ * {@link SailConflictException} — reaching this class wrapped in a
+ * {@link RepositoryException} — if a concurrently committed transaction changed the
+ * state of a pattern this transaction observed. Callers that use
+ * {@code inTransaction} as an optimistic-concurrency guard (read a condition, then
+ * write based on it) can rely on this: the losing side of a race fails loudly
+ * instead of silently double-committing.</p>
+ *
+ * <p>Such a failed commit is rethrown as the port's neutral
+ * {@link ConcurrencyConflictException}, with the {@link RepositoryException} kept as
+ * cause — so a retry loop catches an {@code io.kogn} type rather than an RDF4J one.
+ * Every other commit failure, and every exception the work function itself threw,
+ * passes through unchanged.</p>
  *
  * <p><strong>Limits of that guarantee (measured, RDF4J 6.0.0 + {@code MemoryStore}):</strong>
  * a SPARQL guard read whose IRIs are not yet known to the store — the "is this
@@ -93,7 +99,11 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
       conn.begin(IsolationLevels.SERIALIZABLE);
       try {
         final T result = work.apply(new DatasetTxRdf4j(conn));
-        conn.commit();
+        try {
+          conn.commit();
+        } catch (RuntimeException e) {
+          throw translateConflict(e);
+        }
         return result;
       } catch (RuntimeException e) {
         try {
@@ -104,5 +114,26 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
         throw e;
       }
     }
+  }
+
+  /**
+   * Maps a failed commit to the port's neutral conflict type, if that is what it was.
+   *
+   * <p>RDF4J reports a lost {@code SERIALIZABLE} race as a {@link SailConflictException},
+   * which reaches this class wrapped in a {@link RepositoryException}. Anything else is a
+   * genuine commit failure and is passed through unchanged.</p>
+   *
+   * @param commitFailure the exception {@code commit()} threw
+   * @return the exception to throw on: a {@link ConcurrencyConflictException} for a lost race,
+   *     otherwise {@code commitFailure} itself
+   */
+  private static RuntimeException translateConflict(final RuntimeException commitFailure) {
+    for (Throwable t = commitFailure; t != null; t = t.getCause()) {
+      if (t instanceof SailConflictException) {
+        return new ConcurrencyConflictException("transaction lost an optimistic-concurrency race and was rolled back",
+            commitFailure);
+      }
+    }
+    return commitFailure;
   }
 }
