@@ -31,13 +31,15 @@ import java.util.function.Function;
  * one observed. Concretely, if a caller reads a condition (e.g. "does this
  * business identifier already exist?") and writes based on it, and two such
  * calls race, at most one may commit unchanged; the other must fail with a
- * {@link RuntimeException} rather than silently commit on stale state. This is
- * what makes an {@code ASK}-then-write guard inside {@code work} safe under
- * concurrency: a losing transaction is rejected loudly at commit time, not
- * merged silently. Callers that rely on such a guard should be prepared to
- * catch that {@link RuntimeException} and retry the whole
- * {@code inTransaction} call; the exact exception type is
- * implementation-specific (see the implementing class's Javadoc).</p>
+ * {@link ConcurrencyConflictException} rather than silently commit on stale
+ * state. This is what makes an {@code ASK}-then-write guard inside {@code work}
+ * safe under concurrency: a losing transaction is rejected loudly at commit
+ * time, not merged silently. Callers that rely on such a guard should catch
+ * {@link ConcurrencyConflictException} and retry the whole
+ * {@code inTransaction} call — see that class for the retry loop. The
+ * exception is part of this port: an implementation must translate whatever its
+ * backend raises, so a caller never has to name a backend type to act on the
+ * guarantee.</p>
  *
  * <p>That paragraph states what an implementation is <em>required</em> to provide,
  * not what every backend delivers today: the RDF4J implementation meets it for
@@ -58,9 +60,10 @@ public interface DatasetTransactor {
    * @param <T> the result type produced by {@code work}
    * @param work the operations to execute; must not be {@code null}
    * @return the value returned by {@code work}
-   * @throws RuntimeException re-thrown from {@code work} after rollback, or thrown
-   *     on commit if this transaction lost a race against a concurrently
-   *     committed, conflicting transaction on the same dataset (see class Javadoc)
+   * @throws ConcurrencyConflictException if the commit was rejected because this
+   *     transaction lost a race against a concurrently committed, conflicting
+   *     transaction on the same dataset (see class Javadoc); nothing was written
+   * @throws RuntimeException re-thrown unchanged from {@code work} after rollback
    */
   <T> T inTransaction(Function<DatasetTx, T> work);
 }
