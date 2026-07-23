@@ -65,11 +65,19 @@ Settled semantics:
   case-insensitive, so `@DE` and `@de` name one language, but a shapes graph may
   write either and RDF4J passes the case through. Since selecting by tag is the
   whole point of handing the messages over, `ShaclMessage` normalises to lower
-  case (`Locale.ROOT`) — RDF 1.1's canonical form — so record equality and a
-  plain `"de".equals(language())` both mean what they look like. This is the one
-  place the port does touch a tag, and it is the minimum that makes the
-  caller-side selection it mandates actually work; no other subtag rewriting and
-  no registry validation happen.
+  case (`Locale.ROOT`) — what RDF 1.1 Concepts §3.3 defines as the *value space*
+  of language tags — so record equality and a plain `"de".equals(language())`
+  both mean what they look like. This is the one place the port does touch a
+  tag, and it is the minimum that makes the caller-side selection it mandates
+  actually work; no other subtag rewriting and no registry validation happen.
+
+  Deliberately *not* BCP 47's canonical form, which formats region subtags upper
+  case and script subtags in title case (`de-AT`, `zh-Hant`) — the opposite of
+  this. Normalising towards it would look like a correction and is the likely
+  future "fix"; it would reintroduce the case-sensitivity gap the lower-casing
+  closes, and `ShaclMessageTest.languageTagIsLowerCased` fails if someone tries.
+  Display formatting is where BCP 47's conventions belong, and that is the
+  caller's business.
 - **RDFS subclass reasoning is an opt-in option** (`ValidationOptions
   .rdfsSubClassReasoning`, default `false`). Real and load-bearing: a shape may
   `sh:targetClass` an abstract superclass while instances carry only a subclass
