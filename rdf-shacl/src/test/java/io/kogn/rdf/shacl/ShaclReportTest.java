@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Test;
 class ShaclReportTest {
 
   private static final ShaclResult VIOLATION_RESULT = new ShaclResult("https://example.org/alice",
-      "https://example.org/name", Severity.VIOLATION, "missing name");
+      "https://example.org/name", Severity.VIOLATION, List.of(ShaclMessage.untagged("missing name")));
 
   private static final ShaclResult WARNING_RESULT = new ShaclResult("https://example.org/alice",
-      "https://example.org/email", Severity.WARNING, "missing email");
+      "https://example.org/email", Severity.WARNING, List.of(ShaclMessage.untagged("missing email")));
 
   @Test
   void conformingReportWithNoResultsIsValid() {

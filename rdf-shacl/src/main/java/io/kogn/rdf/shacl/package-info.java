@@ -12,6 +12,8 @@
  *       reasoning)</li>
  *   <li>{@link io.kogn.rdf.shacl.ShaclReport} — the validation outcome</li>
  *   <li>{@link io.kogn.rdf.shacl.ShaclResult} — a single reported result</li>
+ *   <li>{@link io.kogn.rdf.shacl.ShaclMessage} — one {@code sh:resultMessage} with its
+ *       language tag</li>
  *   <li>{@link io.kogn.rdf.shacl.Severity} — {@code sh:Violation} / {@code sh:Warning} /
  *       {@code sh:Info}</li>
  * </ul>

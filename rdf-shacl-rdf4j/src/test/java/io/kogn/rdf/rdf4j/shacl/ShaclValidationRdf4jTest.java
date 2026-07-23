@@ -8,12 +8,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.shacl.Severity;
+import io.kogn.rdf.shacl.ShaclMessage;
 import io.kogn.rdf.shacl.ShaclReport;
 import io.kogn.rdf.shacl.ShaclResult;
 import io.kogn.rdf.shacl.ValidationOptions;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.SimpleRdf;
 
@@ -71,7 +73,7 @@ class ShaclValidationRdf4jTest {
 
   @Test
   void violationYieldsNonConformingReportWithOneResult() {
-    Graph shapes = personShapeRequiringName();
+    Graph shapes = personShapeRequiringName(rdf.createLiteral("Name is required"));
 
     Graph data = rdf.createGraph();
     data.add(ex("bob"), a(), ex("Person"));
@@ -85,7 +87,7 @@ class ShaclValidationRdf4jTest {
     assertThat(result.focusNode()).isEqualTo(ex("bob").getIRIString());
     assertThat(result.path()).isEqualTo(ex("name").getIRIString());
     assertThat(result.severity()).isEqualTo(Severity.VIOLATION);
-    assertThat(result.message()).isEqualTo("Name is required");
+    assertThat(result.messages()).containsExactly(ShaclMessage.untagged("Name is required"));
   }
 
   @Test
@@ -111,7 +113,7 @@ class ShaclValidationRdf4jTest {
     assertThat(report.results()).hasSize(1);
     ShaclResult result = report.results().get(0);
     assertThat(result.severity()).isEqualTo(Severity.WARNING);
-    assertThat(result.message()).isEqualTo("Email is recommended");
+    assertThat(result.messages()).containsExactly(ShaclMessage.untagged("Email is recommended"));
   }
 
   @Test
@@ -186,7 +188,84 @@ class ShaclValidationRdf4jTest {
     assertThat(report.results()).isEmpty();
   }
 
-  private Graph personShapeRequiringName() {
+  /**
+   * Pins the load-bearing fix of issue #20: a shape carrying one {@code sh:message} per
+   * language must surface <em>all</em> of them, tags intact. Reducing them to one string
+   * made bilingual shapes impossible — the survivor was decided by the parse order of the
+   * shapes graph, and its tag was dropped, so a caller could not even tell which language
+   * it had been handed.
+   */
+  @Test
+  void allMessagesSurviveWithTheirLanguageTags() {
+    Graph shapes = personShapeRequiringName(rdf.createLiteral("Name fehlt.", "de"),
+        rdf.createLiteral("Name is required.", "en"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.results()).hasSize(1);
+    assertThat(report.results().get(0).messages()).containsExactlyInAnyOrder(new ShaclMessage("Name fehlt.", "de"),
+        new ShaclMessage("Name is required.", "en"));
+  }
+
+  /**
+   * The same shape with the two {@code sh:message} lines swapped must yield the same set of
+   * messages. Before the fix this flipped which single message a caller saw — the defect
+   * reported in issue #20.
+   */
+  @Test
+  void messageOrderInTheShapesGraphDoesNotChangeWhatIsReported() {
+    Graph germanFirst = personShapeRequiringName(rdf.createLiteral("Name fehlt.", "de"),
+        rdf.createLiteral("Name is required.", "en"));
+    Graph englishFirst = personShapeRequiringName(rdf.createLiteral("Name is required.", "en"),
+        rdf.createLiteral("Name fehlt.", "de"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    ShaclReport germanFirstReport = validation.validate(data, germanFirst, ValidationOptions.defaults());
+    ShaclReport englishFirstReport = validation.validate(data, englishFirst, ValidationOptions.defaults());
+
+    assertThat(germanFirstReport.results().get(0).messages())
+        .containsExactlyInAnyOrderElementsOf(englishFirstReport.results().get(0).messages());
+  }
+
+  /** A plain, untagged {@code sh:message} arrives with no language tag rather than a blank one. */
+  @Test
+  void untaggedMessageArrivesWithoutALanguageTag() {
+    Graph shapes = personShapeRequiringName(rdf.createLiteral("Name is required."));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    ShaclMessage message = report.results().get(0).messages().get(0);
+    assertThat(message.isUntagged()).isTrue();
+    assertThat(message.language()).isNull();
+    assertThat(message.text()).isEqualTo("Name is required.");
+  }
+
+  /**
+   * {@code sh:message} is optional in SHACL and the backend synthesizes none, so a result
+   * without any message is reachable. It carries an empty list, never {@code null}.
+   */
+  @Test
+  void resultWithoutAnyMessageCarriesAnEmptyList() {
+    Graph shapes = personShapeRequiringName();
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.results()).hasSize(1);
+    assertThat(report.results().get(0).messages()).isEmpty();
+  }
+
+  private Graph personShapeRequiringName(Literal... messages) {
     Graph shapes = rdf.createGraph();
     IRI personShape = ex("PersonShape");
     BlankNode nameProperty = rdf.createBlankNode();
@@ -195,7 +274,9 @@ class ShaclValidationRdf4jTest {
     shapes.add(personShape, sh("property"), nameProperty);
     shapes.add(nameProperty, sh("path"), ex("name"));
     shapes.add(nameProperty, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
-    shapes.add(nameProperty, sh("message"), rdf.createLiteral("Name is required"));
+    for (Literal message : messages) {
+      shapes.add(nameProperty, sh("message"), message);
+    }
     return shapes;
   }
 

@@ -10,7 +10,7 @@ swappable RDF4J backend. Published under Apache-2.0.
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF data model (term interfaces, graph types, vocab). **Library-free** — no external dependencies. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Backend-agnostic dataset ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetTransactor`, `DatasetTx`, `DatasetLifecycle` (open-or-create/close/delete/list by opaque `DatasetId`, lease-protected; `acquire` returns a leased `DatasetHandle` — an access handle, not an RDF dataset). |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the dataset ports. |
-| `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Backend-agnostic SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning a neutral `ShaclReport`/`ShaclResult`/`Severity`. **Depends only on `rdf-terms`** — no rdf4j. |
+| `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Backend-agnostic SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning a neutral `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` (every `sh:message` survives with its language tag; the port picks no language). **Depends only on `rdf-terms`** — no rdf4j. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port (wraps `ShaclValidator`). **Store-independent** — does not depend on `rdf-dataset`/`-rdf4j`. |
 
 Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.
