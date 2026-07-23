@@ -6,28 +6,41 @@ Records](docs/adr/).
 
 ## What it is
 
-Kogn RDF is a backend-agnostic RDF layer in three parts: a pure data model, a
-set of technology-neutral dataset ports, and an RDF4J backend that implements
-those ports. Nothing above the RDF4J module is tied to a particular store — the
-ports are the contract, RDF4J is one adapter behind it.
+Kogn RDF is a backend-agnostic RDF layer built on a pure data model, with two
+independent port families above it — dataset access and SHACL validation — each
+with an RDF4J backend implementing it. Nothing above the RDF4J modules is tied to
+a particular store: the ports are the contract, RDF4J is one adapter behind them.
 
 ## Building blocks
 
 ```
 rdf-terms  ◄──────  rdf-dataset  ◄──────  rdf-dataset-rdf4j
 data model          ports (contracts)     RDF4J adapter
-(no dependencies)                          (RDF4J behind the ports)
+(no dependencies)                         (RDF4J behind the ports)
+    ▲
+    └───────────    rdf-shacl    ◄──────  rdf-shacl-rdf4j
+                    validation port       RDF4J adapter
+                    (no rdf4j)            (wraps ShaclValidator)
 ```
 
 Dependencies point left only: `rdf-dataset` depends on `rdf-terms`;
 `rdf-dataset-rdf4j` depends on both. Nothing depends on the adapter — callers
 program against the ports.
 
+The two port families are siblings, not layers: `rdf-shacl` depends on
+`rdf-terms` alone and knows nothing about datasets, so validation is usable
+without a store and a store is usable without validation. Wiring the two
+together — validating on the dataset write path — is not done here today; ADR-0007
+explains why validation stands alone, and issue #2 tracks whether an optional
+write-path variant should join it.
+
 | Module | Artifact | Role |
 |---|---|---|
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `NamedGraph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetTransactor`/`DatasetTx`, and `DatasetLifecycle` (with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`, `BindingSet`). Interfaces only — no backend. |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of every port. RDF4J types never appear in public signatures. |
+| `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
+| `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
@@ -109,6 +122,36 @@ types to callers ([ADR-0005](docs/adr/0005-rdf4j-backend-for-dataset-ports.md)):
   so the adapter is a genuine portability layer rather than an RDF4J-only island
   ([ADR-0004](docs/adr/0004-converter-based-interop.md)).
 
+## SHACL validation (`rdf-shacl`, `rdf-shacl-rdf4j`)
+
+A standalone validation port: `ShaclValidation.validate(data, shapes, options)`
+takes two `ReadableGraph`s and answers with a `ShaclReport`
+([ADR-0007](docs/adr/0007-standalone-shacl-validation-port.md)). It is
+non-transactional and stateless — it validates a *candidate* graph before a
+write rather than constraining a store, which suits the single-writer case where
+one adapter owns every write. A transactional variant (RDF4J's `ShaclSail` on the
+write path) is a different tool for shared stores and is not what this is.
+
+Settled semantics worth knowing before consuming it:
+
+- **Conformance is recomputed, not taken from RDF4J.** Only `Severity.VIOLATION`
+  makes a report non-conforming; `sh:Warning` and `sh:Info` results are carried
+  in `results()` but never flip `conforms`. RDF4J's own report treats *any*
+  result as non-conforming, so the adapter deliberately diverges from it.
+- **Messages are handed over whole.** `ShaclResult.messages()` carries every
+  `sh:resultMessage` as a `ShaclMessage(text, language)` with its tag intact,
+  and the port picks none of them: a language fallback chain is a deployment
+  decision and belongs where that context exists. The list order is a parse-order
+  artifact of the shapes graph and carries no meaning — select by tag, not by
+  position. Tags are lower-cased so that selection actually works.
+- **RDFS subclass reasoning is opt-in** (`ValidationOptions.rdfsSubClassReasoning`,
+  default off), and a silent no-op if no `rdfs:subClassOf` axioms are present in
+  either graph.
+
+`rdf-shacl-rdf4j` wraps RDF4J's `ShaclValidator` and loads both graphs into
+transient in-memory sails per call. It depends on `rdf-terms` and `rdf-shacl`
+only — never on the dataset modules — so validation and storage stay separable.
+
 ## Build & release
 
 Java 25, built with the pinned Maven wrapper (`./mvnw`). The version is a single
@@ -122,5 +165,8 @@ and [CONTRIBUTING](CONTRIBUTING.md) for the day-to-day commands.
 
 - No default graph / full RDF 1.1 dataset semantics (see above).
 - No SPARQL `DESCRIBE`.
-- No object mapping, reasoning or inference layer — this is a data-model and
-  store-access abstraction, not a framework.
+- No object mapping, and no general reasoning or inference layer — this is a
+  data-model and store-access abstraction, not a framework. The one exception is
+  narrow and opt-in: `ValidationOptions.rdfsSubClassReasoning` resolves
+  `rdfs:subClassOf` for the duration of a validation call, so a shape may target
+  a superclass. It infers nothing beyond that and nothing is materialised.
