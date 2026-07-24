@@ -10,9 +10,12 @@ import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.query.MalformedQueryException;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
@@ -194,6 +197,69 @@ class DatasetRdf4jTest {
       // when / then
       assertThat(store.count(GRAPH_1)).isEqualTo(1L);
       assertThat(store.count(GRAPH_2)).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("add returns the exact delta despite a concurrent commit to the same named graph"
+        + " between the before/after size samples")
+    void add_concurrentCommitToSameGraphBetweenSamples_returnsExactDelta() throws InterruptedException {
+      // given — a connection wrapper that pauses right after the first size() call inside
+      // GraphStoreRdf4j#add (the "before" sample) so a second thread can commit an unrelated
+      // triple to the same named graph before the "after" sample runs. The interleave is forced
+      // by latches, not by hoping a timing window is hit — this repo's tests treat wall-clock
+      // races as flaky by nature (issue #22/#23) and require a deterministic reproduction instead.
+      final CountDownLatch beforeSampleTaken = new CountDownLatch(1);
+      final CountDownLatch concurrentWriteCommitted = new CountDownLatch(1);
+      final AtomicInteger sizeCalls = new AtomicInteger();
+      final Repository interleaved = new RepositoryWrapper(repository) {
+        @Override
+        public RepositoryConnection getConnection() {
+          return new RepositoryConnectionWrapper(this, super.getConnection()) {
+            @Override
+            public long size(final Resource... contexts) {
+              final long result = super.size(contexts);
+              if (sizeCalls.incrementAndGet() == 1) {
+                beforeSampleTaken.countDown();
+                awaitUninterruptibly(concurrentWriteCommitted);
+              }
+              return result;
+            }
+          };
+        }
+      };
+      final GraphStoreRdf4j interleavedStore = new GraphStoreRdf4j(interleaved);
+      final AtomicLong delta = new AtomicLong();
+
+      // when
+      final Thread adder = new Thread(() -> delta.set(interleavedStore.add(GRAPH_1, singleTripleGraph())));
+      adder.start();
+      beforeSampleTaken.await();
+      store.add(GRAPH_1, concurrentTriple());
+      concurrentWriteCommitted.countDown();
+      adder.join();
+
+      // then — the delta reported by add() must be exactly the one triple it itself inserted; the
+      // concurrently committed unrelated triple must not leak into it. Under a bare begin() (the
+      // backend's default SNAPSHOT_READ) the two size() samples are two independent reads of the
+      // then-current committed state, so the concurrent commit above leaks into the "after" sample
+      // and this delta comes back as 2.
+      assertThat(delta.get()).isEqualTo(1L);
+      assertThat(store.count(GRAPH_1)).isEqualTo(2L);
+    }
+
+    private Graph concurrentTriple() {
+      final Graph graph = rdf.createGraph();
+      graph.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral("concurrent")));
+      return graph;
+    }
+
+    private void awaitUninterruptibly(final CountDownLatch latch) {
+      try {
+        latch.await();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(e);
+      }
     }
   }
 

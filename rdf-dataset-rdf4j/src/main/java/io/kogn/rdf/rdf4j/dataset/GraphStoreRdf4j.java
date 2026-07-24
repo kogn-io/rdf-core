@@ -3,6 +3,7 @@
 
 package io.kogn.rdf.rdf4j.dataset;
 
+import org.eclipse.rdf4j.common.transaction.IsolationLevels;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
@@ -69,12 +70,23 @@ public class GraphStoreRdf4j implements GraphStore {
    * which leaves a half-applied graph on failure and is slow for large batches.
    *
    * <p>The graph size is sampled before and after the mutation inside the same
-   * transaction, so the net delta returned to callers is race-free against
-   * concurrent writers to the same named graph.</p>
+   * transaction. A bare {@code conn.begin()} would run at the backend's default
+   * isolation — {@code SNAPSHOT_READ} for both RDF4J's {@code MemoryStore} and
+   * {@code NativeStore} — which only guarantees a single query result is
+   * internally consistent, not that two reads in the same transaction (the
+   * before- and after-sample) see the same snapshot; a concurrent commit to the
+   * same named graph between the two samples would then leak into the delta.
+   * The transaction is therefore opened at {@link IsolationLevels#SNAPSHOT}
+   * instead, which does guarantee both samples see one consistent snapshot, so
+   * the net delta returned to callers is race-free against concurrent writers to
+   * the same named graph. {@code SNAPSHOT} rather than
+   * {@code SERIALIZABLE} because this transaction never uses its reads as an
+   * optimistic-concurrency guard for a later write — see
+   * {@link DatasetTransactorRdf4j} for that stronger case.</p>
    */
   private long inTransaction(final java.util.function.ToLongFunction<RepositoryConnection> work) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      conn.begin();
+      conn.begin(IsolationLevels.SNAPSHOT);
       try {
         final long result = work.applyAsLong(conn);
         conn.commit();
