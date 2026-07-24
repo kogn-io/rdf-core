@@ -355,7 +355,11 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     }
   }
 
-  private static void shutDownQuietly(final Repository repository) {
+  /**
+   * Package-private (not {@code private}) so a test in this package can override it to force a
+   * deterministic repository-teardown failure — see {@code DatasetLifecycleRdf4jTest}.
+   */
+  void shutDownQuietly(final Repository repository) {
     if (repository.isInitialized()) {
       repository.shutDown();
     }

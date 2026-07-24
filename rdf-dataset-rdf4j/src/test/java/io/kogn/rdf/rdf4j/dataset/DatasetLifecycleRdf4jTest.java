@@ -18,9 +18,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import org.eclipse.rdf4j.repository.Repository;
+import org.eclipse.rdf4j.repository.RepositoryException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -444,6 +447,41 @@ class DatasetLifecycleRdf4jTest {
       }
 
       assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
+
+      // the cache must not keep serving the (already shut-down but now dangling) store: a fresh
+      // acquire creates a brand new one — same identity would mean the dead cached entry survived
+      // — and the fresh store is still fully usable, with the original data intact on disk.
+      try (DatasetHandle ds = lc.acquire(id)) {
+        assertThat(ds.graphStore()).isNotSameAs(firstStore);
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
+    }
+
+    @Test
+    @DisplayName("a close whose repository teardown fails still drops the cache entry; retry re-opens a live store")
+    void close_teardownFails_dropsCacheEntryAndSurfacesFailure() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("close-fails");
+      final RepositoryException teardownFailure = new RepositoryException("simulated shutdown failure");
+      final AtomicBoolean failNext = new AtomicBoolean(true);
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
+        @Override
+        void shutDownQuietly(final Repository repository) {
+          super.shutDownQuietly(repository); // real teardown succeeds — lock released, data flushed
+          if (failNext.compareAndSet(true, false)) {
+            throw teardownFailure; // ...but shutDown() itself is reported as having failed, once
+          }
+        }
+      };
+      lifecycle = lc;
+      final GraphStore firstStore;
+      try (DatasetHandle ds = lc.acquire(id)) {
+        ds.graphStore().add(GRAPH, singleTriple());
+        firstStore = ds.graphStore();
+      }
+
+      assertThatThrownBy(() -> lc.close(id)).isSameAs(teardownFailure);
 
       // the cache must not keep serving the (already shut-down but now dangling) store: a fresh
       // acquire creates a brand new one — same identity would mean the dead cached entry survived
