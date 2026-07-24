@@ -479,6 +479,53 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("nested inTransaction on the same thread is rejected")
+    void inTransaction_nestedCall_throwsIllegalStateException() {
+      // given — the port forbids nesting (see DatasetTransactor Javadoc); a nested call on the
+      // same thread must be rejected loudly rather than silently opening a second, independent
+      // transaction.
+      // when, then
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> transactor.inTransaction(innerTx -> null)))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("nested transactions are not supported");
+    }
+
+    @Test
+    @DisplayName("the nesting guard is cleared after the outer transaction throws, so the next call succeeds")
+    void inTransaction_afterExceptionInOuter_guardIsClearedForNextCall() {
+      // given — a previous call failed; the ThreadLocal guard must still be cleared in `finally`
+      // so this thread is not permanently locked out of future transactions.
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> {
+        throw new RuntimeException("deliberate failure");
+      })).isInstanceOf(RuntimeException.class);
+
+      // when, then — a normal, non-nested transaction on the same thread still works
+      final Graph graph = singleTripleGraph();
+      transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, graph);
+        return null;
+      });
+      assertThat(store.count(GRAPH_1)).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("sequential (non-nested) transactions on the same thread both succeed")
+    void inTransaction_sequentialCalls_bothSucceed() {
+      // given, when
+      transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, valueTriple("value-1"));
+        return null;
+      });
+      transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, valueTriple("value-2"));
+        return null;
+      });
+
+      // then
+      assertThat(store.count(GRAPH_1)).isEqualTo(2L);
+    }
+
+    @Test
     @DisplayName("a failure in the work lambda is not reported as a concurrency conflict")
     void inTransaction_exceptionInWork_isNotTranslatedToConflict() {
       // given — a bug in the caller's own work function. It must stay distinguishable from a lost
