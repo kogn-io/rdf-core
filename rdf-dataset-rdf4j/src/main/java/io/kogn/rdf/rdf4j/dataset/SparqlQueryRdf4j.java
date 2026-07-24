@@ -45,7 +45,8 @@ public class SparqlQueryRdf4j implements SparqlQuery {
   public Stream<BindingSet> select(final String sparql) {
     try (RepositoryConnection conn = repository.getConnection()) {
       final List<BindingSet> results = new ArrayList<>();
-      try (TupleQueryResult result = conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql).evaluate()) {
+      try (TupleQueryResult result = SparqlErrors.preparing(() -> conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql))
+          .evaluate()) {
         while (result.hasNext()) {
           results.add(new RDF4JBindingSet(result.next()));
         }
@@ -57,7 +58,8 @@ public class SparqlQueryRdf4j implements SparqlQuery {
   @Override
   public ReadableGraph construct(final String sparql) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      final Model model = QueryResults.asModel(conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql).evaluate());
+      final Model model = QueryResults
+          .asModel(SparqlErrors.preparing(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)).evaluate());
       return new RDF4JGraph(model);
     }
   }
@@ -65,7 +67,7 @@ public class SparqlQueryRdf4j implements SparqlQuery {
   @Override
   public boolean ask(final String sparql) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      return conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql).evaluate();
+      return SparqlErrors.preparing(() -> conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)).evaluate();
     }
   }
 }

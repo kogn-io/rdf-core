@@ -13,6 +13,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import org.eclipse.rdf4j.query.MalformedQueryException;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryException;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
+import io.kogn.rdf.dataset.MalformedSparqlException;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.Graph;
@@ -241,6 +243,18 @@ class DatasetRdf4jTest {
       // then
       assertThat(sparqlQuery.ask("ASK { GRAPH <" + graphIri + "> { ?s ?p ?o } }")).isFalse();
     }
+
+    @Test
+    @DisplayName("update — malformed SPARQL fails with the neutral MalformedSparqlException, not a backend type")
+    void update_malformedSparql_throwsNeutralException() {
+      // given — a syntactically broken update. The ports document this as a parse failure; the
+      // backend's MalformedQueryException must not leak, and the type must not be the
+      // IllegalArgumentException the Javadoc used to (wrongly) name — see issue #31.
+      assertThatThrownBy(() -> sparqlUpdate.update("INSERT DATA { this is not sparql"))
+          .isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -322,6 +336,32 @@ class DatasetRdf4jTest {
 
       // then
       assertThat(constructed.size()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("select — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void select_malformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> sparqlQuery.select("SELECT ?s WHERE {{{").toList())
+          .isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("construct — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void construct_malformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> sparqlQuery.construct("CONSTRUCT WHERE not valid"))
+          .isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("ask — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void ask_malformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> sparqlQuery.ask("ASK { this is not sparql")).isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
     }
   }
 
@@ -657,6 +697,44 @@ class DatasetRdf4jTest {
 
       // then
       assertThat(found).isTrue();
+    }
+
+    @Test
+    @DisplayName("tx.update — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void inTransaction_updateMalformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> {
+        tx.update("INSERT DATA { this is not sparql");
+        return null;
+      })).isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("tx.select — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void inTransaction_selectMalformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.select("SELECT ?s WHERE {{{").toList()))
+          .isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("tx.ask — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void inTransaction_askMalformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.ask("ASK { this is not sparql")))
+          .isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("tx.construct — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void inTransaction_constructMalformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.construct("CONSTRUCT WHERE not valid")))
+          .isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
     }
 
     /**

@@ -54,7 +54,7 @@ public interface DatasetTx {
    * Executes a SPARQL 1.1 Update operation within this transaction.
    *
    * @param sparql the SPARQL Update string; must not be {@code null} or empty
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   void update(String sparql);
 
@@ -70,7 +70,7 @@ public interface DatasetTx {
    *
    * @param sparql the SPARQL SELECT query string; must not be {@code null} or empty
    * @return a lazily-evaluated stream of binding sets; never {@code null}
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   Stream<BindingSet> select(String sparql);
 
@@ -108,7 +108,7 @@ public interface DatasetTx {
    *
    * @param sparql the SPARQL ASK query string; must not be {@code null} or empty
    * @return {@code true} if the pattern has at least one match
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   boolean ask(String sparql);
 
@@ -120,7 +120,7 @@ public interface DatasetTx {
    *
    * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null} or empty
    * @return the constructed graph; never {@code null}
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   ReadableGraph construct(String sparql);
 }

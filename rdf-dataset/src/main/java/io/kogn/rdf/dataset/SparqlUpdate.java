@@ -21,7 +21,7 @@ public interface SparqlUpdate {
    * atomically if the underlying store supports it.</p>
    *
    * @param sparql the SPARQL Update string; must not be {@code null} or empty
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   void update(String sparql);
 }
