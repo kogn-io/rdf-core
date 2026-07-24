@@ -6,6 +6,7 @@ package io.kogn.rdf.rdf4j.dataset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -25,11 +26,15 @@ import org.eclipse.rdf4j.repository.base.RepositoryWrapper;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.sail.SailConflictException;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
+import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
@@ -75,6 +80,55 @@ class DatasetRdf4jTest {
     final Graph graph = rdf.createGraph();
     graph.add(rdf.createTriple(SUBJECT, PREDICATE, OBJECT));
     return graph;
+  }
+
+  private Graph valueTriple(final String value) {
+    final Graph graph = rdf.createGraph();
+    graph.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral(value)));
+    return graph;
+  }
+
+  private void awaitUninterruptibly(final CountDownLatch latch) {
+    try {
+      latch.await();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private void awaitUninterruptibly(final CyclicBarrier barrier) {
+    try {
+      barrier.await();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(e);
+    } catch (BrokenBarrierException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /**
+   * The two Sail implementations {@link DatasetLifecycleRdf4j} actually ships
+   * ({@code IN_MEMORY} / {@code PERSISTENT}) — used to parameterize the tests whose guarantees are
+   * store-specific (isolation, conflict detection) rather than plain functional behaviour, which is
+   * identical across Sails via the shared {@code RepositoryConnection} API.
+   */
+  private enum Backend {
+    MEMORY {
+      @Override
+      Repository create(final Path tempDir) {
+        return new SailRepository(new MemoryStore());
+      }
+    },
+    NATIVE {
+      @Override
+      Repository create(final Path tempDir) {
+        return new SailRepository(new NativeStore(tempDir.toFile()));
+      }
+    };
+
+    abstract Repository create(Path tempDir);
   }
 
   // -------------------------------------------------------------------------
@@ -197,69 +251,6 @@ class DatasetRdf4jTest {
       // when / then
       assertThat(store.count(GRAPH_1)).isEqualTo(1L);
       assertThat(store.count(GRAPH_2)).isEqualTo(0L);
-    }
-
-    @Test
-    @DisplayName("add returns the exact delta despite a concurrent commit to the same named graph"
-        + " between the before/after size samples")
-    void add_concurrentCommitToSameGraphBetweenSamples_returnsExactDelta() throws InterruptedException {
-      // given — a connection wrapper that pauses right after the first size() call inside
-      // GraphStoreRdf4j#add (the "before" sample) so a second thread can commit an unrelated
-      // triple to the same named graph before the "after" sample runs. The interleave is forced
-      // by latches, not by hoping a timing window is hit — this repo's tests treat wall-clock
-      // races as flaky by nature (issue #22/#23) and require a deterministic reproduction instead.
-      final CountDownLatch beforeSampleTaken = new CountDownLatch(1);
-      final CountDownLatch concurrentWriteCommitted = new CountDownLatch(1);
-      final AtomicInteger sizeCalls = new AtomicInteger();
-      final Repository interleaved = new RepositoryWrapper(repository) {
-        @Override
-        public RepositoryConnection getConnection() {
-          return new RepositoryConnectionWrapper(this, super.getConnection()) {
-            @Override
-            public long size(final Resource... contexts) {
-              final long result = super.size(contexts);
-              if (sizeCalls.incrementAndGet() == 1) {
-                beforeSampleTaken.countDown();
-                awaitUninterruptibly(concurrentWriteCommitted);
-              }
-              return result;
-            }
-          };
-        }
-      };
-      final GraphStoreRdf4j interleavedStore = new GraphStoreRdf4j(interleaved);
-      final AtomicLong delta = new AtomicLong();
-
-      // when
-      final Thread adder = new Thread(() -> delta.set(interleavedStore.add(GRAPH_1, singleTripleGraph())));
-      adder.start();
-      beforeSampleTaken.await();
-      store.add(GRAPH_1, concurrentTriple());
-      concurrentWriteCommitted.countDown();
-      adder.join();
-
-      // then — the delta reported by add() must be exactly the one triple it itself inserted; the
-      // concurrently committed unrelated triple must not leak into it. Under a bare begin() (the
-      // backend's default SNAPSHOT_READ) the two size() samples are two independent reads of the
-      // then-current committed state, so the concurrent commit above leaks into the "after" sample
-      // and this delta comes back as 2.
-      assertThat(delta.get()).isEqualTo(1L);
-      assertThat(store.count(GRAPH_1)).isEqualTo(2L);
-    }
-
-    private Graph concurrentTriple() {
-      final Graph graph = rdf.createGraph();
-      graph.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral("concurrent")));
-      return graph;
-    }
-
-    private void awaitUninterruptibly(final CountDownLatch latch) {
-      try {
-        latch.await();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IllegalStateException(e);
-      }
     }
   }
 
@@ -650,121 +641,6 @@ class DatasetRdf4jTest {
     }
 
     @Test
-    @DisplayName("overlapping transactions racing an ASK-guarded write, guard IRIs already known to the store"
-        + " — the loser's commit fails, only one write wins")
-    void inTransaction_overlappingAskGuardedWrites_whenGuardIrisKnownToStore_loserCommitFails()
-        throws InterruptedException {
-      // given — both transactions check "does this resource already have a value?" before writing.
-      // A barrier makes both ASKs happen before either write (the ASK-guard-defeat scenario from
-      // issue #17); a latch then forces the second transaction's commit to happen strictly after the
-      // first's, so the outcome — who wins the race — is deterministic instead of flaky.
-      //
-      // The seed is load-bearing, not scenery: it puts GRAPH_1, SUBJECT and PREDICATE into the store
-      // *before* the race, without satisfying the guard. A SERIALIZABLE guard read over IRIs the
-      // store has never seen does not reliably register an observation, so the conflict below goes
-      // undetected in a timing-dependent 6–12% of runs — see the "Limits" section on
-      // DatasetTransactorRdf4j and issue #23. Without the seed this test is flaky because the
-      // guarantee itself is.
-      store.add(GRAPH_1, seedTriples());
-      final String askGuard = "ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
-          + PREDICATE.getIRIString() + "> ?o } }";
-      final CyclicBarrier bothGuardsChecked = new CyclicBarrier(2);
-      final CountDownLatch firstCommitted = new CountDownLatch(1);
-      final AtomicReference<Throwable> secondFailure = new AtomicReference<>();
-
-      final Thread winner = new Thread(() -> {
-        transactor.inTransaction(tx -> {
-          tx.ask(askGuard);
-          awaitUninterruptibly(bothGuardsChecked);
-          tx.add(GRAPH_1, valueTriple("value-1"));
-          return null;
-        });
-        firstCommitted.countDown();
-      });
-      final Thread loser = new Thread(() -> {
-        try {
-          transactor.inTransaction(tx -> {
-            final boolean alreadyPresent = tx.ask(askGuard);
-            awaitUninterruptibly(bothGuardsChecked);
-            awaitUninterruptibly(firstCommitted);
-            if (!alreadyPresent) {
-              tx.add(GRAPH_1, valueTriple("value-2"));
-            }
-            return null;
-          });
-        } catch (RuntimeException e) {
-          secondFailure.set(e);
-        }
-      });
-
-      // when
-      winner.start();
-      loser.start();
-      winner.join();
-      loser.join();
-
-      // then — the loser's commit is rejected as a conflict, the store holds the two seed triples
-      // plus exactly one of the two racing writes. The failure reaches the caller as the port's
-      // neutral ConcurrencyConflictException, with the backend's signal kept as cause.
-      assertThat(secondFailure.get()).isInstanceOf(ConcurrencyConflictException.class)
-          .hasCauseInstanceOf(RepositoryException.class)
-          .hasRootCauseInstanceOf(SailConflictException.class);
-      assertThat(store.count(GRAPH_1)).isEqualTo(3L);
-    }
-
-    @Test
-    @DisplayName("overlapping transactions racing a contains-guarded first insert, guard IRIs unknown"
-        + " to the store — the loser's commit fails, only one write wins")
-    void inTransaction_overlappingContainsGuardedWrites_whenGuardIrisUnknownToStore_loserCommitFails()
-        throws InterruptedException {
-      // given — the same race as the ASK test above, minus the seed: nothing in the store mentions
-      // GRAPH_1, SUBJECT or PREDICATE yet, so this is the first-insert uniqueness case of issue #23.
-      // The guard reads through contains() rather than SPARQL, which registers the observation the
-      // SPARQL path fails to register — so the conflict is detected here where the ASK variant
-      // misses it in a timing-dependent share of runs.
-      final CyclicBarrier bothGuardsChecked = new CyclicBarrier(2);
-      final CountDownLatch firstCommitted = new CountDownLatch(1);
-      final AtomicReference<Throwable> secondFailure = new AtomicReference<>();
-
-      final Thread winner = new Thread(() -> {
-        transactor.inTransaction(tx -> {
-          tx.contains(GRAPH_1, SUBJECT, PREDICATE, null);
-          awaitUninterruptibly(bothGuardsChecked);
-          tx.add(GRAPH_1, valueTriple("value-1"));
-          return null;
-        });
-        firstCommitted.countDown();
-      });
-      final Thread loser = new Thread(() -> {
-        try {
-          transactor.inTransaction(tx -> {
-            final boolean alreadyPresent = tx.contains(GRAPH_1, SUBJECT, PREDICATE, null);
-            awaitUninterruptibly(bothGuardsChecked);
-            awaitUninterruptibly(firstCommitted);
-            if (!alreadyPresent) {
-              tx.add(GRAPH_1, valueTriple("value-2"));
-            }
-            return null;
-          });
-        } catch (RuntimeException e) {
-          secondFailure.set(e);
-        }
-      });
-
-      // when
-      winner.start();
-      loser.start();
-      winner.join();
-      loser.join();
-
-      // then — the loser's commit is rejected as a conflict, exactly one of the two writes landed
-      assertThat(secondFailure.get()).isInstanceOf(ConcurrencyConflictException.class)
-          .hasCauseInstanceOf(RepositoryException.class)
-          .hasRootCauseInstanceOf(SailConflictException.class);
-      assertThat(store.count(GRAPH_1)).isEqualTo(1L);
-    }
-
-    @Test
     @DisplayName("contains — exact triple pattern matches")
     void contains_exactPattern_returnsTrue() {
       // given
@@ -874,6 +750,13 @@ class DatasetRdf4jTest {
           .isNotInstanceOf(IllegalArgumentException.class)
           .hasCauseInstanceOf(MalformedQueryException.class);
     }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("backend divergence — MemoryStore vs NativeStore")
+  class BackendDivergenceTests {
 
     /**
      * Two triples that make GRAPH_1, SUBJECT and PREDICATE known to the store without satisfying
@@ -888,29 +771,196 @@ class DatasetRdf4jTest {
       return graph;
     }
 
-    private Graph valueTriple(final String value) {
-      final Graph graph = rdf.createGraph();
-      graph.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral(value)));
-      return graph;
-    }
-
-    private void awaitUninterruptibly(final CyclicBarrier barrier) {
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Backend.class)
+    @DisplayName("add returns the exact delta despite a concurrent commit to the same named graph"
+        + " between the before/after size samples")
+    void add_concurrentCommitToSameGraphBetweenSamples_returnsExactDelta(final Backend backend,
+        @TempDir final Path tempDir) throws InterruptedException {
+      // given — a connection wrapper that pauses right after the first size() call inside
+      // GraphStoreRdf4j#add (the "before" sample) so a second thread can commit an unrelated
+      // triple to the same named graph before the "after" sample runs. The interleave is forced
+      // by latches, not by hoping a timing window is hit — this repo's tests treat wall-clock
+      // races as flaky by nature (issue #22/#23) and require a deterministic reproduction instead.
+      // Verified against both backends per #52: the delta-race fix (#32/#47) was originally proven
+      // only against MemoryStore.
+      final Repository backendRepository = backend.create(tempDir);
+      backendRepository.init();
       try {
-        barrier.await();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IllegalStateException(e);
-      } catch (BrokenBarrierException e) {
-        throw new IllegalStateException(e);
+        final GraphStoreRdf4j backendStore = new GraphStoreRdf4j(backendRepository);
+        final CountDownLatch beforeSampleTaken = new CountDownLatch(1);
+        final CountDownLatch concurrentWriteCommitted = new CountDownLatch(1);
+        final AtomicInteger sizeCalls = new AtomicInteger();
+        final Repository interleaved = new RepositoryWrapper(backendRepository) {
+          @Override
+          public RepositoryConnection getConnection() {
+            return new RepositoryConnectionWrapper(this, super.getConnection()) {
+              @Override
+              public long size(final Resource... contexts) {
+                final long result = super.size(contexts);
+                if (sizeCalls.incrementAndGet() == 1) {
+                  beforeSampleTaken.countDown();
+                  awaitUninterruptibly(concurrentWriteCommitted);
+                }
+                return result;
+              }
+            };
+          }
+        };
+        final GraphStoreRdf4j interleavedStore = new GraphStoreRdf4j(interleaved);
+        final AtomicLong delta = new AtomicLong();
+
+        // when
+        final Thread adder = new Thread(() -> delta.set(interleavedStore.add(GRAPH_1, singleTripleGraph())));
+        adder.start();
+        beforeSampleTaken.await();
+        backendStore.add(GRAPH_1, valueTriple("concurrent"));
+        concurrentWriteCommitted.countDown();
+        adder.join();
+
+        // then — the delta reported by add() must be exactly the one triple it itself inserted; the
+        // concurrently committed unrelated triple must not leak into it. Under a bare begin() (the
+        // backend's default SNAPSHOT_READ) the two size() samples are two independent reads of the
+        // then-current committed state, so the concurrent commit above leaks into the "after" sample
+        // and this delta comes back as 2.
+        assertThat(delta.get()).isEqualTo(1L);
+        assertThat(backendStore.count(GRAPH_1)).isEqualTo(2L);
+      } finally {
+        backendRepository.shutDown();
       }
     }
 
-    private void awaitUninterruptibly(final CountDownLatch latch) {
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Backend.class)
+    @DisplayName("overlapping transactions racing an ASK-guarded write, guard IRIs already known to the store"
+        + " — the loser's commit fails, only one write wins")
+    void inTransaction_overlappingAskGuardedWrites_whenGuardIrisKnownToStore_loserCommitFails(final Backend backend,
+        @TempDir final Path tempDir) throws InterruptedException {
+      // given — both transactions check "does this resource already have a value?" before writing.
+      // A barrier makes both ASKs happen before either write (the ASK-guard-defeat scenario from
+      // issue #17); a latch then forces the second transaction's commit to happen strictly after the
+      // first's, so the outcome — who wins the race — is deterministic instead of flaky.
+      //
+      // The seed is load-bearing, not scenery: it puts GRAPH_1, SUBJECT and PREDICATE into the store
+      // *before* the race, without satisfying the guard. A SERIALIZABLE guard read over IRIs the
+      // store has never seen does not reliably register an observation, so the conflict below goes
+      // undetected in a timing-dependent 6–12% of runs — see the "Limits" section on
+      // DatasetTransactorRdf4j and issue #23. Without the seed this test is flaky because the
+      // guarantee itself is. Per #52, that percentage was measured against MemoryStore only —
+      // running this guard race against NativeStore too is the point of this parameterization.
+      final Repository backendRepository = backend.create(tempDir);
+      backendRepository.init();
       try {
-        latch.await();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IllegalStateException(e);
+        final GraphStoreRdf4j backendStore = new GraphStoreRdf4j(backendRepository);
+        final DatasetTransactorRdf4j backendTransactor = new DatasetTransactorRdf4j(backendRepository);
+        backendStore.add(GRAPH_1, seedTriples());
+        final String askGuard = "ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
+            + PREDICATE.getIRIString() + "> ?o } }";
+        final CyclicBarrier bothGuardsChecked = new CyclicBarrier(2);
+        final CountDownLatch firstCommitted = new CountDownLatch(1);
+        final AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+
+        final Thread winner = new Thread(() -> {
+          backendTransactor.inTransaction(tx -> {
+            tx.ask(askGuard);
+            awaitUninterruptibly(bothGuardsChecked);
+            tx.add(GRAPH_1, valueTriple("value-1"));
+            return null;
+          });
+          firstCommitted.countDown();
+        });
+        final Thread loser = new Thread(() -> {
+          try {
+            backendTransactor.inTransaction(tx -> {
+              final boolean alreadyPresent = tx.ask(askGuard);
+              awaitUninterruptibly(bothGuardsChecked);
+              awaitUninterruptibly(firstCommitted);
+              if (!alreadyPresent) {
+                tx.add(GRAPH_1, valueTriple("value-2"));
+              }
+              return null;
+            });
+          } catch (RuntimeException e) {
+            secondFailure.set(e);
+          }
+        });
+
+        // when
+        winner.start();
+        loser.start();
+        winner.join();
+        loser.join();
+
+        // then — the loser's commit is rejected as a conflict, the store holds the two seed triples
+        // plus exactly one of the two racing writes. The failure reaches the caller as the port's
+        // neutral ConcurrencyConflictException, with the backend's signal kept as cause.
+        assertThat(secondFailure.get()).isInstanceOf(ConcurrencyConflictException.class)
+            .hasCauseInstanceOf(RepositoryException.class)
+            .hasRootCauseInstanceOf(SailConflictException.class);
+        assertThat(backendStore.count(GRAPH_1)).isEqualTo(3L);
+      } finally {
+        backendRepository.shutDown();
+      }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Backend.class)
+    @DisplayName("overlapping transactions racing a contains-guarded first insert, guard IRIs unknown"
+        + " to the store — the loser's commit fails, only one write wins")
+    void inTransaction_overlappingContainsGuardedWrites_whenGuardIrisUnknownToStore_loserCommitFails(
+        final Backend backend, @TempDir final Path tempDir) throws InterruptedException {
+      // given — the same race as the ASK test above, minus the seed: nothing in the store mentions
+      // GRAPH_1, SUBJECT or PREDICATE yet, so this is the first-insert uniqueness case of issue #23.
+      // The guard reads through contains() rather than SPARQL, which registers the observation the
+      // SPARQL path fails to register — so the conflict is detected here where the ASK variant
+      // misses it in a timing-dependent share of runs.
+      final Repository backendRepository = backend.create(tempDir);
+      backendRepository.init();
+      try {
+        final GraphStoreRdf4j backendStore = new GraphStoreRdf4j(backendRepository);
+        final DatasetTransactorRdf4j backendTransactor = new DatasetTransactorRdf4j(backendRepository);
+        final CyclicBarrier bothGuardsChecked = new CyclicBarrier(2);
+        final CountDownLatch firstCommitted = new CountDownLatch(1);
+        final AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+
+        final Thread winner = new Thread(() -> {
+          backendTransactor.inTransaction(tx -> {
+            tx.contains(GRAPH_1, SUBJECT, PREDICATE, null);
+            awaitUninterruptibly(bothGuardsChecked);
+            tx.add(GRAPH_1, valueTriple("value-1"));
+            return null;
+          });
+          firstCommitted.countDown();
+        });
+        final Thread loser = new Thread(() -> {
+          try {
+            backendTransactor.inTransaction(tx -> {
+              final boolean alreadyPresent = tx.contains(GRAPH_1, SUBJECT, PREDICATE, null);
+              awaitUninterruptibly(bothGuardsChecked);
+              awaitUninterruptibly(firstCommitted);
+              if (!alreadyPresent) {
+                tx.add(GRAPH_1, valueTriple("value-2"));
+              }
+              return null;
+            });
+          } catch (RuntimeException e) {
+            secondFailure.set(e);
+          }
+        });
+
+        // when
+        winner.start();
+        loser.start();
+        winner.join();
+        loser.join();
+
+        // then — the loser's commit is rejected as a conflict, exactly one of the two writes landed
+        assertThat(secondFailure.get()).isInstanceOf(ConcurrencyConflictException.class)
+            .hasCauseInstanceOf(RepositoryException.class)
+            .hasRootCauseInstanceOf(SailConflictException.class);
+        assertThat(backendStore.count(GRAPH_1)).isEqualTo(1L);
+      } finally {
+        backendRepository.shutDown();
       }
     }
   }
