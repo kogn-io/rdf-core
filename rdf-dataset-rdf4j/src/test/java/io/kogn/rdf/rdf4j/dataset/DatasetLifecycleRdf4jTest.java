@@ -258,6 +258,24 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
+    @DisplayName("closing one handle does not affect a co-existing handle for the same dataset")
+    void closingOneHandle_leavesOtherHandleUsable() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final DatasetId id = new DatasetId("closed-one-of-two");
+      final DatasetHandle first = lc.acquire(id);
+      try (DatasetHandle second = lc.acquire(id)) {
+        first.close();
+
+        assertThatThrownBy(() -> first.graphStore().add(GRAPH, singleTriple()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("handle is closed");
+
+        second.graphStore().add(GRAPH, singleTriple());
+        assertThat(second.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
+    }
+
+    @Test
     @DisplayName("shutDownAll proceeds despite an open lease (last-resort teardown) and does not throw")
     void shutDownAll_withOpenLease_proceedsWithoutThrowing() {
       final DatasetLifecycleRdf4j lc = inMemory();
