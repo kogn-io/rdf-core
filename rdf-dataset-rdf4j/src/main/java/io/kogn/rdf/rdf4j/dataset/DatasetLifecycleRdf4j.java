@@ -12,12 +12,15 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
@@ -25,15 +28,19 @@ import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 
+import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.DatasetHandle;
 import io.kogn.rdf.dataset.DatasetId;
 import io.kogn.rdf.dataset.DatasetLifecycle;
 import io.kogn.rdf.dataset.DatasetStoreConfig;
 import io.kogn.rdf.dataset.DatasetStoreConfig.Persistence;
 import io.kogn.rdf.dataset.DatasetTransactor;
+import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.ReadableGraph;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -210,8 +217,29 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   /**
    * Shuts every open dataset down without deleting any storage. Intended for
    * orderly shutdown (e.g. {@code @PreDestroy} / test tear-down).
+   *
+   * <p><strong>Last resort — does not honour open leases.</strong> Unlike
+   * {@link #close(DatasetId)} and {@link #delete(DatasetId)}, this method does not
+   * consult {@code leaseCount} or take the per-key lock: it tears every store down
+   * unconditionally, including ones with an open {@link DatasetHandle}. Any handle
+   * still open at that point keeps its {@code closed} flag {@code false} — its
+   * accessors do not yet throw — but operating on the now-shut-down store fails
+   * with whatever the backend raises for a closed repository. Call this only when
+   * the process is going down anyway (e.g. {@code @PreDestroy} or test tear-down),
+   * never as a substitute for releasing leases in the normal course of business. If
+   * any dataset still has an open lease, a warning is logged naming it before
+   * teardown proceeds.</p>
    */
   public void shutDownAll() {
+    final Set<DatasetId> stillLeased = datasets.entrySet()
+        .stream()
+        .filter(entry -> entry.getValue().leaseCount.get() > 0)
+        .map(Entry::getKey)
+        .collect(Collectors.toSet());
+    if (!stillLeased.isEmpty()) {
+      log.warn("shutDownAll: tearing down {} dataset(s) with an open lease, ignoring in-flight protection: {}",
+          stillLeased.size(), stillLeased);
+    }
     datasets.values().forEach(md -> shutDownQuietly(md.repository));
     datasets.clear();
   }
@@ -333,29 +361,37 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
 
     private final ManagedDataset managed;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final GraphStore graphStore;
+    private final SparqlQuery sparqlQuery;
+    private final SparqlUpdate sparqlUpdate;
+    private final DatasetTransactor transactor;
 
     private LeasedDatasetHandle(final ManagedDataset managed) {
       this.managed = managed;
+      this.graphStore = new HandleBoundGraphStore(managed.graphStore, closed);
+      this.sparqlQuery = new HandleBoundSparqlQuery(managed.sparqlQuery, closed);
+      this.sparqlUpdate = new HandleBoundSparqlUpdate(managed.sparqlUpdate, closed);
+      this.transactor = new HandleBoundDatasetTransactor(managed.transactor, closed);
     }
 
     @Override
     public GraphStore graphStore() {
-      return managed.graphStore;
+      return graphStore;
     }
 
     @Override
     public SparqlQuery sparqlQuery() {
-      return managed.sparqlQuery;
+      return sparqlQuery;
     }
 
     @Override
     public SparqlUpdate sparqlUpdate() {
-      return managed.sparqlUpdate;
+      return sparqlUpdate;
     }
 
     @Override
     public DatasetTransactor transactor() {
-      return managed.transactor;
+      return transactor;
     }
 
     @Override
@@ -363,6 +399,143 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       if (closed.compareAndSet(false, true)) {
         managed.leaseCount.decrementAndGet();
       }
+    }
+  }
+
+  /**
+   * Throws {@link IllegalStateException} if {@code closed} has already been set,
+   * enforcing the "do not retain beyond the handle" rule stated on
+   * {@link DatasetHandle}.
+   */
+  private static void ensureOpen(final AtomicBoolean closed) {
+    if (closed.get()) {
+      throw new IllegalStateException("handle is closed");
+    }
+  }
+
+  /**
+   * Thin, per-handle {@link GraphStore} delegate that checks the owning handle's
+   * {@code closed} flag before every call.
+   */
+  private static final class HandleBoundGraphStore implements GraphStore {
+
+    private final GraphStore delegate;
+    private final AtomicBoolean closed;
+
+    private HandleBoundGraphStore(final GraphStore delegate, final AtomicBoolean closed) {
+      this.delegate = delegate;
+      this.closed = closed;
+    }
+
+    @Override
+    public long add(final IRI namedGraph, final ReadableGraph triples) {
+      ensureOpen(closed);
+      return delegate.add(namedGraph, triples);
+    }
+
+    @Override
+    public long remove(final IRI namedGraph, final ReadableGraph triples) {
+      ensureOpen(closed);
+      return delegate.remove(namedGraph, triples);
+    }
+
+    @Override
+    public void clear(final IRI namedGraph) {
+      ensureOpen(closed);
+      delegate.clear(namedGraph);
+    }
+
+    @Override
+    public ReadableGraph export(final IRI namedGraph) {
+      ensureOpen(closed);
+      return delegate.export(namedGraph);
+    }
+
+    @Override
+    public long count(final IRI namedGraph) {
+      ensureOpen(closed);
+      return delegate.count(namedGraph);
+    }
+
+    @Override
+    public long count() {
+      ensureOpen(closed);
+      return delegate.count();
+    }
+  }
+
+  /**
+   * Thin, per-handle {@link SparqlQuery} delegate that checks the owning handle's
+   * {@code closed} flag before every call.
+   */
+  private static final class HandleBoundSparqlQuery implements SparqlQuery {
+
+    private final SparqlQuery delegate;
+    private final AtomicBoolean closed;
+
+    private HandleBoundSparqlQuery(final SparqlQuery delegate, final AtomicBoolean closed) {
+      this.delegate = delegate;
+      this.closed = closed;
+    }
+
+    @Override
+    public Stream<BindingSet> select(final String sparql) {
+      ensureOpen(closed);
+      return delegate.select(sparql);
+    }
+
+    @Override
+    public ReadableGraph construct(final String sparql) {
+      ensureOpen(closed);
+      return delegate.construct(sparql);
+    }
+
+    @Override
+    public boolean ask(final String sparql) {
+      ensureOpen(closed);
+      return delegate.ask(sparql);
+    }
+  }
+
+  /**
+   * Thin, per-handle {@link SparqlUpdate} delegate that checks the owning handle's
+   * {@code closed} flag before every call.
+   */
+  private static final class HandleBoundSparqlUpdate implements SparqlUpdate {
+
+    private final SparqlUpdate delegate;
+    private final AtomicBoolean closed;
+
+    private HandleBoundSparqlUpdate(final SparqlUpdate delegate, final AtomicBoolean closed) {
+      this.delegate = delegate;
+      this.closed = closed;
+    }
+
+    @Override
+    public void update(final String sparql) {
+      ensureOpen(closed);
+      delegate.update(sparql);
+    }
+  }
+
+  /**
+   * Thin, per-handle {@link DatasetTransactor} delegate that checks the owning
+   * handle's {@code closed} flag before every call.
+   */
+  private static final class HandleBoundDatasetTransactor implements DatasetTransactor {
+
+    private final DatasetTransactor delegate;
+    private final AtomicBoolean closed;
+
+    private HandleBoundDatasetTransactor(final DatasetTransactor delegate, final AtomicBoolean closed) {
+      this.delegate = delegate;
+      this.closed = closed;
+    }
+
+    @Override
+    public <T> T inTransaction(final Function<DatasetTx, T> work) {
+      ensureOpen(closed);
+      return delegate.inTransaction(work);
     }
   }
 }
