@@ -460,6 +460,31 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("a transaction on a different dataset nested on the same thread is allowed")
+    void inTransaction_nestedOnDifferentTransactor_isAllowed() {
+      // given — the guard is per transactor instance, not process-wide: being inside a
+      // transaction on one transactor (dataset) must not block an independent transaction on
+      // another. Only self-nesting on the same transactor is forbidden.
+      final Repository otherRepository = new SailRepository(new MemoryStore());
+      otherRepository.init();
+      try {
+        final DatasetTransactorRdf4j otherTransactor = new DatasetTransactorRdf4j(otherRepository);
+        final GraphStoreRdf4j otherStore = new GraphStoreRdf4j(otherRepository);
+
+        // when
+        transactor.inTransaction(outer -> otherTransactor.inTransaction(inner -> {
+          inner.add(GRAPH_1, singleTripleGraph());
+          return null;
+        }));
+
+        // then
+        assertThat(otherStore.count(GRAPH_1)).isEqualTo(1L);
+      } finally {
+        otherRepository.shutDown();
+      }
+    }
+
+    @Test
     @DisplayName("a failure in the work lambda is not reported as a concurrency conflict")
     void inTransaction_exceptionInWork_isNotTranslatedToConflict() {
       // given — a bug in the caller's own work function. It must stay distinguishable from a lost
