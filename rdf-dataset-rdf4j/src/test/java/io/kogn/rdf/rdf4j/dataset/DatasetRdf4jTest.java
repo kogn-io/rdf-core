@@ -846,8 +846,11 @@ class DatasetRdf4jTest {
       // store has never seen does not reliably register an observation, so the conflict below goes
       // undetected in a timing-dependent 6–12% of runs — see the "Limits" section on
       // DatasetTransactorRdf4j and issue #23. Without the seed this test is flaky because the
-      // guarantee itself is. Per #52, that percentage was measured against MemoryStore only —
-      // running this guard race against NativeStore too is the point of this parameterization.
+      // guarantee itself is. Per #52, that unseeded rate has since been re-measured against
+      // NativeStore too (0 of 7000 runs missed the conflict — see DatasetTransactorRdf4j's
+      // "Reconciled against NativeStore" Limits paragraph); this seeded case here is the
+      // deterministic side of the guarantee, which the parameterization confirms holds on
+      // NativeStore as well as on MemoryStore.
       final Repository backendRepository = backend.create(tempDir);
       backendRepository.init();
       try {

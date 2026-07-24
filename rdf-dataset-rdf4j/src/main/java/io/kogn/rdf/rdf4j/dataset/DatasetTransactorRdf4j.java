@@ -72,6 +72,21 @@ import io.kogn.rdf.dataset.DatasetTx;
  * inserts. Tracked in
  * <a href="https://github.com/kogn-io/rdf-core/issues/23">issue 23</a>.</p>
  *
+ * <p><strong>Reconciled against {@code NativeStore}</strong> (RDF4J 6.0.0, same
+ * reproducer — unseeded ASK guard, two threads, both guards before either write): 0 of
+ * 7000 runs (1000 + 1000 + 5000, one machine) missed the conflict. The defeat measured
+ * above did not reproduce; this is not proof the gap is structurally impossible on
+ * {@code NativeStore}, only that it was not observed at a rate comparable to
+ * {@code MemoryStore}'s. The root cause described below is specific to
+ * {@code MemoryStore}'s in-JVM value interning ({@code MemValueFactory}); {@code NativeStore}
+ * resolves values through a disk-backed dictionary instead, which has no equivalent
+ * interning race. The seeded-guard and {@code contains}-guard configurations — reliable at
+ * 0 of 1000 for {@code MemoryStore} above — are deterministic by construction (the
+ * observation they register does not depend on interning), so they are exercised for
+ * {@code NativeStore} once each rather than re-measured 1000 times; see
+ * {@code DatasetRdf4jTest}'s parameterized {@code BackendDivergenceTests}. Tracked in
+ * <a href="https://github.com/kogn-io/rdf-core/issues/52">issue 52</a>.</p>
+ *
  * <p>The cause is in RDF4J, not in this class or in the port. The observation
  * <em>is</em> registered in the failing runs; what differs is value interning. Evaluating
  * a SPARQL statement pattern interns its constants into the store's own value registry,
