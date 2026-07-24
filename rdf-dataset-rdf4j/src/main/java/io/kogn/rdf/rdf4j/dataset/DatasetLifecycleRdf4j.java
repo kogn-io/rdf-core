@@ -167,6 +167,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   @Override
   public void close(final DatasetId id) {
     Objects.requireNonNull(id, "id");
+    final RuntimeException[] teardownFailure = new RuntimeException[1];
     datasets.compute(id, (key, md) -> {
       if (md == null) {
         return null;
@@ -174,28 +175,49 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       if (md.leaseCount.get() > 0) {
         return md; // in use — eviction is a no-op; policy retries later
       }
-      shutDownQuietly(md.repository);
-      log.debug("Closed dataset {}", key.value());
+      try {
+        shutDownQuietly(md.repository);
+        log.debug("Closed dataset {}", key.value());
+      } catch (final RuntimeException e) {
+        // shutDown() is not exception-free; the store may now be half torn-down and unusable, so
+        // the cache must not keep serving it to the next acquire() — drop the entry regardless and
+        // let the real failure surface, instead of leaking a dead store under a live-looking key.
+        teardownFailure[0] = e;
+      }
       return null;
     });
+    if (teardownFailure[0] != null) {
+      throw teardownFailure[0];
+    }
   }
 
   @Override
   public void delete(final DatasetId id) {
     Objects.requireNonNull(id, "id");
+    final RuntimeException[] teardownFailure = new RuntimeException[1];
     datasets.compute(id, (key, md) -> {
       if (md != null && md.leaseCount.get() > 0) {
         throw new IllegalStateException("cannot delete dataset '" + key.value() + "' with open leases");
       }
-      if (md != null) {
-        shutDownQuietly(md.repository);
+      try {
+        if (md != null) {
+          shutDownQuietly(md.repository);
+        }
+        if (config.persistence() != Persistence.IN_MEMORY) {
+          deleteStorageOnDisk(key);
+        }
+        log.debug("Deleted dataset {}", key.value());
+      } catch (final RuntimeException e) {
+        // the repository may already be shut down while storage deletion failed (locked file,
+        // permission problem): the store is no longer usable either way, so the cache must not
+        // keep the mapping — drop it regardless and let the real teardown failure surface.
+        teardownFailure[0] = e;
       }
-      if (config.persistence() != Persistence.IN_MEMORY) {
-        deleteStorageOnDisk(key);
-      }
-      log.debug("Deleted dataset {}", key.value());
       return null;
     });
+    if (teardownFailure[0] != null) {
+      throw teardownFailure[0];
+    }
   }
 
   @Override
@@ -311,7 +333,11 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     }
   }
 
-  private void deleteStorageOnDisk(final DatasetId id) {
+  /**
+   * Package-private (not {@code private}) so a test in this package can override it to force a
+   * deterministic on-disk teardown failure — see {@code DatasetLifecycleRdf4jTest}.
+   */
+  void deleteStorageOnDisk(final DatasetId id) {
     final Path dir = resolveDir(id).toPath();
     if (!Files.exists(dir)) {
       return;
