@@ -72,7 +72,10 @@ release, and is tracked separately.
 - `DatasetTx` gains an abstract method; every implementation, including
   outside this repository, must add it. There are none besides
   `DatasetTxRdf4j` here. This lands in the still-unreleased `0.2.0-SNAPSHOT`,
-  alongside the unrelated `ShaclResult` break from issue #20.
+  alongside the unrelated `ShaclResult` break from issue #20 and the
+  `ConcurrencyConflictException` break from issue #30 — the neutral type this
+  guard's loser fails with. All three break consumers and share the release
+  window.
 - The isolation guarantee documented on `DatasetTransactorRdf4j` is now split
   in two: `contains` is conflict-protected for first-time inserts as measured
   (1000 of 1000); a SPARQL `ASK` guard is not, and must not be used for that
