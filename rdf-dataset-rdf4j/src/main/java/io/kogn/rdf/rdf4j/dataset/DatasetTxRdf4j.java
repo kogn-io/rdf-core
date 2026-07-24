@@ -76,12 +76,12 @@ class DatasetTxRdf4j implements DatasetTx {
 
   @Override
   public void update(final String sparql) {
-    connection.prepareUpdate(QueryLanguage.SPARQL, sparql).execute();
+    SparqlErrors.preparing(() -> connection.prepareUpdate(QueryLanguage.SPARQL, sparql)).execute();
   }
 
   @Override
   public Stream<BindingSet> select(final String sparql) {
-    final TupleQuery query = connection.prepareTupleQuery(QueryLanguage.SPARQL, sparql);
+    final TupleQuery query = SparqlErrors.preparing(() -> connection.prepareTupleQuery(QueryLanguage.SPARQL, sparql));
     final List<BindingSet> results = new ArrayList<>();
     try (TupleQueryResult result = query.evaluate()) {
       while (result.hasNext()) {
@@ -101,12 +101,12 @@ class DatasetTxRdf4j implements DatasetTx {
 
   @Override
   public boolean ask(final String sparql) {
-    return connection.prepareBooleanQuery(QueryLanguage.SPARQL, sparql).evaluate();
+    return SparqlErrors.preparing(() -> connection.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)).evaluate();
   }
 
   @Override
   public ReadableGraph construct(final String sparql) {
-    final GraphQuery query = connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql);
+    final GraphQuery query = SparqlErrors.preparing(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql));
     final Model model = QueryResults.asModel(query.evaluate());
     return new RDF4JGraph(model);
   }

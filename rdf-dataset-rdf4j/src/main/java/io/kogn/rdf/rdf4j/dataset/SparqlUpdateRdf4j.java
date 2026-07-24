@@ -32,7 +32,7 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
   @Override
   public void update(final String sparql) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      conn.prepareUpdate(QueryLanguage.SPARQL, sparql).execute();
+      SparqlErrors.preparing(() -> conn.prepareUpdate(QueryLanguage.SPARQL, sparql)).execute();
     }
   }
 }

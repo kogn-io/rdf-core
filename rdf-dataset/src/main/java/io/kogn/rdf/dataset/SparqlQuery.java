@@ -32,7 +32,7 @@ public interface SparqlQuery {
    *
    * @param sparql the SPARQL SELECT query string; must not be {@code null} or empty
    * @return a stream of binding sets; never {@code null}
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   Stream<BindingSet> select(String sparql);
 
@@ -44,7 +44,7 @@ public interface SparqlQuery {
    *
    * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null} or empty
    * @return the constructed graph; never {@code null}
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   ReadableGraph construct(String sparql);
 
@@ -56,7 +56,7 @@ public interface SparqlQuery {
    *
    * @param sparql the SPARQL ASK query string; must not be {@code null} or empty
    * @return {@code true} if the pattern has at least one match
-   * @throws IllegalArgumentException if the SPARQL string is syntactically invalid
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   boolean ask(String sparql);
 }
