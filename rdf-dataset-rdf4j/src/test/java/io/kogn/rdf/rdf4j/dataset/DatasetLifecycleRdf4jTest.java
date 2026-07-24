@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -416,6 +418,40 @@ class DatasetLifecycleRdf4jTest {
 
       assertThat(lc.list()).doesNotContain(id);
       assertThat(Files.exists(root) ? Files.list(root).count() : 0L).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("a delete whose on-disk teardown fails still drops the cache entry; retry re-opens a live store")
+    void delete_diskTeardownFails_dropsCacheEntryAndSurfacesFailure() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("undeletable");
+      final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(id)) {
+            throw diskFailure; // forces the exact failure mode from #33: OS refuses to remove storage
+          }
+          super.deleteStorageOnDisk(toDelete);
+        }
+      };
+      lifecycle = lc;
+      final GraphStore firstStore;
+      try (DatasetHandle ds = lc.acquire(id)) {
+        ds.graphStore().add(GRAPH, singleTriple()); // handle released, but the entry stays cached
+        firstStore = ds.graphStore();
+      }
+
+      assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
+
+      // the cache must not keep serving the (already shut-down but now dangling) store: a fresh
+      // acquire creates a brand new one — same identity would mean the dead cached entry survived
+      // — and the fresh store is still fully usable, with the original data intact on disk.
+      try (DatasetHandle ds = lc.acquire(id)) {
+        assertThat(ds.graphStore()).isNotSameAs(firstStore);
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
     }
 
     @Test
