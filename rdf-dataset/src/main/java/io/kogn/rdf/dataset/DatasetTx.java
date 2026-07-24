@@ -59,17 +59,16 @@ public interface DatasetTx {
   void update(String sparql);
 
   /**
-   * Executes a SPARQL SELECT query and returns a lazily-evaluated stream of binding sets.
+   * Executes a SPARQL SELECT query and returns a stream of binding sets.
    *
    * <p>Each element of the stream represents one row of the SELECT result, with
    * variable names mapped to {@link io.kogn.rdf.terms.RDFTerm} values via
-   * {@link BindingSet}.</p>
-   *
-   * <p>The stream must be consumed within the transaction scope; holding it open
-   * after {@link DatasetTransactor#inTransaction} returns is undefined behaviour.</p>
+   * {@link BindingSet}. The returned stream is fully materialised and may be
+   * consumed after {@link DatasetTransactor#inTransaction} returns; no store
+   * resources are held open.</p>
    *
    * @param sparql the SPARQL SELECT query string; must not be {@code null} or empty
-   * @return a lazily-evaluated stream of binding sets; never {@code null}
+   * @return a stream of binding sets; never {@code null}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   Stream<BindingSet> select(String sparql);
