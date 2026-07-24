@@ -63,6 +63,9 @@ public interface DatasetTransactor {
    * @throws ConcurrencyConflictException if the commit was rejected because this
    *     transaction lost a race against a concurrently committed, conflicting
    *     transaction on the same dataset (see class Javadoc); nothing was written
+   * @throws IllegalStateException if this thread is already inside an {@code inTransaction}
+   *     call; nesting is forbidden (see class Javadoc) and is rejected rather than opening a
+   *     second, independent transaction
    * @throws RuntimeException re-thrown unchanged from {@code work} after rollback,
    *     or raised by the commit itself for a failure that is not a conflict (an
    *     I/O or storage error, say) — such a failure is not retryable and must not

@@ -25,6 +25,14 @@ import io.kogn.rdf.dataset.DatasetTx;
  * any {@link RuntimeException}. The connection is always closed after the
  * transaction, regardless of outcome.</p>
  *
+ * <p><strong>Nesting:</strong> the port forbids a nested {@code inTransaction} call
+ * (see {@link DatasetTransactor} class Javadoc); this implementation enforces it with a
+ * {@link ThreadLocal} flag set on entry and cleared in a {@code finally} block, so a
+ * nested call on the same thread — which would otherwise silently open a second,
+ * independent connection and transaction — fails fast with an
+ * {@link IllegalStateException} instead. The flag is per-thread, so a pooled thread
+ * that later calls {@link #inTransaction} again, or a different thread, is unaffected.</p>
+ *
  * <p><strong>Isolation:</strong> {@code SERIALIZABLE} is requested explicitly
  * rather than relying on the backend's default (RDF4J's {@code MemoryStore} and
  * {@code NativeStore} both default to {@code SNAPSHOT_READ}, which only
@@ -82,6 +90,8 @@ import io.kogn.rdf.dataset.DatasetTx;
  */
 public class DatasetTransactorRdf4j implements DatasetTransactor {
 
+  private static final ThreadLocal<Boolean> IN_TRANSACTION = ThreadLocal.withInitial(() -> false);
+
   private final Repository repository;
 
   /**
@@ -95,6 +105,18 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
 
   @Override
   public <T> T inTransaction(final Function<DatasetTx, T> work) {
+    if (IN_TRANSACTION.get()) {
+      throw new IllegalStateException("nested transactions are not supported");
+    }
+    IN_TRANSACTION.set(true);
+    try {
+      return doInTransaction(work);
+    } finally {
+      IN_TRANSACTION.set(false);
+    }
+  }
+
+  private <T> T doInTransaction(final Function<DatasetTx, T> work) {
     try (RepositoryConnection conn = repository.getConnection()) {
       conn.begin(IsolationLevels.SERIALIZABLE);
       try {
