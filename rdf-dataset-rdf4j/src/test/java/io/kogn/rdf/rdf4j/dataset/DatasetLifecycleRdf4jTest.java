@@ -521,11 +521,11 @@ class DatasetLifecycleRdf4jTest {
   class Configuration {
 
     @Test
-    @DisplayName("full-text search is rejected until #19")
+    @DisplayName("full-text search is rejected until #6")
     void fullTextSearch_rejected() {
       assertThatThrownBy(() -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, true), null))
           .isInstanceOf(UnsupportedOperationException.class)
-          .hasMessageContaining("#19");
+          .hasMessageContaining("#6");
     }
   }
 }
