@@ -123,7 +123,13 @@ types to callers ([ADR-0005](docs/adr/0005-rdf4j-backend-for-dataset-ports.md)):
   never handed out.
 - In-flight protection is done with per-dataset lease counting under a per-key
   lock, closing the time-of-check-to-time-of-use race between acquisition and
-  eviction/deletion.
+  eviction/deletion. Enforcement reaches the accessors too: each of
+  `graphStore()`/`sparqlQuery()`/`sparqlUpdate()`/`transactor()` returns a thin,
+  per-handle wrapper that throws `IllegalStateException` once *that* handle is
+  closed, while the underlying shared instance keeps working for any other open
+  handle on the same dataset. `shutDownAll()` is the deliberate exception — a
+  last-resort teardown that does not consult lease counts, logging a warning
+  naming any dataset still leased before tearing everything down regardless.
 - The opaque `DatasetId` is Base64url-encoded into a single directory segment,
   so values like `"../etc"` cannot escape the storage root.
 - Foreign term implementations are accepted throughout via `RDF4JConverters`,
