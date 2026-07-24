@@ -130,7 +130,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       final BiConsumer<DatasetId, GraphStore> onCreate) {
     this.config = Objects.requireNonNull(config, "config");
     if (config.fullTextSearch()) {
-      throw new UnsupportedOperationException("FTS store assembly lands with #19");
+      throw new UnsupportedOperationException("FTS store assembly lands with #6");
     }
     if (config.persistence() == Persistence.PERSISTENT) {
       this.storageRoot = Objects.requireNonNull(storageRoot, "storageRoot is required for PERSISTENT").normalize();
