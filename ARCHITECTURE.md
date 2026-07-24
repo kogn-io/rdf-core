@@ -71,7 +71,9 @@ concern:
   so a backend can answer it from its own pattern lookup instead of through query
   evaluation — the longer path, and the one on which a backend can lose the
   conflict. Optimistic-concurrency guards belong here, not in `ask` — see the
-  "Limits" notes on `DatasetTransactorRdf4j`.
+  "Limits" notes on `DatasetTransactorRdf4j`. The loser of such a race fails at
+  commit with the port's neutral `ConcurrencyConflictException`, so a caller can
+  catch and retry without naming a backend exception type.
 - **`DatasetLifecycle`** — open-or-create / close / delete / list datasets,
   addressed by an opaque `DatasetId`.
 
