@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.dataset;
+package io.kogn.rdf.dataset.hosting;
 
 /**
  * Backend-neutral store configuration for a {@link DatasetLifecycle}.

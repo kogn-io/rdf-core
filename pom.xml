@@ -37,6 +37,8 @@
 		<module>rdf-terms</module>
 		<module>rdf-dataset</module>
 		<module>rdf-dataset-rdf4j</module>
+		<module>rdf-dataset-hosting</module>
+		<module>rdf-dataset-hosting-rdf4j</module>
 		<module>rdf-shacl</module>
 		<module>rdf-shacl-rdf4j</module>
 	</modules>
@@ -183,6 +185,16 @@
 			<dependency>
 				<groupId>io.kogn.rdf</groupId>
 				<artifactId>rdf-dataset-rdf4j</artifactId>
+				<version>${revision}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.kogn.rdf</groupId>
+				<artifactId>rdf-dataset-hosting</artifactId>
+				<version>${revision}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.kogn.rdf</groupId>
+				<artifactId>rdf-dataset-hosting-rdf4j</artifactId>
 				<version>${revision}</version>
 			</dependency>
 			<dependency>

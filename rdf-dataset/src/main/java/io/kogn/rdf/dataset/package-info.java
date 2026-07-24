@@ -11,11 +11,13 @@
  *   <li>{@link io.kogn.rdf.dataset.SparqlUpdate} — SPARQL UPDATE (write)</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTransactor} — atomic unit-of-work boundary</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — dataset operations within a transaction</li>
- *   <li>{@link io.kogn.rdf.dataset.DatasetLifecycle} — open-or-create/close/delete/list datasets,
- *       addressed by opaque {@link io.kogn.rdf.dataset.DatasetId}, with lease-based in-flight
- *       protection; {@link io.kogn.rdf.dataset.DatasetLifecycle#acquire} returns a leased
- *       {@link io.kogn.rdf.dataset.DatasetHandle} exposing the four ports above</li>
  * </ul>
+ *
+ * <p>Multi-tenant <em>hosting</em> of a pool of stores — open-or-create/close/delete/list by
+ * an opaque id, with lease-based in-flight protection — is deliberately <strong>not</strong>
+ * here: it is a concern of whichever process owns the stores, not an RDF concept, and lives in
+ * the separate {@code rdf-dataset-hosting} module ({@code DatasetLifecycle},
+ * {@code DatasetHandle}, {@code DatasetId}, {@code DatasetStoreConfig}); see ADR-0009.</p>
  *
  * <h2>Data model: named graphs only — not an RDF 1.1 Dataset</h2>
  *
@@ -33,10 +35,6 @@
  *       union of all named graphs, <em>not</em> over a default graph. There is no default
  *       graph to fall back to.</li>
  * </ul>
- *
- * <p>For the same reason {@link io.kogn.rdf.dataset.DatasetHandle} is named "handle", not
- * "dataset": it is a leased access object (≈ an RDF4J {@code RepositoryConnection}), not a
- * value-typed RDF dataset and not an {@code org.apache.commons.rdf.api.Dataset}.</p>
  *
  * <p>All interfaces are purely Java-based; no framework or library annotations are required
  * to implement them. Implementations live in adapter modules (e.g. {@code rdf-dataset-rdf4j}).</p>

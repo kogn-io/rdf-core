@@ -109,7 +109,7 @@ class DatasetRdf4jTest {
   }
 
   /**
-   * The two Sail implementations {@link DatasetLifecycleRdf4j} actually ships
+   * The two Sail implementations the RDF4J hosting adapter actually ships
    * ({@code IN_MEMORY} / {@code PERSISTENT}) — used to parameterize the tests whose guarantees are
    * store-specific (isolation, conflict detection) rather than plain functional behaviour, which is
    * identical across Sails via the shared {@code RepositoryConnection} API.
