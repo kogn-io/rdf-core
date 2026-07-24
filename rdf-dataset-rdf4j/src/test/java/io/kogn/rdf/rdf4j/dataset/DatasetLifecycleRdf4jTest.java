@@ -4,6 +4,7 @@
 package io.kogn.rdf.rdf4j.dataset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
@@ -28,6 +29,10 @@ import io.kogn.rdf.dataset.DatasetHandle;
 import io.kogn.rdf.dataset.DatasetId;
 import io.kogn.rdf.dataset.DatasetStoreConfig;
 import io.kogn.rdf.dataset.DatasetStoreConfig.Persistence;
+import io.kogn.rdf.dataset.DatasetTransactor;
+import io.kogn.rdf.dataset.GraphStore;
+import io.kogn.rdf.dataset.SparqlQuery;
+import io.kogn.rdf.dataset.SparqlUpdate;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.Graph;
@@ -67,6 +72,8 @@ class DatasetLifecycleRdf4jTest {
   }
 
   private static final String ASK_GRAPH = "ASK { GRAPH <" + GRAPH.getIRIString() + "> { ?s ?p ?o } }";
+  private static final String INSERT_TRIPLE = "INSERT DATA { GRAPH <" + GRAPH.getIRIString() + "> { <"
+      + SUBJECT.getIRIString() + "> <" + PREDICATE.getIRIString() + "> <" + OBJECT.getIRIString() + "> } }";
 
   // ---------------------------------------------------------------------------
 
@@ -183,6 +190,84 @@ class DatasetLifecycleRdf4jTest {
       }
 
       assertThat(failures).isEmpty();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("closed handle")
+  class ClosedHandle {
+
+    @Test
+    @DisplayName("graphStore() accessor retained after close throws on use")
+    void graphStore_afterClose_throws() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final GraphStore retained;
+      try (DatasetHandle ds = lc.acquire(new DatasetId("closed-graph-store"))) {
+        retained = ds.graphStore();
+        retained.add(GRAPH, singleTriple()); // usable while the handle is open
+      }
+
+      assertThatThrownBy(() -> retained.add(GRAPH, singleTriple())).isInstanceOf(IllegalStateException.class)
+          .hasMessage("handle is closed");
+    }
+
+    @Test
+    @DisplayName("sparqlQuery() accessor retained after close throws on use")
+    void sparqlQuery_afterClose_throws() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final SparqlQuery retained;
+      try (DatasetHandle ds = lc.acquire(new DatasetId("closed-sparql-query"))) {
+        retained = ds.sparqlQuery();
+        assertThat(retained.ask(ASK_GRAPH)).isFalse(); // usable while the handle is open
+      }
+
+      assertThatThrownBy(() -> retained.ask(ASK_GRAPH)).isInstanceOf(IllegalStateException.class)
+          .hasMessage("handle is closed");
+    }
+
+    @Test
+    @DisplayName("sparqlUpdate() accessor retained after close throws on use")
+    void sparqlUpdate_afterClose_throws() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final SparqlUpdate retained;
+      try (DatasetHandle ds = lc.acquire(new DatasetId("closed-sparql-update"))) {
+        retained = ds.sparqlUpdate();
+        retained.update(INSERT_TRIPLE); // usable while the handle is open
+      }
+
+      assertThatThrownBy(() -> retained.update(INSERT_TRIPLE)).isInstanceOf(IllegalStateException.class)
+          .hasMessage("handle is closed");
+    }
+
+    @Test
+    @DisplayName("transactor() accessor retained after close throws on use")
+    void transactor_afterClose_throws() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final DatasetTransactor retained;
+      try (DatasetHandle ds = lc.acquire(new DatasetId("closed-transactor"))) {
+        retained = ds.transactor();
+        final boolean result = retained.inTransaction(tx -> tx.ask(ASK_GRAPH));
+        assertThat(result).isFalse(); // usable while open
+      }
+
+      assertThatThrownBy(() -> retained.inTransaction(tx -> tx.ask(ASK_GRAPH)))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("handle is closed");
+    }
+
+    @Test
+    @DisplayName("shutDownAll proceeds despite an open lease (last-resort teardown) and does not throw")
+    void shutDownAll_withOpenLease_proceedsWithoutThrowing() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final DatasetId id = new DatasetId("open-during-shutdown");
+      final DatasetHandle ds = lc.acquire(id); // intentionally left open
+
+      assertThatCode(lc::shutDownAll).doesNotThrowAnyException();
+
+      assertThat(lc.list()).doesNotContain(id);
+      ds.close(); // releasing the lease afterwards must not throw either
     }
   }
 

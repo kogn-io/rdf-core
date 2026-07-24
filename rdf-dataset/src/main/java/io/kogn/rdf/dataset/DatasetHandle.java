@@ -33,13 +33,23 @@ package io.kogn.rdf.dataset;
  * }
  * }</pre>
  *
- * <p>A handle is scoped to one unit of work; do not retain the operation objects
- * returned by the accessors beyond the life of the handle.</p>
+ * <p>A handle is scoped to one unit of work: do not retain the objects returned by
+ * the accessors beyond the life of the handle. This is enforced, not merely
+ * advisory — each accessor returns a thin, per-handle wrapper delegating to the
+ * dataset's shared underlying instance, and every operation invoked on such a
+ * wrapper after {@link #close()} has run throws {@link IllegalStateException}
+ * instead of silently reaching the store. The underlying instance itself stays
+ * shared and open for as long as the dataset is cached — only the wrapper obtained
+ * through <em>this</em> handle stops working.</p>
  */
 public interface DatasetHandle extends AutoCloseable {
 
   /**
    * Returns the named-graph store for this dataset.
+   *
+   * <p>The returned instance is bound to this handle: once this handle is
+   * {@linkplain #close() closed}, every subsequent call to it throws
+   * {@link IllegalStateException}.</p>
    *
    * @return the {@link GraphStore}; never {@code null}
    */
@@ -48,6 +58,10 @@ public interface DatasetHandle extends AutoCloseable {
   /**
    * Returns the SPARQL read port for this dataset.
    *
+   * <p>The returned instance is bound to this handle: once this handle is
+   * {@linkplain #close() closed}, every subsequent call to it throws
+   * {@link IllegalStateException}.</p>
+   *
    * @return the {@link SparqlQuery}; never {@code null}
    */
   SparqlQuery sparqlQuery();
@@ -55,12 +69,20 @@ public interface DatasetHandle extends AutoCloseable {
   /**
    * Returns the SPARQL write port for this dataset.
    *
+   * <p>The returned instance is bound to this handle: once this handle is
+   * {@linkplain #close() closed}, every subsequent call to it throws
+   * {@link IllegalStateException}.</p>
+   *
    * @return the {@link SparqlUpdate}; never {@code null}
    */
   SparqlUpdate sparqlUpdate();
 
   /**
    * Returns the transactional unit-of-work port for this dataset.
+   *
+   * <p>The returned instance is bound to this handle: once this handle is
+   * {@linkplain #close() closed}, every subsequent call to it throws
+   * {@link IllegalStateException}.</p>
    *
    * @return the {@link DatasetTransactor}; never {@code null}
    */
