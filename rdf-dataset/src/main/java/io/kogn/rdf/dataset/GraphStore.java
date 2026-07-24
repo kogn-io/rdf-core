@@ -35,9 +35,11 @@ public interface GraphStore {
    * @param namedGraph IRI identifying the target named graph; must not be {@code null}
    * @param triples the triples to add; must not be {@code null}
    * @return the net number of triples actually inserted — duplicates that were
-   *     already present do not count. Implementations must determine this exactly
-   *     (not as an estimate), measured atomically with the write so that concurrent
-   *     writers to the same named graph cannot distort the delta.
+   *     already present do not count, measured atomically with the write so that
+   *     concurrent writers to the same named graph cannot distort the delta. This
+   *     delta shares the exactness guarantee of {@link #count(IRI)}: it is exact
+   *     wherever the implementation's triple count is exact, and no more precise
+   *     than an estimate where the count is one.
    */
   long add(IRI namedGraph, ReadableGraph triples);
 
@@ -50,9 +52,11 @@ public interface GraphStore {
    * @param namedGraph IRI identifying the target named graph; must not be {@code null}
    * @param triples the triples to remove; must not be {@code null}
    * @return the net number of triples actually removed — triples that were not
-   *     present do not count. Implementations must determine this exactly (not as an
-   *     estimate), measured atomically with the write so that concurrent writers to
-   *     the same named graph cannot distort the delta.
+   *     present do not count, measured atomically with the write so that concurrent
+   *     writers to the same named graph cannot distort the delta. This delta shares
+   *     the exactness guarantee of {@link #count(IRI)}: it is exact wherever the
+   *     implementation's triple count is exact, and no more precise than an
+   *     estimate where the count is one.
    */
   long remove(IRI namedGraph, ReadableGraph triples);
 
@@ -79,20 +83,24 @@ public interface GraphStore {
   /**
    * Returns the number of triples in the named graph.
    *
-   * <p>The result is a best-effort estimate; implementations backed by approximate
-   * cardinality statistics may return a value that differs from the exact count.</p>
+   * <p>The result is a best-effort count; an implementation backed by approximate
+   * cardinality statistics may return a value that differs from the true count.
+   * This port makes no cross-backend exactness promise, so that a future
+   * statistics-based backend remains a conforming implementation — but the
+   * RDF4J-backed implementation this library ships is exact, because it is
+   * measured directly, not estimated.</p>
    *
    * @param namedGraph IRI identifying the named graph; must not be {@code null}
-   * @return triple count (estimated); {@code 0} if the named graph does not exist
+   * @return triple count; {@code 0} if the named graph does not exist
    */
   long count(IRI namedGraph);
 
   /**
    * Returns the total number of triples across all named graphs in this store.
    *
-   * <p>Like {@link #count(IRI)}, the result may be an estimate.</p>
+   * <p>Shares the exactness behavior of {@link #count(IRI)}.</p>
    *
-   * @return total triple count (estimated)
+   * @return total triple count
    */
   long count();
 }
