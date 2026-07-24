@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.dataset;
+package io.kogn.rdf.dataset.hosting;
+
+import io.kogn.rdf.dataset.DatasetTransactor;
+import io.kogn.rdf.dataset.GraphStore;
+import io.kogn.rdf.dataset.SparqlQuery;
+import io.kogn.rdf.dataset.SparqlUpdate;
 
 /**
  * A leased, {@link AutoCloseable} access handle to a single dataset, obtained
@@ -13,9 +18,10 @@ package io.kogn.rdf.dataset;
  * concepts</a> (a default graph plus zero or more named graphs) and it is
  * <em>not</em> an {@code org.apache.commons.rdf.api.Dataset} (a collection of
  * quads). It carries no triples or quads of its own and is not a value type. It
- * is a short-lived, leased view onto the underlying store — conceptually the
- * counterpart of an RDF4J {@code RepositoryConnection} — through which the
- * neutral dataset ports are reached. The RDF data itself is reached via
+ * is a short-lived, leased session onto the underlying store — a view scoped to
+ * a single unit of work, opened for the duration of that work and closed to end
+ * it — through which the neutral dataset ports are reached. The RDF data itself
+ * is reached via
  * {@link #graphStore()} / {@link #sparqlQuery()} and is modelled as named graphs
  * only (see the package documentation).</p>
  *

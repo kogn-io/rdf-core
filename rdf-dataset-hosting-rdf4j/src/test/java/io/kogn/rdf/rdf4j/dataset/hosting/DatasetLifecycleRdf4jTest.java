@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.rdf4j.dataset;
+package io.kogn.rdf.rdf4j.dataset.hosting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -30,14 +30,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.kogn.rdf.dataset.DatasetHandle;
-import io.kogn.rdf.dataset.DatasetId;
-import io.kogn.rdf.dataset.DatasetStoreConfig;
-import io.kogn.rdf.dataset.DatasetStoreConfig.Persistence;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.dataset.hosting.DatasetHandle;
+import io.kogn.rdf.dataset.hosting.DatasetId;
+import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
+import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.Graph;

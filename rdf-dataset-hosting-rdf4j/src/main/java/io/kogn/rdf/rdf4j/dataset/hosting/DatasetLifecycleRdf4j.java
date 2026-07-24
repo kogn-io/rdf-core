@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.rdf4j.dataset;
+package io.kogn.rdf.rdf4j.dataset.hosting;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,16 +29,20 @@ import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 
 import io.kogn.rdf.dataset.BindingSet;
-import io.kogn.rdf.dataset.DatasetHandle;
-import io.kogn.rdf.dataset.DatasetId;
-import io.kogn.rdf.dataset.DatasetLifecycle;
-import io.kogn.rdf.dataset.DatasetStoreConfig;
-import io.kogn.rdf.dataset.DatasetStoreConfig.Persistence;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.dataset.hosting.DatasetHandle;
+import io.kogn.rdf.dataset.hosting.DatasetId;
+import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
+import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
+import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
+import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
+import io.kogn.rdf.rdf4j.dataset.GraphStoreRdf4j;
+import io.kogn.rdf.rdf4j.dataset.SparqlQueryRdf4j;
+import io.kogn.rdf.rdf4j.dataset.SparqlUpdateRdf4j;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.ReadableGraph;
 import lombok.extern.slf4j.Slf4j;

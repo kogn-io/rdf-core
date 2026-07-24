@@ -1,0 +1,76 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>io.kogn.rdf</groupId>
+    <artifactId>rdf-parent</artifactId>
+    <version>${revision}</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <artifactId>rdf-dataset-hosting-rdf4j</artifactId>
+  <name>Kogn RDF Dataset Hosting RDF4J Implementation</name>
+  <description>RDF4J-based implementation of the rdf-dataset-hosting port (DatasetLifecycle): builds and owns MemoryStore/NativeStore repositories and composes the rdf-dataset-rdf4j content wrappers behind leased handles.</description>
+  <dependencies>
+    <!-- Own RDF modules: the hosting port + the content ports/wrappers it composes -->
+    <dependency>
+      <groupId>io.kogn.rdf</groupId>
+      <artifactId>rdf-terms</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.kogn.rdf</groupId>
+      <artifactId>rdf-dataset</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.kogn.rdf</groupId>
+      <artifactId>rdf-dataset-hosting</artifactId>
+    </dependency>
+    <!-- DatasetLifecycleRdf4j composes GraphStoreRdf4j / SparqlQueryRdf4j /
+         SparqlUpdateRdf4j / DatasetTransactorRdf4j from the content adapter -->
+    <dependency>
+      <groupId>io.kogn.rdf</groupId>
+      <artifactId>rdf-dataset-rdf4j</artifactId>
+    </dependency>
+
+    <!-- RDF4J: only what DatasetLifecycleRdf4j actually imports -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-repository-api</artifactId>
+    </dependency>
+    <!-- Sail stores: this module is the sole builder (NativeStore for persistent, MemoryStore for in-memory) -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-repository-sail</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-sail-memory</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-sail-nativerdf</artifactId>
+    </dependency>
+
+    <!-- Lombok (annotation processor, not a runtime dep) -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- SLF4J for DatasetLifecycleRdf4j logging (@Slf4j) -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
