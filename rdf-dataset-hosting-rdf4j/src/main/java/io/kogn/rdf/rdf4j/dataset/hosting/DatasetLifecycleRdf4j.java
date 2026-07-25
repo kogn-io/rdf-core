@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
@@ -44,6 +45,7 @@ import io.kogn.rdf.rdf4j.dataset.GraphStoreRdf4j;
 import io.kogn.rdf.rdf4j.dataset.SparqlQueryRdf4j;
 import io.kogn.rdf.rdf4j.dataset.SparqlUpdateRdf4j;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 import lombok.extern.slf4j.Slf4j;
 
@@ -519,15 +521,33 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     }
 
     @Override
+    public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
+      ensureOpen(closed);
+      return delegate.select(sparql, bindings);
+    }
+
+    @Override
     public ReadableGraph construct(final String sparql) {
       ensureOpen(closed);
       return delegate.construct(sparql);
     }
 
     @Override
+    public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
+      ensureOpen(closed);
+      return delegate.construct(sparql, bindings);
+    }
+
+    @Override
     public boolean ask(final String sparql) {
       ensureOpen(closed);
       return delegate.ask(sparql);
+    }
+
+    @Override
+    public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
+      ensureOpen(closed);
+      return delegate.ask(sparql, bindings);
     }
   }
 
@@ -549,6 +569,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     public void update(final String sparql) {
       ensureOpen(closed);
       delegate.update(sparql);
+    }
+
+    @Override
+    public void update(final String sparql, final Map<String, RDFTerm> bindings) {
+      ensureOpen(closed);
+      delegate.update(sparql, bindings);
     }
   }
 

@@ -3,11 +3,14 @@
 
 package io.kogn.rdf.rdf4j.dataset;
 
+import java.util.Map;
+
 import org.eclipse.rdf4j.query.QueryLanguage;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.terms.RDFTerm;
 
 /**
  * RDF4J-based implementation of {@link SparqlUpdate}.
@@ -31,8 +34,14 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
 
   @Override
   public void update(final String sparql) {
+    update(sparql, Map.of());
+  }
+
+  @Override
+  public void update(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      SparqlErrors.preparing(() -> conn.prepareUpdate(QueryLanguage.SPARQL, sparql)).execute();
+      SparqlErrors.bound(SparqlErrors.preparing(() -> conn.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings)
+          .execute();
     }
   }
 }

@@ -3,14 +3,19 @@
 
 package io.kogn.rdf.rdf4j.dataset;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 import org.eclipse.rdf4j.query.MalformedQueryException;
+import org.eclipse.rdf4j.query.Operation;
 
 import io.kogn.rdf.dataset.MalformedSparqlException;
+import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
+import io.kogn.rdf.terms.RDFTerm;
 
 /**
- * Translates RDF4J parse failures into the neutral dataset-port exceptions.
+ * Translates RDF4J parse failures into the neutral dataset-port exceptions, and applies
+ * pre-bound variables to a prepared operation.
  *
  * <p>Query and update preparation ({@code prepareTupleQuery} and friends) throws
  * RDF4J's {@link MalformedQueryException}. That backend type must not reach a
@@ -37,5 +42,20 @@ final class SparqlErrors {
     } catch (final MalformedQueryException e) {
       throw new MalformedSparqlException(e.getMessage(), e);
     }
+  }
+
+  /**
+   * Applies pre-bound variables to a prepared operation via
+   * {@link Operation#setBinding(String, org.eclipse.rdf4j.model.Value)}.
+   *
+   * @param <T> the type of the prepared operation
+   * @param operation the prepared query or update to bind against
+   * @param bindings variable name (without the leading {@code ?}) to value; must not be
+   *     {@code null}
+   * @return {@code operation}, for chaining
+   */
+  static <T extends Operation> T bound(final T operation, final Map<String, RDFTerm> bindings) {
+    bindings.forEach((name, value) -> operation.setBinding(name, RDF4JConverters.toRDF4JValue(value)));
+    return operation;
   }
 }

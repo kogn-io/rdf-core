@@ -5,6 +5,7 @@ package io.kogn.rdf.rdf4j.dataset;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.model.Model;
@@ -18,6 +19,7 @@ import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.rdf4j.RDF4JBindingSet;
 import io.kogn.rdf.rdf4j.RDF4JGraph;
+import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 
 /**
@@ -43,9 +45,15 @@ public class SparqlQueryRdf4j implements SparqlQuery {
 
   @Override
   public Stream<BindingSet> select(final String sparql) {
+    return select(sparql, Map.of());
+  }
+
+  @Override
+  public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
       final List<BindingSet> results = new ArrayList<>();
-      try (TupleQueryResult result = SparqlErrors.preparing(() -> conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql))
+      try (TupleQueryResult result = SparqlErrors
+          .bound(SparqlErrors.preparing(() -> conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings)
           .evaluate()) {
         while (result.hasNext()) {
           results.add(new RDF4JBindingSet(result.next()));
@@ -57,17 +65,30 @@ public class SparqlQueryRdf4j implements SparqlQuery {
 
   @Override
   public ReadableGraph construct(final String sparql) {
+    return construct(sparql, Map.of());
+  }
+
+  @Override
+  public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      final Model model = QueryResults
-          .asModel(SparqlErrors.preparing(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)).evaluate());
+      final Model model = QueryResults.asModel(SparqlErrors
+          .bound(SparqlErrors.preparing(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings)
+          .evaluate());
       return new RDF4JGraph(model);
     }
   }
 
   @Override
   public boolean ask(final String sparql) {
+    return ask(sparql, Map.of());
+  }
+
+  @Override
+  public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      return SparqlErrors.preparing(() -> conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)).evaluate();
+      return SparqlErrors
+          .bound(SparqlErrors.preparing(() -> conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings)
+          .evaluate();
     }
   }
 }
