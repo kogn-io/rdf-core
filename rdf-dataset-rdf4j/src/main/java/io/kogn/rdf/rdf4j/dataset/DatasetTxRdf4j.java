@@ -5,6 +5,7 @@ package io.kogn.rdf.rdf4j.dataset;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.model.Model;
@@ -76,12 +77,24 @@ class DatasetTxRdf4j implements DatasetTx {
 
   @Override
   public void update(final String sparql) {
-    SparqlErrors.preparing(() -> connection.prepareUpdate(QueryLanguage.SPARQL, sparql)).execute();
+    update(sparql, Map.of());
+  }
+
+  @Override
+  public void update(final String sparql, final Map<String, RDFTerm> bindings) {
+    SparqlErrors.bound(SparqlErrors.preparing(() -> connection.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings)
+        .execute();
   }
 
   @Override
   public Stream<BindingSet> select(final String sparql) {
-    final TupleQuery query = SparqlErrors.preparing(() -> connection.prepareTupleQuery(QueryLanguage.SPARQL, sparql));
+    return select(sparql, Map.of());
+  }
+
+  @Override
+  public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
+    final TupleQuery query = SparqlErrors
+        .bound(SparqlErrors.preparing(() -> connection.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings);
     final List<BindingSet> results = new ArrayList<>();
     try (TupleQueryResult result = query.evaluate()) {
       while (result.hasNext()) {
@@ -101,12 +114,25 @@ class DatasetTxRdf4j implements DatasetTx {
 
   @Override
   public boolean ask(final String sparql) {
-    return SparqlErrors.preparing(() -> connection.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)).evaluate();
+    return ask(sparql, Map.of());
+  }
+
+  @Override
+  public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
+    return SparqlErrors
+        .bound(SparqlErrors.preparing(() -> connection.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings)
+        .evaluate();
   }
 
   @Override
   public ReadableGraph construct(final String sparql) {
-    final GraphQuery query = SparqlErrors.preparing(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql));
+    return construct(sparql, Map.of());
+  }
+
+  @Override
+  public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
+    final GraphQuery query = SparqlErrors
+        .bound(SparqlErrors.preparing(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
     final Model model = QueryResults.asModel(query.evaluate());
     return new RDF4JGraph(model);
   }

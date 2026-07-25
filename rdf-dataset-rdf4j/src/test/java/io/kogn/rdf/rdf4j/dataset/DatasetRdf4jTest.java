@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -43,6 +44,8 @@ import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
+import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 
 /**
@@ -312,6 +315,57 @@ class DatasetRdf4jTest {
           .isNotInstanceOf(IllegalArgumentException.class)
           .hasCauseInstanceOf(MalformedQueryException.class);
     }
+
+    @Test
+    @DisplayName("update with bindings — pre-bound variables are substituted before the insert runs")
+    void update_withBindings_insertsBoundValues() {
+      // given — INSERT DATA cannot carry variables at all (SPARQL 1.1 requires ground triples
+      // there), so the bindings overload is exercised via the WHERE {} idiom: one empty solution,
+      // filled in entirely from the bindings map, not from the query string.
+      final Map<String, RDFTerm> bindings = Map.of("g", GRAPH_1, "s", SUBJECT, "p", PREDICATE, "o", OBJECT);
+
+      // when
+      sparqlUpdate.update("INSERT { GRAPH ?g { ?s ?p ?o } } WHERE {}", bindings);
+
+      // then
+      assertThat(sparqlQuery.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
+          + PREDICATE.getIRIString() + "> <" + OBJECT.getIRIString() + "> } }")).isTrue();
+    }
+
+    @Test
+    @DisplayName("update with bindings — a literal value containing SPARQL-breaking syntax is stored"
+        + " verbatim, not interpreted as part of the query")
+    void update_withBindings_literalValueIsNotInterpretedAsSparql() {
+      // given — this is the injection scenario issue #38 exists to close: a value that, if
+      // concatenated into the query string instead of bound, would close the current block and
+      // append a second, attacker-controlled operation. Binding it must insert exactly the one
+      // triple the query describes, with the literal's lexical form intact.
+      final String payload = "} } ; INSERT { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString()
+          + "> <" + PREDICATE.getIRIString() + "> \"injected\" } } WHERE {} #";
+
+      // when
+      sparqlUpdate.update("INSERT { GRAPH ?g { ?s ?p ?o } } WHERE {}",
+          Map.of("g", GRAPH_1, "s", SUBJECT, "p", PREDICATE, "o", rdf.createLiteral(payload)));
+
+      // then — exactly one triple exists, and its object is the payload string, not two triples
+      // (one legitimate, one injected)
+      final List<BindingSet> rows = sparqlQuery
+          .select("SELECT ?o WHERE { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }")
+          .toList();
+      assertThat(rows).hasSize(1);
+      assertThat(rows.get(0).getValue("o"))
+          .hasValueSatisfying(term -> assertThat(((Literal) term).getLexicalForm()).isEqualTo(payload));
+      assertThat(sparqlQuery.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p \"injected\" } }")).isFalse();
+    }
+
+    @Test
+    @DisplayName("update with bindings — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void update_withBindingsMalformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> sparqlUpdate.update("INSERT DATA { this is not sparql", Map.of("s", SUBJECT)))
+          .isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -417,6 +471,81 @@ class DatasetRdf4jTest {
     @DisplayName("ask — malformed SPARQL fails with the neutral MalformedSparqlException")
     void ask_malformedSparql_throwsNeutralException() {
       assertThatThrownBy(() -> sparqlQuery.ask("ASK { this is not sparql")).isInstanceOf(MalformedSparqlException.class)
+          .isNotInstanceOf(IllegalArgumentException.class)
+          .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("select with bindings — bound subject narrows the result to the matching row")
+    void select_withBindings_narrowsToMatchingRow() {
+      // given
+      insertSingleTriple();
+      sparqlUpdate.update("INSERT DATA { GRAPH <" + GRAPH_1.getIRIString() + "> { <https://example.org/other> <"
+          + PREDICATE.getIRIString() + "> <" + OBJECT.getIRIString() + "> } }");
+
+      // when
+      final List<BindingSet> results = sparqlQuery
+          .select(
+              "SELECT ?o WHERE { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s <" + PREDICATE.getIRIString() + "> ?o } }",
+              Map.of("s", SUBJECT))
+          .toList();
+
+      // then — the store has two matching triples for the un-bound pattern; the bound ?s narrows
+      // to exactly the one belonging to SUBJECT
+      assertThat(results).hasSize(1);
+      assertThat(results.get(0).getValue("o"))
+          .hasValueSatisfying(term -> assertThat(((IRI) term).getIRIString()).isEqualTo(OBJECT.getIRIString()));
+    }
+
+    @Test
+    @DisplayName("select with bindings — a literal value containing a quote is matched exactly, not"
+        + " parsed as SPARQL syntax")
+    void select_withBindings_literalWithQuoteIsMatchedVerbatim() {
+      // given — a label value with an embedded quote and newline, inserted via a bound update (so
+      // no hand-escaping is needed on either side of this test). Concatenated into a query string
+      // unescaped, a value like this breaks the query; bound, it must just work.
+      final String value = "a \"quoted\" value\nwith a newline";
+      sparqlUpdate.update("INSERT { GRAPH ?g { ?s ?p ?o } } WHERE {}",
+          Map.of("g", GRAPH_1, "s", SUBJECT, "p", PREDICATE, "o", rdf.createLiteral(value)));
+
+      // when
+      final boolean found = sparqlQuery.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString()
+          + "> <" + PREDICATE.getIRIString() + "> ?o } }", Map.of("o", rdf.createLiteral(value)));
+
+      // then
+      assertThat(found).isTrue();
+    }
+
+    @Test
+    @DisplayName("construct with bindings — bound subject narrows the constructed graph")
+    void construct_withBindings_narrowsGraph() {
+      // given
+      insertSingleTriple();
+
+      // when
+      final ReadableGraph constructed = sparqlQuery.construct(
+          "CONSTRUCT { ?s ?p ?o } WHERE { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }", Map.of("s", SUBJECT));
+
+      // then
+      assertThat(constructed.size()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("ask with bindings — bound pattern with no match returns false")
+    void ask_withBindings_noMatch_returnsFalse() {
+      // given
+      insertSingleTriple();
+
+      // when / then
+      assertThat(sparqlQuery.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }",
+          Map.of("s", RDF4JIRI.of("https://example.org/unrelated")))).isFalse();
+    }
+
+    @Test
+    @DisplayName("select with bindings — malformed SPARQL fails with the neutral MalformedSparqlException")
+    void select_withBindingsMalformedSparql_throwsNeutralException() {
+      assertThatThrownBy(() -> sparqlQuery.select("SELECT ?s WHERE {{{", Map.of("s", SUBJECT)).toList())
+          .isInstanceOf(MalformedSparqlException.class)
           .isNotInstanceOf(IllegalArgumentException.class)
           .hasCauseInstanceOf(MalformedQueryException.class);
     }
@@ -749,6 +878,56 @@ class DatasetRdf4jTest {
           .isInstanceOf(MalformedSparqlException.class)
           .isNotInstanceOf(IllegalArgumentException.class)
           .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("tx.update with bindings — read-your-writes sees the bound values via tx.ask in the"
+        + " same transaction")
+    void inTransaction_updateWithBindingsThenAsk_seesUpdate() {
+      // when
+      final boolean found = transactor.inTransaction(tx -> {
+        tx.update("INSERT { GRAPH ?g { ?s ?p ?o } } WHERE {}",
+            Map.of("g", GRAPH_1, "s", SUBJECT, "p", PREDICATE, "o", OBJECT));
+        return tx.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }", Map.of("s", SUBJECT, "o", OBJECT));
+      });
+
+      // then
+      assertThat(found).isTrue();
+    }
+
+    @Test
+    @DisplayName("tx.select with bindings — bound subject narrows the result to the matching row")
+    void inTransaction_selectWithBindings_narrowsToMatchingRow() {
+      // given
+      final Graph graph = singleTripleGraph();
+
+      // when
+      final List<BindingSet> results = transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, graph);
+        return tx
+            .select("SELECT ?o WHERE { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }", Map.of("s", SUBJECT))
+            .toList();
+      });
+
+      // then
+      assertThat(results).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("tx.construct with bindings — bound subject narrows the constructed graph")
+    void inTransaction_constructWithBindings_narrowsGraph() {
+      // given
+      final Graph graph = singleTripleGraph();
+
+      // when
+      final ReadableGraph constructed = transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, graph);
+        return tx.construct("CONSTRUCT { ?s ?p ?o } WHERE { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }",
+            Map.of("s", SUBJECT));
+      });
+
+      // then
+      assertThat(constructed.size()).isEqualTo(1L);
     }
   }
 

@@ -3,6 +3,10 @@
 
 package io.kogn.rdf.dataset;
 
+import java.util.Map;
+
+import io.kogn.rdf.terms.RDFTerm;
+
 /**
  * SPARQL write port.
  *
@@ -10,6 +14,11 @@ package io.kogn.rdf.dataset;
  * not read data; for {@code SELECT}, {@code CONSTRUCT} and {@code ASK} queries
  * see {@link SparqlQuery}, and for writes that participate in an atomic
  * unit-of-work see {@link DatasetTx}.</p>
+ *
+ * <p>{@link #update(String, Map)} pre-binds variables the way
+ * {@link SparqlQuery#select(String, Map) SparqlQuery}'s bindings overloads do — see
+ * that class's Javadoc for why binding a value is preferable to concatenating it into
+ * the update string.</p>
  */
 public interface SparqlUpdate {
 
@@ -24,4 +33,19 @@ public interface SparqlUpdate {
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   void update(String sparql);
+
+  /**
+   * Executes a SPARQL 1.1 Update operation with pre-bound variables against the
+   * dataset.
+   *
+   * <p>Equivalent to {@link #update(String)}, except that each entry of
+   * {@code bindings} substitutes its value for the same-named {@code ?variable} in
+   * {@code sparql} before execution.</p>
+   *
+   * @param sparql the SPARQL Update string; must not be {@code null} or empty
+   * @param bindings variable name (without the leading {@code ?}) to value; must not be
+   *     {@code null}; an empty map behaves like {@link #update(String)}
+   * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   */
+  void update(String sparql, Map<String, RDFTerm> bindings);
 }
