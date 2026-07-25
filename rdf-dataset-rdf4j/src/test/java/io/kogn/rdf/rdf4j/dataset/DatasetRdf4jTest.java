@@ -756,6 +756,82 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("add returns the net number of triples inserted, like GraphStore#add")
+    void inTransaction_add_returnsNetDelta() {
+      // when
+      final long delta = transactor.inTransaction(tx -> tx.add(GRAPH_1, singleTripleGraph()));
+
+      // then
+      assertThat(delta).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("add returns 0 when all triples are already present (idempotent)")
+    void inTransaction_addDuplicate_returnsZero() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final long delta = transactor.inTransaction(tx -> tx.add(GRAPH_1, singleTripleGraph()));
+
+      // then
+      assertThat(delta).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("remove returns the net number of triples removed, like GraphStore#remove")
+    void inTransaction_remove_returnsNetDelta() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final long delta = transactor.inTransaction(tx -> tx.remove(GRAPH_1, singleTripleGraph()));
+
+      // then
+      assertThat(delta).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("export returns the triples added in the same transaction")
+    void inTransaction_exportAfterAdd_returnsTriples() {
+      // when
+      final ReadableGraph exported = transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, singleTripleGraph());
+        return tx.export(GRAPH_1);
+      });
+
+      // then
+      assertThat(exported.size()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("count(graph) reflects triples added in the same transaction")
+    void inTransaction_countPerGraphAfterAdd_returnsOne() {
+      // when
+      final long count = transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, singleTripleGraph());
+        return tx.count(GRAPH_1);
+      });
+
+      // then
+      assertThat(count).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("count() reflects triples added in the same transaction, across named graphs")
+    void inTransaction_countTotalAfterAdd_returnsTotal() {
+      // when
+      final long count = transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, singleTripleGraph());
+        tx.add(GRAPH_2, singleTripleGraph());
+        return tx.count();
+      });
+
+      // then
+      assertThat(count).isEqualTo(2L);
+    }
+
+    @Test
     @DisplayName("read-your-writes — SPARQL UPDATE within transaction visible via ask in same transaction")
     void inTransaction_sparqlUpdateThenAsk_seesUpdate() {
       // when

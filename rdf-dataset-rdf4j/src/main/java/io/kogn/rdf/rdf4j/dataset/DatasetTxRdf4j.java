@@ -9,12 +9,15 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.eclipse.rdf4j.query.GraphQuery;
 import org.eclipse.rdf4j.query.QueryLanguage;
 import org.eclipse.rdf4j.query.QueryResults;
 import org.eclipse.rdf4j.query.TupleQuery;
 import org.eclipse.rdf4j.query.TupleQueryResult;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
+import org.eclipse.rdf4j.repository.RepositoryResult;
 
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.DatasetTx;
@@ -43,6 +46,12 @@ import io.kogn.rdf.terms.ReadableGraph;
  * is what makes it usable as a conflict-protected guard — see the "Limits" section on
  * {@link DatasetTransactorRdf4j}. Inferred statements are excluded, matching
  * {@link GraphStoreRdf4j}.</p>
+ *
+ * <p>{@link #add} and {@link #remove} return the net delta the same way
+ * {@link GraphStoreRdf4j} does, sampling {@link RepositoryConnection#size} before and after
+ * the mutation — but without opening a sub-transaction for it, since these calls already run
+ * inside the transaction {@link DatasetTransactorRdf4j} opened, so the two samples are already
+ * consistent.</p>
  */
 class DatasetTxRdf4j implements DatasetTx {
 
@@ -53,26 +62,50 @@ class DatasetTxRdf4j implements DatasetTx {
   }
 
   @Override
-  public void add(final IRI namedGraph, final ReadableGraph triples) {
+  public long add(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
+    final long before = connection.size(context);
     triples.stream()
         .forEach(triple -> connection.add(RDF4JConverters.toRDF4JResource(triple.getSubject()),
             RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
             context));
+    return connection.size(context) - before;
   }
 
   @Override
-  public void remove(final IRI namedGraph, final ReadableGraph triples) {
+  public long remove(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
+    final long before = connection.size(context);
     triples.stream()
         .forEach(triple -> connection.remove(RDF4JConverters.toRDF4JResource(triple.getSubject()),
             RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
             context));
+    return before - connection.size(context);
   }
 
   @Override
   public void clear(final IRI namedGraph) {
     connection.clear(RDF4JConverters.toRDF4JIRI(namedGraph));
+  }
+
+  @Override
+  public ReadableGraph export(final IRI namedGraph) {
+    final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
+    final Model model = new LinkedHashModel();
+    try (RepositoryResult<Statement> result = connection.getStatements(null, null, null, false, context)) {
+      result.forEach(model::add);
+    }
+    return new RDF4JGraph(model);
+  }
+
+  @Override
+  public long count(final IRI namedGraph) {
+    return connection.size(RDF4JConverters.toRDF4JIRI(namedGraph));
+  }
+
+  @Override
+  public long count() {
+    return connection.size();
   }
 
   @Override

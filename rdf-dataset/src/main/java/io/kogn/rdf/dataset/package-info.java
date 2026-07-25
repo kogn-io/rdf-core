@@ -10,7 +10,8 @@
  *   <li>{@link io.kogn.rdf.dataset.SparqlQuery} — SPARQL SELECT, CONSTRUCT and ASK (read)</li>
  *   <li>{@link io.kogn.rdf.dataset.SparqlUpdate} — SPARQL UPDATE (write)</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTransactor} — atomic unit-of-work boundary</li>
- *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — dataset operations within a transaction</li>
+ *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — composes the three ports above into one
+ *       atomic unit-of-work, plus the transaction-only {@code contains} guard read</li>
  * </ul>
  *
  * <p>Multi-tenant <em>hosting</em> of a pool of stores — open-or-create/close/delete/list by
