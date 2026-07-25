@@ -91,6 +91,15 @@ concern:
   commit with the port's neutral `ConcurrencyConflictException`, so a caller can
   catch and retry without naming a backend exception type.
 
+Every query and update method on `SparqlQuery`, `SparqlUpdate` and `DatasetTx`
+also has a `Map<String, RDFTerm>` bindings overload
+([ADR-0010](docs/adr/0010-sparql-parameter-binding.md)): each entry substitutes
+its value for the same-named `?variable` before the operation runs, so a caller
+assembling a query around an external value binds it instead of concatenating
+it into the SPARQL string — closing a SPARQL-injection and escaping gap the
+`String`-only methods left open. The `String`-only overloads are unchanged and
+remain the right choice when there is nothing to bind.
+
 Hosting a pool of datasets — open-or-create / close / delete / list, addressed
 by an opaque id — is deliberately not one of these ports; it is a separate
 concern in `rdf-dataset-hosting` (see below).
