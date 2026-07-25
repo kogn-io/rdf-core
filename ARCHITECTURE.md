@@ -81,15 +81,21 @@ concern:
   (`DESCRIBE` is not supported).
 - **`SparqlUpdate`** — SPARQL 1.1 Update.
 - **`DatasetTransactor`** / **`DatasetTx`** — an atomic, all-or-nothing
-  unit-of-work (`inTransaction(work)`; roll back on any exception). Besides the
-  SPARQL operations, `DatasetTx` carries `contains(graph, s, p, o)` with `null`
-  as wildcard: a guard read stated as a statement pattern rather than as a query,
-  so a backend can answer it from its own pattern lookup instead of through query
-  evaluation — the longer path, and the one on which a backend can lose the
-  conflict. Optimistic-concurrency guards belong here, not in `ask` — see the
-  "Limits" notes on `DatasetTransactorRdf4j`. The loser of such a race fails at
-  commit with the port's neutral `ConcurrencyConflictException`, so a caller can
-  catch and retry without naming a backend exception type.
+  unit-of-work (`inTransaction(work)`; roll back on any exception). `DatasetTx`
+  composes `GraphStore`, `SparqlQuery` and `SparqlUpdate`
+  ([ADR-0011](docs/adr/0011-datasettx-composes-content-ports.md)): every
+  operation those three ports declare, called through a `DatasetTx`,
+  participates in the same transaction instead of each being its own implicit,
+  single-operation transaction the way it is when one of those ports is used
+  directly. `DatasetTx` adds one operation of its own, `contains(graph, s, p,
+  o)` with `null` as wildcard: a guard read stated as a statement pattern
+  rather than as a query, so a backend can answer it from its own pattern
+  lookup instead of through query evaluation — the longer path, and the one on
+  which a backend can lose the conflict. Optimistic-concurrency guards belong
+  here, not in `ask` — see the "Limits" notes on `DatasetTransactorRdf4j`. The
+  loser of such a race fails at commit with the port's neutral
+  `ConcurrencyConflictException`, so a caller can catch and retry without
+  naming a backend exception type.
 
 Every query and update method on `SparqlQuery`, `SparqlUpdate` and `DatasetTx`
 also has a `Map<String, RDFTerm>` bindings overload
