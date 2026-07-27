@@ -95,7 +95,18 @@ concern:
   here, not in `ask` — see the "Limits" notes on `DatasetTransactorRdf4j`. The
   loser of such a race fails at commit with the port's neutral
   `ConcurrencyConflictException`, so a caller can catch and retry without
-  naming a backend exception type.
+  naming a backend exception type. Not every operation observes the same
+  amount of the graph, though: `add`/`remove` conflict only on the individual
+  triples they touch (each is checked and mutated one triple at a time via a
+  pattern lookup), while `contains`/`count`/`export`/`ask`/`select` conflict on
+  whatever they read — up to the whole named graph for a wildcard `count` or
+  `export` — because a caller that already read that much is meant to lose the
+  race against a concurrent writer to it, the same way a `contains` guard is
+  meant to. `add`/`remove` used to fall into the whole-graph case too, sampling
+  the graph's size before and after the write; that made two transactions
+  adding disjoint triples to the same named graph conflict almost every time,
+  a false conflict rather than a real one, since neither transaction read
+  anything the other wrote ([ADR-0012](docs/adr/0012-per-triple-conflict-surface-for-add-remove.md)).
 
 Every query and update method on `SparqlQuery`, `SparqlUpdate` and `DatasetTx`
 also has a `Map<String, RDFTerm>` bindings overload
