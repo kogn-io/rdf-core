@@ -476,6 +476,98 @@ class ShaclValidationRdf4jTest {
         .hasCauseInstanceOf(IllegalArgumentException.class);
   }
 
+  /**
+   * Pins the {@code path == null} branch (issue #74): a node-shape-level constraint — one
+   * declared directly on the shape, with no {@code sh:property}/{@code sh:path} — applies to
+   * the focus node itself, so RDF4J's report carries no {@code sh:resultPath} for the result it
+   * produces. {@code sh:closed true} was the fix suggestion in the issue, but it does not
+   * qualify here: RDF4J reports the disallowed predicate itself as {@code sh:resultPath}, so a
+   * closed-shape violation is never path-less. {@code sh:class} declared directly on the node
+   * shape (no property path) is the construction verified to leave {@code sh:resultPath}
+   * unset.
+   */
+  @Test
+  void nodeShapeLevelConstraintProducesAResultWithoutAPath() {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(personShape, sh("class"), ex("Approved"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+    // ex:bob is not also an ex:Approved -> violates the node-level sh:class constraint
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).hasSize(1);
+    ShaclResult result = report.results().get(0);
+    assertThat(result.focusNode()).isEqualTo(ex("bob").getIRIString());
+    assertThat(result.path()).isNull();
+    assertThat(result.severity()).isEqualTo(Severity.VIOLATION);
+  }
+
+  /** {@code sh:Info} severity must be mapped to {@link Severity#INFO}, not merely parsed. */
+  @Test
+  void infoOnlyResultsKeepReportConformingAndAreMappedToInfoSeverity() {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    BlankNode nicknameProperty = rdf.createBlankNode();
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(personShape, sh("property"), nicknameProperty);
+    shapes.add(nicknameProperty, sh("path"), ex("nickname"));
+    shapes.add(nicknameProperty, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
+    shapes.add(nicknameProperty, sh("severity"), sh("Info"));
+    shapes.add(nicknameProperty, sh("message"), rdf.createLiteral("A nickname is nice to have"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("carol"), a(), ex("Person"));
+    // no ex:nickname -> violates sh:minCount 1, but at sh:Info severity
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isTrue();
+    assertThat(report.results()).hasSize(1);
+    ShaclResult result = report.results().get(0);
+    assertThat(result.severity()).isEqualTo(Severity.INFO);
+    assertThat(result.messages()).containsExactly(ShaclMessage.untagged("A nickname is nice to have"));
+  }
+
+  /**
+   * Pins the null-argument contract of {@link ShaclValidation#validate} (issue #74): all three
+   * parameters are rejected with a {@link NullPointerException}, matching the port's Javadoc.
+   */
+  @Test
+  void validateRejectsANullDataGraph() {
+    Graph shapes = personShapeRequiringName();
+
+    assertThatThrownBy(() -> validation.validate(null, shapes, ValidationOptions.defaults()))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("data must not be null");
+  }
+
+  @Test
+  void validateRejectsANullShapesGraph() {
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    assertThatThrownBy(() -> validation.validate(data, null, ValidationOptions.defaults()))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("shapes must not be null");
+  }
+
+  @Test
+  void validateRejectsNullOptions() {
+    Graph shapes = personShapeRequiringName();
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    assertThatThrownBy(() -> validation.validate(data, shapes, null)).isInstanceOf(NullPointerException.class)
+        .hasMessage("options must not be null");
+  }
+
   private Graph personShapeRequiringName(Literal... messages) {
     Graph shapes = rdf.createGraph();
     IRI personShape = ex("PersonShape");
