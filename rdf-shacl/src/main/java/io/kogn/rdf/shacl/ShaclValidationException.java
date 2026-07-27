@@ -9,9 +9,10 @@ package io.kogn.rdf.shacl;
  *
  * <p>Thrown by {@link ShaclValidation#validate} when the backend cannot produce a report at
  * all: the shapes graph cannot be parsed as SHACL, a shape uses a construct the backend does
- * not support, or evaluation otherwise fails before a {@link ShaclReport} can be built. A
- * non-conforming data graph is not this — that is a normal, successful run reported through
- * {@link ShaclReport#conforms()} being {@code false}.</p>
+ * not support, an input graph holds a term the backend rejects, or evaluation otherwise fails
+ * before a {@link ShaclReport} can be built. A non-conforming data graph is not this — that
+ * is a normal, successful run reported through {@link ShaclReport#conforms()} being
+ * {@code false}.</p>
  *
  * <p>This is the neutral, backend-independent form of such a failure. Implementations
  * translate their backend's validation-failure signal into it and keep the original as

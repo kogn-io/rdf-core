@@ -225,6 +225,13 @@ Settled semantics worth knowing before consuming it:
   too: a shape targeting only through it never fires and the report comes back
   conforming — target with standard SHACL
   ([ADR-0007](docs/adr/0007-standalone-shacl-validation-port.md)).
+- **A run that yields no report at all fails with the port's neutral
+  `ShaclValidationException`** — an unparsable shapes graph, a construct the
+  backend does not support, a term it rejects. It is the counterpart to the
+  dataset ports' `ConcurrencyConflictException`: the caller handles a broken
+  input without naming a backend exception type, with the backend's own signal
+  kept as `cause`. A *non-conforming* data graph is not this — that is a normal
+  run reporting `conforms() == false`.
 
 `rdf-shacl-rdf4j` wraps RDF4J's `ShaclValidator` and loads both graphs into
 transient in-memory sails per call. It depends on `rdf-terms` and `rdf-shacl`
