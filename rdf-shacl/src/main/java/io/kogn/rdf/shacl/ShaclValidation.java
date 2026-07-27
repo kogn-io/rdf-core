@@ -25,6 +25,8 @@ public interface ShaclValidation {
    * @param options validation options (e.g. RDFS subclass reasoning); must not be
    *     {@code null}
    * @return the validation report; never {@code null}
+   * @throws NullPointerException if {@code data}, {@code shapes} or {@code options} is
+   *     {@code null}
    * @throws ShaclValidationException if no report can be produced — e.g. the shapes graph
    *     cannot be parsed as SHACL, a shape uses a construct the backend does not support, or
    *     one of the two graphs holds a term the backend rejects — as opposed to a normal run
