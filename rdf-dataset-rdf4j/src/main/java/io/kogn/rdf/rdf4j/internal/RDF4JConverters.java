@@ -3,6 +3,8 @@
 
 package io.kogn.rdf.rdf4j.internal;
 
+import java.util.Objects;
+
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.util.Values;
 
@@ -68,10 +70,14 @@ public final class RDF4JConverters {
    * Converts an RDFTerm from our API to RDF4J Value.
    * Supports both RDF4J implementations and foreign implementations.
    *
-   * @param term the term to convert
+   * @param term the term to convert; must not be {@code null}
    * @return RDF4J Value
+   * @throws NullPointerException if {@code term} is {@code null} — checked explicitly so the
+   *     failure names the violated precondition, rather than surfacing as a bare NPE out of
+   *     {@code term.getClass()} on the unreachable fallback below
    */
   public static Value toRDF4JValue(RDFTerm term) {
+    Objects.requireNonNull(term, "term must not be null");
     if (term instanceof RDF4JTerm) {
       return ((RDF4JTerm) term).getRDF4JValue();
     }

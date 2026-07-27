@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
@@ -600,6 +601,22 @@ class DatasetRdf4jTest {
           .isInstanceOf(MalformedSparqlException.class)
           .isNotInstanceOf(IllegalArgumentException.class)
           .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("select with bindings — a null-valued binding fails with a clear NullPointerException,"
+        + " not a bare NPE three frames deep out of Object#getClass (issue #73)")
+    void select_withNullValuedBinding_throwsNullPointerExceptionWithMessage() {
+      // given — a caller error: the bindings map itself is non-null, but one of its entries maps
+      // to a null value instead of a bound RDFTerm.
+      final Map<String, RDFTerm> bindings = Collections.singletonMap("s", null);
+
+      // when, then — the failure must name the violated precondition rather than surface as an
+      // unqualified NullPointerException out of term.getClass() on RDF4JConverters' unsupported-type
+      // fallback.
+      assertThatThrownBy(() -> sparqlQuery.select("SELECT * WHERE {}", bindings).toList())
+          .isInstanceOf(NullPointerException.class)
+          .hasMessage("term must not be null");
     }
   }
 

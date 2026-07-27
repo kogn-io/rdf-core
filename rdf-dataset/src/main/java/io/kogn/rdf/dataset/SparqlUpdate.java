@@ -44,7 +44,8 @@ public interface SparqlUpdate {
    *
    * @param sparql the SPARQL Update string; must not be {@code null} or empty
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
-   *     {@code null}; an empty map behaves like {@link #update(String)}
+   *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
+   *     {@link #update(String)}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
   void update(String sparql, Map<String, RDFTerm> bindings);
