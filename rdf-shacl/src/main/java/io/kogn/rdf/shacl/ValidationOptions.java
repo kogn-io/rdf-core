@@ -19,6 +19,15 @@ package io.kogn.rdf.shacl;
  * implementation; the RDF4J adapter accepts them in either the {@code data} or the
  * {@code shapes} graph.</p>
  *
+ * <h2>This option is the sole authority</h2>
+ *
+ * <p>Backend-proprietary predicates that a shapes graph might carry to override reasoning
+ * per shape (e.g. RDF4J's {@code http://rdf4j.org/shacl-extensions#rdfsSubClassReasoning})
+ * must not take effect — an implementation of this port is expected to disable such
+ * extensions so that this option, and only this option, decides the reasoning behavior for a
+ * {@link ShaclValidation#validate} call. See the implementation's Javadoc for how it enforces
+ * this.</p>
+ *
  * @param rdfsSubClassReasoning whether validation should reason across
  *     {@code rdfs:subClassOf} when matching shape targets (e.g. {@code sh:targetClass})
  *     against instance types. Disabled by default: a shape targeting a superclass does

@@ -33,6 +33,7 @@ class ShaclValidationRdf4jTest {
   private static final String RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
   private static final String RDFS_NS = "http://www.w3.org/2000/01/rdf-schema#";
   private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
+  private static final String RDF4J_SHACL_EXTENSIONS_NS = "http://rdf4j.org/shacl-extensions#";
 
   private final RDF rdf = new SimpleRdf();
   private final ShaclValidationRdf4j validation = new ShaclValidationRdf4j();
@@ -55,6 +56,14 @@ class ShaclValidationRdf4jTest {
 
   private IRI xsdInteger() {
     return rdf.createIRI(XSD_NS + "integer");
+  }
+
+  private IRI xsdBoolean() {
+    return rdf.createIRI(XSD_NS + "boolean");
+  }
+
+  private IRI rdf4jShaclExtension(String local) {
+    return rdf.createIRI(RDF4J_SHACL_EXTENSIONS_NS + local);
   }
 
   @Test
@@ -186,6 +195,57 @@ class ShaclValidationRdf4jTest {
 
     assertThat(report.conforms()).isTrue();
     assertThat(report.results()).isEmpty();
+  }
+
+  /**
+   * Pins issue #67: {@link ValidationOptions#rdfsSubClassReasoning()} is the sole authority
+   * over subclass reasoning. A shapes graph carrying RDF4J's proprietary
+   * {@code http://rdf4j.org/shacl-extensions#rdfsSubClassReasoning} override must not flip a
+   * caller's explicit {@code false} to {@code true} — the port would otherwise let the shapes
+   * graph override the caller, which a second SHACL engine that does not know this predicate
+   * would not honor.
+   */
+  @Test
+  void rdf4jExtensionPredicateOnAShapeDoesNotOverrideADisabledCallerOption() {
+    Graph shapes = animalShapeRequiringName();
+    shapes.add(ex("AnimalShape"), rdf4jShaclExtension("rdfsSubClassReasoning"),
+        rdf.createLiteral("true", xsdBoolean()));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("Dog"), subClassOf(), ex("Animal"));
+    data.add(ex("rex"), a(), ex("Dog"));
+    // no ex:name -> would violate sh:minCount 1 if the shape fired
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isTrue();
+    assertThat(report.results()).isEmpty();
+  }
+
+  /**
+   * Counter-proof for {@link #rdf4jExtensionPredicateOnAShapeDoesNotOverrideADisabledCallerOption()}:
+   * the very same shapes (extension predicate included) and data do violate once the caller
+   * itself enables {@link ValidationOptions#rdfsSubClassReasoning()}. This shows the shape is
+   * capable of firing and that the previous test's conforming report is not conforming for some
+   * unrelated reason.
+   */
+  @Test
+  void sameShapesAndDataViolateWhenTheCallerEnablesSubClassReasoning() {
+    Graph shapes = animalShapeRequiringName();
+    shapes.add(ex("AnimalShape"), rdf4jShaclExtension("rdfsSubClassReasoning"),
+        rdf.createLiteral("true", xsdBoolean()));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("Dog"), subClassOf(), ex("Animal"));
+    data.add(ex("rex"), a(), ex("Dog"));
+    // no ex:name -> violates sh:minCount 1 once the shape fires via subclass reasoning
+
+    ShaclReport report = validation.validate(data, shapes, new ValidationOptions(true));
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).hasSize(1);
+    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex").getIRIString());
+    assertThat(report.results().get(0).severity()).isEqualTo(Severity.VIOLATION);
   }
 
   /**
