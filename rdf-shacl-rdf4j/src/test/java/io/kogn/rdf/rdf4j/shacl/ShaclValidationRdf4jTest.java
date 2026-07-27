@@ -4,13 +4,17 @@
 package io.kogn.rdf.rdf4j.shacl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.sail.shacl.ast.ShaclUnsupportedException;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.shacl.Severity;
 import io.kogn.rdf.shacl.ShaclMessage;
 import io.kogn.rdf.shacl.ShaclReport;
 import io.kogn.rdf.shacl.ShaclResult;
+import io.kogn.rdf.shacl.ShaclValidationException;
 import io.kogn.rdf.shacl.ValidationOptions;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.Graph;
@@ -395,6 +399,40 @@ class ShaclValidationRdf4jTest {
 
     assertThat(report.results()).hasSize(1);
     assertThat(report.results().get(0).messages()).isEmpty();
+  }
+
+  /**
+   * A shapes graph RDF4J's own shape parser rejects must surface as the neutral
+   * {@link ShaclValidationException}, not RDF4J's own {@code RDF4JException} family — the
+   * leak this test guards against (issue #66). {@code sh:path} here points at a blank node
+   * that carries none of the recognised path-expression predicates ({@code sh:alternativePath},
+   * {@code sh:inversePath}, ...), which RDF4J's {@code Path} parser rejects as an unknown path
+   * type while building the validation plan.
+   */
+  @Test
+  void unparsableShapesGraphSurfacesAsTheNeutralValidationException() {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    BlankNode nameProperty = rdf.createBlankNode();
+    BlankNode malformedPath = rdf.createBlankNode();
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(personShape, sh("property"), nameProperty);
+    shapes.add(nameProperty, sh("path"), malformedPath);
+    shapes.add(nameProperty, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
+    // malformedPath carries no recognised path predicate (sh:alternativePath, sh:inversePath,
+    // ...) -> RDF4J's Path parser rejects it as an unknown path type.
+    shapes.add(malformedPath, ex("notAPathPredicate"), ex("irrelevant"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasCauseInstanceOf(RDF4JException.class)
+        .cause()
+        .cause()
+        .isInstanceOf(ShaclUnsupportedException.class);
   }
 
   private Graph personShapeRequiringName(Literal... messages) {

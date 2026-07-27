@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Model;
@@ -19,6 +20,7 @@ import org.eclipse.rdf4j.sail.Sail;
 import org.eclipse.rdf4j.sail.SailConnection;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.shacl.ShaclValidator;
+import org.eclipse.rdf4j.sail.shacl.ast.ShaclUnsupportedException;
 import org.eclipse.rdf4j.sail.shacl.results.ValidationReport;
 
 import io.kogn.rdf.rdf4j.shacl.internal.GraphModelConverter;
@@ -27,6 +29,7 @@ import io.kogn.rdf.shacl.ShaclMessage;
 import io.kogn.rdf.shacl.ShaclReport;
 import io.kogn.rdf.shacl.ShaclResult;
 import io.kogn.rdf.shacl.ShaclValidation;
+import io.kogn.rdf.shacl.ShaclValidationException;
 import io.kogn.rdf.shacl.ValidationOptions;
 import io.kogn.rdf.terms.ReadableGraph;
 
@@ -117,6 +120,8 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
           .build()
           .validate(dataSail);
       return toShaclReport(report);
+    } catch (RDF4JException | ShaclUnsupportedException e) {
+      throw new ShaclValidationException("SHACL validation failed", e);
     } finally {
       shapesSail.shutDown();
       dataSail.shutDown();

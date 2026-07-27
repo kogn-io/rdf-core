@@ -25,6 +25,13 @@ public interface ShaclValidation {
    * @param options validation options (e.g. RDFS subclass reasoning); must not be
    *     {@code null}
    * @return the validation report; never {@code null}
+   * @throws ShaclValidationException if the validation run itself fails — e.g. the shapes
+   *     graph cannot be parsed as SHACL, or a shape uses a construct the backend does not
+   *     support — as opposed to a normal run that reports non-conformance through
+   *     {@link ShaclReport#conforms()}. Implementations must wrap their backend's
+   *     validation-failure signal in this neutral type, keeping the original as
+   *     {@linkplain Throwable#getCause() cause}, rather than letting a backend-specific
+   *     exception reach the caller.
    */
   ShaclReport validate(ReadableGraph data, ReadableGraph shapes, ValidationOptions options);
 }
