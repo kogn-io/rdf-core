@@ -191,6 +191,17 @@ Settled semantics worth knowing before consuming it:
   handle on the same dataset. `shutDownAll()` is the deliberate exception — a
   last-resort teardown that does not consult lease counts, logging a warning
   naming any dataset still leased before tearing everything down regardless.
+- **`close` is eviction only for a `PERSISTENT` store; for `IN_MEMORY` it
+  destroys.** The resume half of eviction — drop the store, re-`acquire` later,
+  find the data — needs storage to resume *from*, and an `IN_MEMORY` dataset has
+  none: closing it discards its contents, and the next `acquire` builds an empty
+  store and re-runs the on-create hook, the same outcome as `delete`. The
+  "one-time" in the hook's contract is therefore scoped to the store, not to the
+  `DatasetId`. This matters because the port invites a consumer to write one
+  generic idle/TTL policy against it: applied uniformly, that policy resumes
+  cheaply against `PERSISTENT` and silently wipes `IN_MEMORY`. Documented rather
+  than prevented — refusing or no-op'ing the call would break the callers relying
+  on today's behaviour, and there is no third outcome to offer.
 - **The opaque `DatasetId` is Base64url-encoded into a single directory
   segment**, so values like `"../etc"` cannot escape the storage root.
 
