@@ -81,7 +81,9 @@ concern:
   (`DESCRIBE` is not supported).
 - **`SparqlUpdate`** — SPARQL 1.1 Update.
 - **`DatasetTransactor`** / **`DatasetTx`** — an atomic, all-or-nothing
-  unit-of-work (`inTransaction(work)`; roll back on any exception). `DatasetTx`
+  unit-of-work (`inTransaction(work)`; roll back on any `RuntimeException` or
+  `Error` the work throws — the adapter catches `Throwable` itself rather than
+  relying on the backend connection rolling back at close time). `DatasetTx`
   composes `GraphStore`, `SparqlQuery` and `SparqlUpdate`
   ([ADR-0011](docs/adr/0011-datasettx-composes-content-ports.md)): every
   operation those three ports declare, called through a `DatasetTx`,
