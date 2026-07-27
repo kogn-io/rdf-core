@@ -219,6 +219,12 @@ Settled semantics worth knowing before consuming it:
 - **RDFS subclass reasoning is opt-in** (`ValidationOptions.rdfsSubClassReasoning`,
   default off), and a silent no-op if no `rdfs:subClassOf` axioms are present in
   either graph.
+- **RDF4J's proprietary SHACL extensions are switched off**, so `ValidationOptions`
+  alone decides reasoning behaviour and no `http://rdf4j.org/shacl-extensions#`
+  predicate in a shapes graph takes effect. This covers `rdf4j-ext:targetShape`
+  too: a shape targeting only through it never fires and the report comes back
+  conforming — target with standard SHACL
+  ([ADR-0007](docs/adr/0007-standalone-shacl-validation-port.md)).
 
 `rdf-shacl-rdf4j` wraps RDF4J's `ShaclValidator` and loads both graphs into
 transient in-memory sails per call. It depends on `rdf-terms` and `rdf-shacl`
