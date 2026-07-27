@@ -29,7 +29,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  * A term embedded this way is never parsed as SPARQL syntax, so a caller assembling a
  * query around a value it does not fully control — an IRI or a literal from outside the
  * program — should bind it rather than concatenate it into the query string, which
- * avoids both SPARQL injection and having to hand-escape the term's lexical form.</p>
+ * avoids both SPARQL injection and having to hand-escape the term's lexical form. The
+ * bindings map itself must not be {@code null}, and none of its values may be
+ * {@code null} either — there is no such thing as binding a variable to "no value".</p>
  */
 public interface SparqlQuery {
 
@@ -58,7 +60,8 @@ public interface SparqlQuery {
    *
    * @param sparql the SPARQL SELECT query string; must not be {@code null} or empty
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
-   *     {@code null}; an empty map behaves like {@link #select(String)}
+   *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
+   *     {@link #select(String)}
    * @return a stream of binding sets; never {@code null}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
@@ -87,7 +90,8 @@ public interface SparqlQuery {
    *
    * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null} or empty
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
-   *     {@code null}; an empty map behaves like {@link #construct(String)}
+   *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
+   *     {@link #construct(String)}
    * @return the constructed graph; never {@code null}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
@@ -116,7 +120,8 @@ public interface SparqlQuery {
    *
    * @param sparql the SPARQL ASK query string; must not be {@code null} or empty
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
-   *     {@code null}; an empty map behaves like {@link #ask(String)}
+   *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
+   *     {@link #ask(String)}
    * @return {@code true} if the pattern has at least one match
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    */
