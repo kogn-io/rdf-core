@@ -66,8 +66,9 @@ public class GraphStoreRdf4j implements GraphStore {
   /**
    * Runs a batch mutation inside a single explicit transaction so that the whole
    * triple set is applied atomically (commit on success, rollback on any
-   * {@link RuntimeException}). Without this, RDF4J auto-commits per statement,
-   * which leaves a half-applied graph on failure and is slow for large batches.
+   * {@link RuntimeException} or {@link Error} the work function throws). Without
+   * this, RDF4J auto-commits per statement, which leaves a half-applied graph on
+   * failure and is slow for large batches.
    *
    * <p>The graph size is sampled before and after the mutation inside the same
    * transaction. A bare {@code conn.begin()} would run at the backend's default
@@ -91,7 +92,7 @@ public class GraphStoreRdf4j implements GraphStore {
         final long result = work.applyAsLong(conn);
         conn.commit();
         return result;
-      } catch (RuntimeException e) {
+      } catch (Throwable e) {
         try {
           conn.rollback();
         } catch (RuntimeException rollbackEx) {

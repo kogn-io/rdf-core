@@ -22,8 +22,8 @@ import io.kogn.rdf.dataset.DatasetTx;
  * {@link #inTransaction}, begins a transaction at
  * {@link IsolationLevels#SERIALIZABLE}, hands a {@link DatasetTxRdf4j} (bound to
  * that connection) to the work function, and commits on success or rolls back on
- * any {@link RuntimeException}. The connection is always closed after the
- * transaction, regardless of outcome.</p>
+ * any {@link RuntimeException} or {@link Error} the work function throws. The
+ * connection is always closed after the transaction, regardless of outcome.</p>
  *
  * <p><strong>Nesting:</strong> the port forbids a nested {@code inTransaction} call
  * (see {@link DatasetTransactor} class Javadoc); this implementation enforces it with a
@@ -161,7 +161,7 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
           throw translateConflict(e);
         }
         return result;
-      } catch (RuntimeException e) {
+      } catch (Throwable e) {
         try {
           conn.rollback();
         } catch (RuntimeException rollbackEx) {
