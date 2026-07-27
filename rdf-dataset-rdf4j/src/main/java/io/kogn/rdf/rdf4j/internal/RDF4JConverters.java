@@ -34,10 +34,14 @@ public final class RDF4JConverters {
    * Converts an IRI from our API to RDF4J IRI.
    * Supports both RDF4JIRI (direct access) and foreign implementations (conversion).
    *
-   * @param iri the IRI to convert
+   * @param iri the IRI to convert; must not be {@code null}
    * @return RDF4J IRI
+   * @throws NullPointerException if {@code iri} is {@code null} — checked explicitly so the
+   *     failure names the violated precondition, rather than surfacing as a bare NPE out of
+   *     {@code iri.getIRIString()} below
    */
   public static org.eclipse.rdf4j.model.IRI toRDF4JIRI(IRI iri) {
+    Objects.requireNonNull(iri, "iri must not be null");
     if (iri instanceof RDF4JIRI) {
       return ((RDF4JIRI) iri).getRDF4JValue();
     }
@@ -49,10 +53,14 @@ public final class RDF4JConverters {
    * Converts a BlankNodeOrIRI from our API to RDF4J Resource.
    * Supports both RDF4J implementations and foreign implementations.
    *
-   * @param resource the resource to convert
+   * @param resource the resource to convert; must not be {@code null}
    * @return RDF4J Resource
+   * @throws NullPointerException if {@code resource} is {@code null} — checked explicitly so the
+   *     failure names the violated precondition, rather than surfacing as a bare NPE out of
+   *     {@code resource.getClass()} on the unreachable fallback below
    */
   public static org.eclipse.rdf4j.model.Resource toRDF4JResource(BlankNodeOrIRI resource) {
+    Objects.requireNonNull(resource, "resource must not be null");
     if (resource instanceof RDF4JTerm) {
       return (org.eclipse.rdf4j.model.Resource) ((RDF4JTerm) resource).getRDF4JValue();
     }
