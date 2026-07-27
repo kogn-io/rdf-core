@@ -28,6 +28,7 @@ import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
+import io.kogn.rdf.terms.Triple;
 
 /**
  * RDF4J-based implementation of {@link DatasetTx}.
@@ -47,11 +48,23 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link DatasetTransactorRdf4j}. Inferred statements are excluded, matching
  * {@link GraphStoreRdf4j}.</p>
  *
- * <p>{@link #add} and {@link #remove} return the net delta the same way
- * {@link GraphStoreRdf4j} does, sampling {@link RepositoryConnection#size} before and after
- * the mutation — but without opening a sub-transaction for it, since these calls already run
- * inside the transaction {@link DatasetTransactorRdf4j} opened, so the two samples are already
- * consistent.</p>
+ * <p>{@link #add} and {@link #remove} compute their delta per triple, via
+ * {@link RepositoryConnection#hasStatement} before mutating each one, instead of sampling
+ * {@link RepositoryConnection#size} before and after the whole call the way
+ * {@link GraphStoreRdf4j} does. Under the {@code SERIALIZABLE} isolation this transaction runs
+ * at (see {@link DatasetTransactorRdf4j}), a wildcard {@code size(context)} read observes the
+ * <em>entire</em> named graph, so it conflicts with a concurrent commit anywhere in that graph —
+ * including one that touched none of the triples this call added or removed. A concrete
+ * {@code hasStatement(s, p, o, false, context)} lookup per triple observes only that one
+ * pattern, so the conflict surface of {@code add}/{@code remove} is the triples they actually
+ * touch. See <a href="https://github.com/kogn-io/rdf-core/issues/64">issue 64</a> and
+ * ADR-0012.</p>
+ *
+ * <p>{@link #count(IRI)}, {@link #count()} and {@link #export} are unaffected: they still read
+ * the whole named graph, and that whole-graph observation is deliberate rather than a gap
+ * — a transaction that already asked "how many/which triples are in this graph" is meant to
+ * conflict with any concurrent writer to that graph, the same way a {@code contains} guard
+ * (ADR-0008) is meant to conflict with a writer of the exact pattern it read. See ADR-0012.</p>
  */
 class DatasetTxRdf4j implements DatasetTx {
 
@@ -64,23 +77,35 @@ class DatasetTxRdf4j implements DatasetTx {
   @Override
   public long add(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    final long before = connection.size(context);
-    triples.stream()
-        .forEach(triple -> connection.add(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-            RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
-            context));
-    return connection.size(context) - before;
+    long added = 0;
+    for (final Triple triple : triples.stream().toList()) {
+      final org.eclipse.rdf4j.model.Resource subject = RDF4JConverters.toRDF4JResource(triple.getSubject());
+      final org.eclipse.rdf4j.model.IRI predicate = RDF4JConverters.toRDF4JIRI(triple.getPredicate());
+      final org.eclipse.rdf4j.model.Value object = RDF4JConverters.toRDF4JValue(triple.getObject());
+      if (connection.hasStatement(subject, predicate, object, false, context)) {
+        continue;
+      }
+      connection.add(subject, predicate, object, context);
+      added++;
+    }
+    return added;
   }
 
   @Override
   public long remove(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    final long before = connection.size(context);
-    triples.stream()
-        .forEach(triple -> connection.remove(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-            RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
-            context));
-    return before - connection.size(context);
+    long removed = 0;
+    for (final Triple triple : triples.stream().toList()) {
+      final org.eclipse.rdf4j.model.Resource subject = RDF4JConverters.toRDF4JResource(triple.getSubject());
+      final org.eclipse.rdf4j.model.IRI predicate = RDF4JConverters.toRDF4JIRI(triple.getPredicate());
+      final org.eclipse.rdf4j.model.Value object = RDF4JConverters.toRDF4JValue(triple.getObject());
+      if (!connection.hasStatement(subject, predicate, object, false, context)) {
+        continue;
+      }
+      connection.remove(subject, predicate, object, context);
+      removed++;
+    }
+    return removed;
   }
 
   @Override
