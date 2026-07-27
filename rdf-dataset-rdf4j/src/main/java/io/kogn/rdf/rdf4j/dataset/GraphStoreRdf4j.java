@@ -37,6 +37,18 @@ public class GraphStoreRdf4j implements GraphStore {
     this.repository = repository;
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p><strong>Inferred statements are counted.</strong> The delta is measured via
+   * {@link RepositoryConnection#size}, which has no {@code includeInferred} parameter to exclude
+   * them — RDF4J exposes no such variant — unlike {@link #export}, which requests
+   * {@code includeInferred=false} explicitly via {@link RepositoryConnection#getStatements}. This
+   * only diverges from {@code export}'s asserted-only view when a reasoning-capable
+   * {@link org.eclipse.rdf4j.sail.Sail Sail} sits underneath; the {@code MemoryStore}/
+   * {@code NativeStore} configurations this library ships never infer, so the two views coincide
+   * today.</p>
+   */
   @Override
   public long add(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
@@ -50,6 +62,12 @@ public class GraphStoreRdf4j implements GraphStore {
     });
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Shares the {@link RepositoryConnection#size} inferred-statements caveat documented on
+   * {@link #add(IRI, ReadableGraph)}.</p>
+   */
   @Override
   public long remove(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
@@ -122,6 +140,12 @@ public class GraphStoreRdf4j implements GraphStore {
     }
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Shares the {@link RepositoryConnection#size} inferred-statements caveat documented on
+   * {@link #add(IRI, ReadableGraph)}.</p>
+   */
   @Override
   public long count(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
@@ -130,6 +154,12 @@ public class GraphStoreRdf4j implements GraphStore {
     }
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Shares the {@link RepositoryConnection#size} inferred-statements caveat documented on
+   * {@link #add(IRI, ReadableGraph)}.</p>
+   */
   @Override
   public long count() {
     try (RepositoryConnection conn = repository.getConnection()) {
