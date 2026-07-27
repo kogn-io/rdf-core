@@ -1,6 +1,9 @@
 # ADR-0011: `DatasetTx` composes `GraphStore`, `SparqlQuery` and `SparqlUpdate`
 
-Status: Accepted
+Status: Accepted — amended by
+[ADR-0012](0012-per-triple-conflict-surface-for-add-remove.md): inside a
+transaction the delta is no longer computed by before/after `size(context)`
+sampling but per triple.
 
 ## Context
 
