@@ -39,6 +39,17 @@ import io.kogn.rdf.terms.ReadableGraph;
  * no state is shared across calls, matching the stateless, non-transactional contract
  * of the port.</p>
  *
+ * <h2>RDF4J's proprietary SHACL extensions are switched off</h2>
+ *
+ * <p>This adapter always builds with {@code setEclipseRdf4jShaclExtensions(false)}, so a
+ * shapes graph cannot use RDF4J-proprietary predicates such as
+ * {@code http://rdf4j.org/shacl-extensions#rdfsSubClassReasoning} to override
+ * {@link ValidationOptions} at the level of a single shape. {@link ValidationOptions} is the
+ * sole authority over reasoning behavior; a shapes graph cannot silently flip a setting the
+ * caller made explicit — a second SHACL engine that does not know RDF4J's extension
+ * predicates would not honor such a shape-level override either, so honoring it here would
+ * be a backend leak.</p>
+ *
  * <h2>Where RDFS axioms may live</h2>
  *
  * <p>With {@link ValidationOptions#rdfsSubClassReasoning()} enabled, this adapter picks the
@@ -84,6 +95,7 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     try {
       ValidationReport report = ShaclValidator.builder()
           .setRdfsSubClassReasoning(options.rdfsSubClassReasoning())
+          .setEclipseRdf4jShaclExtensions(false)
           .withShapes(shapesSail)
           .build()
           .validate(dataSail);
