@@ -308,6 +308,16 @@ class DatasetRdf4jTest {
           .hasMessage("deliberate failure");
       assertThat(store.count(GRAPH_1)).isEqualTo(0L);
     }
+
+    @Test
+    @DisplayName("add with a null named graph fails with a clear NullPointerException, not a bare"
+        + " NPE out of Object#getClass three frames deep (issue #85)")
+    void add_withNullNamedGraph_throwsNullPointerExceptionWithMessage() {
+      // when, then — the failure must name the violated precondition rather than surface as an
+      // unqualified NullPointerException out of iri.getIRIString() on RDF4JConverters#toRDF4JIRI.
+      assertThatThrownBy(() -> store.add(null, singleTripleGraph())).isInstanceOf(NullPointerException.class)
+          .hasMessage("iri must not be null");
+    }
   }
 
   // -------------------------------------------------------------------------
