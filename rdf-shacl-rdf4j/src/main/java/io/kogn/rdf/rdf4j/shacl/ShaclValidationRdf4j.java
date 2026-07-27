@@ -107,12 +107,11 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     Objects.requireNonNull(shapes, "shapes must not be null");
     Objects.requireNonNull(options, "options must not be null");
 
-    Model dataModel = GraphModelConverter.toModel(data);
-    Model shapesModel = GraphModelConverter.toModel(shapes);
-
-    Sail dataSail = toSail(dataModel);
-    Sail shapesSail = toSail(shapesModel);
+    Sail dataSail = null;
+    Sail shapesSail = null;
     try {
+      dataSail = load(data, "data");
+      shapesSail = load(shapes, "shapes");
       ValidationReport report = ShaclValidator.builder()
           .setRdfsSubClassReasoning(options.rdfsSubClassReasoning())
           .setEclipseRdf4jShaclExtensions(false)
@@ -121,11 +120,40 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
           .validate(dataSail);
       return toShaclReport(report);
     } catch (RDF4JException | ShaclUnsupportedException e) {
-      throw new ShaclValidationException("SHACL validation failed", e);
+      // ShaclUnsupportedException extends UnsupportedOperationException, not RDF4JException,
+      // so it needs its own alternative. RDF4J has only ever been observed handing it over
+      // wrapped in a ShaclShapeParsingException; the alternative is the defence against the
+      // unwrapped case rather than a path a test can reach.
+      throw new ShaclValidationException("SHACL validation could not be completed: " + e.getMessage(), e);
     } finally {
-      shapesSail.shutDown();
-      dataSail.shutDown();
+      if (shapesSail != null) {
+        shapesSail.shutDown();
+      }
+      if (dataSail != null) {
+        dataSail.shutDown();
+      }
     }
+  }
+
+  /**
+   * Converts one input graph and loads it into a transient sail.
+   *
+   * <p>The conversion is where a term {@code rdf-terms} accepts but RDF4J does not — a
+   * literal whose lexical form does not fit its datatype, say — fails, as an
+   * {@link IllegalArgumentException} out of RDF4J's validating value factory. That is a
+   * backend disagreement about the input, not a defect in the caller's call, so it is
+   * translated like any other reason no report can be produced; {@code role} names which
+   * of the two graphs was at fault, which the exception itself does not say.</p>
+   */
+  private static Sail load(ReadableGraph graph, String role) {
+    Model model;
+    try {
+      model = GraphModelConverter.toModel(graph);
+    } catch (IllegalArgumentException e) {
+      throw new ShaclValidationException("the " + role + " graph could not be handed to the backend: " + e.getMessage(),
+          e);
+    }
+    return toSail(model);
   }
 
   private static Sail toSail(Model model) {

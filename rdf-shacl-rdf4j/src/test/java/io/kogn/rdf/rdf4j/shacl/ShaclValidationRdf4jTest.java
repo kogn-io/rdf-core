@@ -430,9 +430,50 @@ class ShaclValidationRdf4jTest {
     assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
         .isInstanceOf(ShaclValidationException.class)
         .hasCauseInstanceOf(RDF4JException.class)
-        .cause()
-        .cause()
-        .isInstanceOf(ShaclUnsupportedException.class);
+        .hasRootCauseInstanceOf(ShaclUnsupportedException.class);
+  }
+
+  /**
+   * A literal whose lexical form does not fit its datatype must surface as the neutral
+   * {@link ShaclValidationException} too. {@code rdf-terms} accepts such a literal — it
+   * models RDF without validating lexical forms — while RDF4J's {@code ValidatingValueFactory}
+   * rejects it while the graph is being handed to the backend, i.e. before validation even
+   * starts. That step sits inside the translated region as well, so no bare
+   * {@link IllegalArgumentException} reaches the caller.
+   */
+  @Test
+  void literalWithAnInvalidLexicalFormSurfacesAsTheNeutralValidationException() {
+    Graph shapes = personShapeRequiringName();
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+    data.add(ex("bob"), ex("age"), rdf.createLiteral("not-a-number", xsdInteger()));
+
+    assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasMessageContaining("data graph")
+        .hasCauseInstanceOf(IllegalArgumentException.class);
+  }
+
+  /** The same conversion failure in the shapes graph is named as such. */
+  @Test
+  void invalidLexicalFormInTheShapesGraphNamesTheShapesGraph() {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    BlankNode nameProperty = rdf.createBlankNode();
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(personShape, sh("property"), nameProperty);
+    shapes.add(nameProperty, sh("path"), ex("name"));
+    shapes.add(nameProperty, sh("minCount"), rdf.createLiteral("not-a-number", xsdInteger()));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasMessageContaining("shapes graph")
+        .hasCauseInstanceOf(IllegalArgumentException.class);
   }
 
   private Graph personShapeRequiringName(Literal... messages) {

@@ -16,6 +16,8 @@
  *       language tag</li>
  *   <li>{@link io.kogn.rdf.shacl.Severity} — {@code sh:Violation} / {@code sh:Warning} /
  *       {@code sh:Info}</li>
+ *   <li>{@link io.kogn.rdf.shacl.ShaclValidationException} — a run that produced no report
+ *       at all, as opposed to a report saying "does not conform"</li>
  * </ul>
  *
  * <h2>Scope: standalone, non-transactional validation only</h2>
