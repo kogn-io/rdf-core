@@ -17,7 +17,7 @@ import java.util.Set;
  *
  * <p>This port is pure <em>mechanism</em>. Any idle/TTL eviction <em>policy</em>
  * lives with the consumer, which decides when to call {@link #close(DatasetId)}.
- * The one-time on-create seeding hook is a construction concern of the backend
+ * The on-create seeding hook is a construction concern of the backend
  * implementation, not a method of this port — the port carries no mutable
  * registration state.</p>
  */
@@ -33,6 +33,11 @@ public interface DatasetLifecycle {
    * {@link #delete(DatasetId)}. If the dataset is newly created the on-create
    * hook runs to completion before this method returns, so the caller never
    * observes an unseeded dataset.</p>
+   *
+   * <p>"One-time" is scoped to the store, not to the {@link DatasetId}: for an
+   * {@code IN_MEMORY} dataset {@link #close(DatasetId)} destroys the store, so the
+   * next {@code acquire} creates it anew and runs the hook again. See
+   * {@link #close(DatasetId)} for the full contract.</p>
    *
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}

@@ -417,6 +417,7 @@ class DatasetLifecycleRdf4jTest {
       final DatasetId id = new DatasetId("in-memory-evicted");
       try (DatasetHandle ds = lifecycle.acquire(id)) {
         ds.graphStore().add(GRAPH, singleTriple());
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // precondition: the data is really there
       }
 
       lifecycle.close(id); // evict — but for IN_MEMORY there is no persisted state to resume

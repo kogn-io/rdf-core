@@ -24,9 +24,10 @@ public record DatasetStoreConfig(Persistence persistence, boolean fullTextSearch
     /** Contents survive process restarts (on-disk store). */
     PERSISTENT,
     /**
-     * Contents live only until the store is closed: {@link DatasetLifecycle#close(DatasetId)}
-     * discards them rather than merely evicting them from a cache, and the next
-     * {@link DatasetLifecycle#acquire(DatasetId)} starts from a fresh, empty dataset.
+     * Contents never survive a process restart, and are already gone when the store is
+     * closed: {@link DatasetLifecycle#close(DatasetId)} discards them rather than merely
+     * evicting them from a cache, and the next {@link DatasetLifecycle#acquire(DatasetId)}
+     * starts from a fresh, empty dataset.
      */
     IN_MEMORY
   }

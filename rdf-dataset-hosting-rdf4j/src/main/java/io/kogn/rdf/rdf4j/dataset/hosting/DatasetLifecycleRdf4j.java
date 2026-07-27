@@ -128,10 +128,13 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
    *     {@code IN_MEMORY}
    * @param indexSpec RDF4J NativeStore index specification; required for
    *     {@code PERSISTENT} (e.g. {@link #DEFAULT_INDEX_SPEC})
-   * @param onCreate one-time hook run when a dataset is first created, before its
+   * @param onCreate hook run when a dataset's store is first created, before its
    *     handle is handed out; receives the id and a {@link GraphStore} to seed
-   *     through (never an RDF4J type). It runs under the per-key map lock, so it
-   *     must only seed its own {@code GraphStore} and must not call back into this
+   *     through (never an RDF4J type). One-time per store, not per {@link DatasetId}:
+   *     for {@code IN_MEMORY} a {@link #close(DatasetId)} destroys the store, so the
+   *     next {@link #acquire(DatasetId)} runs the hook again for the same id. It runs
+   *     under the per-key map lock, so it must only seed its own
+   *     {@code GraphStore} and must not call back into this
    *     lifecycle ({@code acquire}/{@code close}/{@code delete}/{@code list}). If it
    *     throws, creation is rolled back (store shut down, a newly created persistent
    *     store removed) and the exception propagates from {@code acquire}. May be
