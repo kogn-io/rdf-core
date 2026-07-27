@@ -23,7 +23,11 @@ public record DatasetStoreConfig(Persistence persistence, boolean fullTextSearch
   public enum Persistence {
     /** Contents survive process restarts (on-disk store). */
     PERSISTENT,
-    /** Contents live only for the lifetime of the store (in-memory). */
+    /**
+     * Contents live only until the store is closed: {@link DatasetLifecycle#close(DatasetId)}
+     * discards them rather than merely evicting them from a cache, and the next
+     * {@link DatasetLifecycle#acquire(DatasetId)} starts from a fresh, empty dataset.
+     */
     IN_MEMORY
   }
 

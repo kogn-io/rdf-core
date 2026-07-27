@@ -409,6 +409,25 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
+    @DisplayName("close discards data for an in-memory store — there is no storage to resume")
+    void close_discardsData_forInMemoryStore() {
+      final AtomicInteger calls = new AtomicInteger();
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> calls.incrementAndGet());
+      final DatasetId id = new DatasetId("in-memory-evicted");
+      try (DatasetHandle ds = lifecycle.acquire(id)) {
+        ds.graphStore().add(GRAPH, singleTriple());
+      }
+
+      lifecycle.close(id); // evict — but for IN_MEMORY there is no persisted state to resume
+
+      try (DatasetHandle ds = lifecycle.acquire(id)) {
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isFalse(); // data is gone
+      }
+      assertThat(calls).hasValue(2); // onCreate fired again, as if this were a brand-new dataset
+    }
+
+    @Test
     @DisplayName("delete removes the on-disk storage")
     void delete_removesStorage() throws Exception {
       final Path root = tmp.resolve("stores");

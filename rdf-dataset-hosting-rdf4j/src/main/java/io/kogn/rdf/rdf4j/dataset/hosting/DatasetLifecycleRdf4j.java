@@ -58,6 +58,13 @@ import lombok.extern.slf4j.Slf4j;
  * exposes the RDF4J {@code Repository} — callers only ever see the neutral port
  * types via a leased {@link DatasetHandle}.</p>
  *
+ * <p>For {@code IN_MEMORY} datasets a {@link MemoryStore} holds the only copy of
+ * the data, so {@link #close(DatasetId)} is destructive rather than a cheap,
+ * resumable eviction: the store and its contents are gone, and the next
+ * {@link #acquire(DatasetId)} builds a brand-new, empty one and re-runs the
+ * on-create hook. See {@link DatasetLifecycle#close(DatasetId)} for the full
+ * contract.</p>
+ *
  * <h2>One instance per storage location</h2>
  *
  * <p>An instance <strong>owns its {@code storageRoot} exclusively</strong>. Each

@@ -48,6 +48,14 @@ public interface DatasetLifecycle {
    * expected to retry later); it never interrupts in-flight work. A subsequent
    * {@link #acquire(DatasetId)} re-opens the same persisted dataset.</p>
    *
+   * <p><strong>That resume guarantee holds only for a store with {@code PERSISTENT}
+   * persistence.</strong> A dataset configured as {@code IN_MEMORY} has no storage to
+   * resume: closing it discards its contents outright, and the next
+   * {@link #acquire(DatasetId)} creates a fresh, empty dataset and re-runs the
+   * on-create hook — the same outcome as {@link #delete(DatasetId)}. A consumer that
+   * builds a generic idle/TTL eviction policy against this neutral port must treat
+   * {@code close} as destructive for {@code IN_MEMORY} datasets.</p>
+   *
    * @param id the dataset identifier; must not be {@code null}
    */
   void close(DatasetId id);
