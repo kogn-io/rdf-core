@@ -42,11 +42,13 @@ import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.MalformedSparqlException;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
+import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
+import io.kogn.rdf.terms.Triple;
 
 /**
  * Tests for the RDF4J dataset port implementations.
@@ -254,6 +256,56 @@ class DatasetRdf4jTest {
       // when / then
       assertThat(store.count(GRAPH_1)).isEqualTo(1L);
       assertThat(store.count(GRAPH_2)).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("add rolls back a half-applied batch and propagates unchanged when an Error"
+        + " interrupts the stream (issue #68)")
+    void add_streamThrowsErrorPartwayThrough_rollsBackHalfAppliedBatchAndPropagates() {
+      // given — two triples; the wrapping stream lets the first one through conn.add before
+      // throwing, so this also proves the already-applied first triple is rolled back, not merely
+      // that the second one never lands. StackOverflowError stands in for a JVM-level failure
+      // inside the batch, the case the explicit RuntimeException-only catch in
+      // GraphStoreRdf4j#inTransaction used to miss.
+      final Graph twoTriples = rdf.createGraph();
+      twoTriples.add(rdf.createTriple(SUBJECT, PREDICATE, OBJECT));
+      twoTriples.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral("second")));
+      final ReadableGraph poisonedAfterFirst = new ReadableGraph() {
+        @Override
+        public boolean contains(final Triple triple) {
+          return twoTriples.contains(triple);
+        }
+
+        @Override
+        public long size() {
+          return twoTriples.size();
+        }
+
+        @Override
+        public Stream<Triple> stream() {
+          final AtomicInteger seen = new AtomicInteger();
+          return twoTriples.stream().peek(triple -> {
+            if (seen.incrementAndGet() == 2) {
+              throw new StackOverflowError("deliberate failure");
+            }
+          });
+        }
+
+        @Override
+        public Stream<Triple> stream(final BlankNodeOrIRI subject, final IRI predicate, final RDFTerm object) {
+          return twoTriples.stream(subject, predicate, object);
+        }
+
+        @Override
+        public boolean isEmpty() {
+          return twoTriples.isEmpty();
+        }
+      };
+
+      // when, then
+      assertThatThrownBy(() -> store.add(GRAPH_1, poisonedAfterFirst)).isInstanceOf(StackOverflowError.class)
+          .hasMessage("deliberate failure");
+      assertThat(store.count(GRAPH_1)).isEqualTo(0L);
     }
   }
 
@@ -593,6 +645,25 @@ class DatasetRdf4jTest {
         tx.add(GRAPH_1, graph);
         throw new RuntimeException("deliberate failure");
       })).isInstanceOf(RuntimeException.class).hasMessage("deliberate failure");
+
+      // then
+      assertThat(store.count(GRAPH_1)).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("rollback — Error thrown by work rolls back all mutations and propagates" + " unchanged (issue #68)")
+    void inTransaction_errorInWork_rollsBackAndPropagatesUnchanged() {
+      // given — the port's contract (see DatasetTransactor class Javadoc) promises rollback for
+      // any RuntimeException *or* Error the work function throws. StackOverflowError stands in for
+      // a JVM-level failure; the explicit catch used to be RuntimeException-only, so this failure
+      // used to skip the explicit conn.rollback() here (see issue #68).
+      final Graph graph = singleTripleGraph();
+
+      // when
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, graph);
+        throw new StackOverflowError("deliberate failure");
+      })).isInstanceOf(StackOverflowError.class).hasMessage("deliberate failure");
 
       // then
       assertThat(store.count(GRAPH_1)).isEqualTo(0L);
