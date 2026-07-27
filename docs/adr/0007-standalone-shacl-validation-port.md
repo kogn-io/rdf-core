@@ -84,6 +84,12 @@ Settled semantics:
   type; plain SHACL does not match across `rdfs:subClassOf`, so without it the
   shape silently never fires. The flag maps onto the RDF4J validator's
   subclass-reasoning setter.
+- **`ValidationOptions` is the sole authority; the backend's own escape hatches
+  are switched off.** RDF4J's `ShaclValidator.Builder` enables its proprietary
+  `http://rdf4j.org/shacl-extensions#` vocabulary by default, which lets a shapes
+  graph carry `rdf4j-ext:rdfsSubClassReasoning` on a shape and override the
+  option the caller passed — data deciding a caller's setting (issue #67). The
+  adapter therefore builds with `setEclipseRdf4jShaclExtensions(false)`.
 
 ## Consequences
 
@@ -96,6 +102,17 @@ Settled semantics:
   transactional write-path enforcement can reuse: it would produce the *same*
   report, only from within a commit. Building the standalone path first is
   groundwork, not throwaway.
+- Switching the extensions off takes the *whole* `rdf4j-ext:` vocabulary out of
+  service, not just the reasoning override — `rdf4j-ext:targetShape` included. A
+  shape targeting only through it has no target left, so it never fires and the
+  report comes back conforming: a false green rather than an error. Shapes have
+  to target with standard SHACL (`sh:targetClass`, `sh:targetNode`,
+  `sh:targetSubjectsOf`, `sh:targetObjectsOf`). Accepted deliberately — a second
+  SHACL engine would not know these predicates either, so honouring them would
+  mean identical shapes with identical options validating differently per
+  backend, which is the backend leak this port exists to prevent. Pinned by
+  `ShaclValidationRdf4jTest`, both for the reasoning override and for the dead
+  extension target.
 - The adapter depends on RDF4J's `ValidationReport`/`ValidationResult`, which are
   `@Deprecated` in RDF4J 6.0.0 and expose their fields only non-publicly; the
   only public extraction path is `report.asModel()`, which the adapter walks via

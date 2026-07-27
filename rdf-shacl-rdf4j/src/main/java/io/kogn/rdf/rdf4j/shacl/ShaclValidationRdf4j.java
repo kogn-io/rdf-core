@@ -41,14 +41,31 @@ import io.kogn.rdf.terms.ReadableGraph;
  *
  * <h2>RDF4J's proprietary SHACL extensions are switched off</h2>
  *
- * <p>This adapter always builds with {@code setEclipseRdf4jShaclExtensions(false)}, so a
- * shapes graph cannot use RDF4J-proprietary predicates such as
- * {@code http://rdf4j.org/shacl-extensions#rdfsSubClassReasoning} to override
- * {@link ValidationOptions} at the level of a single shape. {@link ValidationOptions} is the
- * sole authority over reasoning behavior; a shapes graph cannot silently flip a setting the
- * caller made explicit — a second SHACL engine that does not know RDF4J's extension
- * predicates would not honor such a shape-level override either, so honoring it here would
- * be a backend leak.</p>
+ * <p>This adapter always builds with {@code setEclipseRdf4jShaclExtensions(false)}, which
+ * makes RDF4J's {@code http://rdf4j.org/shacl-extensions#} vocabulary (below:
+ * {@code rdf4j-ext:}) inert <em>as a whole</em>: a shapes graph may carry those predicates
+ * and gets no error for it, they simply carry no meaning here. Two consequences are worth
+ * naming:</p>
+ *
+ * <ul>
+ *   <li>{@code rdf4j-ext:rdfsSubClassReasoning} on a shape does not override
+ *       {@link ValidationOptions} for that shape. {@link ValidationOptions} is the sole
+ *       authority over reasoning behavior; a shapes graph cannot silently flip a setting the
+ *       caller made explicit.</li>
+ *   <li>{@code rdf4j-ext:targetShape} selects nothing, so a shape whose <em>only</em> target
+ *       is that predicate has no target at all and never fires. The failure mode is a
+ *       <strong>silently conforming report</strong>, not an error — shapes that relied on it
+ *       have to target with standard SHACL instead ({@code sh:targetClass},
+ *       {@code sh:targetNode}, {@code sh:targetSubjectsOf}, {@code sh:targetObjectsOf}).
+ *       {@code rdf4j-ext:includeInferredStatements} is inert likewise, though it would change
+ *       nothing here anyway: both graphs are loaded into plain in-memory sails with no
+ *       inferencer, so there are no inferred statements to include.</li>
+ * </ul>
+ *
+ * <p>Dropping the whole vocabulary is deliberate for a backend-neutral port: a second SHACL
+ * engine would not know these predicates, so honoring them here would make identical shapes
+ * with identical {@link ValidationOptions} validate differently per backend — exactly the
+ * leak the port exists to prevent.</p>
  *
  * <h2>Where RDFS axioms may live</h2>
  *

@@ -249,6 +249,59 @@ class ShaclValidationRdf4jTest {
   }
 
   /**
+   * Pins the second half of switching RDF4J's extensions off: the extension vocabulary is
+   * inert as a whole, not only where it overrides {@link ValidationOptions}. A shape whose
+   * <em>only</em> target is {@code rdf4j-ext:targetShape} therefore has no target at all and
+   * never fires — and the failure mode is a silently conforming report, not an error. Pinned
+   * so the trade-off stays a decision rather than an accident.
+   */
+  @Test
+  void aShapeTargetingOnlyThroughTheRdf4jTargetShapeExtensionNeverFires() {
+    Graph shapes = animalShapeRequiringNameWithoutATarget();
+    shapes.add(ex("AnimalShape"), rdf4jShaclExtension("targetShape"), ex("AnimalTargetShape"));
+    shapes.add(ex("AnimalTargetShape"), a(), sh("PropertyShape"));
+    shapes.add(ex("AnimalTargetShape"), sh("path"), a());
+    shapes.add(ex("AnimalTargetShape"), sh("hasValue"), ex("Animal"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("rex"), a(), ex("Animal"));
+    // no ex:name -> would violate sh:minCount 1 if the extension target selected ex:rex
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isTrue();
+    assertThat(report.results()).isEmpty();
+  }
+
+  /**
+   * Counter-proof for {@link #aShapeTargetingOnlyThroughTheRdf4jTargetShapeExtensionNeverFires()}:
+   * the same shape and data do violate once the shape carries a standard SHACL target. This
+   * shows the constraint is capable of firing and that the previous test's conforming report
+   * comes from the dead extension target, not from a broken constraint or from data that
+   * happens to satisfy it.
+   */
+  @Test
+  void theSameShapeFiresOnceItCarriesAStandardShaclTarget() {
+    Graph shapes = animalShapeRequiringNameWithoutATarget();
+    shapes.add(ex("AnimalShape"), rdf4jShaclExtension("targetShape"), ex("AnimalTargetShape"));
+    shapes.add(ex("AnimalTargetShape"), a(), sh("PropertyShape"));
+    shapes.add(ex("AnimalTargetShape"), sh("path"), a());
+    shapes.add(ex("AnimalTargetShape"), sh("hasValue"), ex("Animal"));
+    shapes.add(ex("AnimalShape"), sh("targetClass"), ex("Animal"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("rex"), a(), ex("Animal"));
+    // no ex:name -> violates sh:minCount 1 via the standard sh:targetClass
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).hasSize(1);
+    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex").getIRIString());
+    assertThat(report.results().get(0).severity()).isEqualTo(Severity.VIOLATION);
+  }
+
+  /**
    * Pins the load-bearing fix of issue #20: a shape carrying one {@code sh:message} per
    * language must surface <em>all</em> of them, tags intact. Reducing them to one string
    * made bilingual shapes impossible — the survivor was decided by the parse order of the
@@ -360,11 +413,16 @@ class ShaclValidationRdf4jTest {
   }
 
   private Graph animalShapeRequiringName() {
+    Graph shapes = animalShapeRequiringNameWithoutATarget();
+    shapes.add(ex("AnimalShape"), sh("targetClass"), ex("Animal"));
+    return shapes;
+  }
+
+  private Graph animalShapeRequiringNameWithoutATarget() {
     Graph shapes = rdf.createGraph();
     IRI animalShape = ex("AnimalShape");
     BlankNode nameProperty = rdf.createBlankNode();
     shapes.add(animalShape, a(), sh("NodeShape"));
-    shapes.add(animalShape, sh("targetClass"), ex("Animal"));
     shapes.add(animalShape, sh("property"), nameProperty);
     shapes.add(nameProperty, sh("path"), ex("name"));
     shapes.add(nameProperty, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
