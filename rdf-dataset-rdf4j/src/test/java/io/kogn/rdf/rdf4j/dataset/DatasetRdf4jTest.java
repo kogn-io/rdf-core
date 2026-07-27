@@ -779,6 +779,64 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("add returns the delta of only the new triples when the input graph mixes an"
+        + " already-present triple with a new one")
+    void inTransaction_addMixedPresentAndNewTriples_returnsDeltaOfNewOnly() {
+      // given — GRAPH_1 already has SUBJECT/PREDICATE/OBJECT; the input graph repeats that exact
+      // triple and adds one genuinely new one. Only the new triple must count towards the delta.
+      store.add(GRAPH_1, singleTripleGraph());
+      final Graph mixed = rdf.createGraph();
+      mixed.add(rdf.createTriple(SUBJECT, PREDICATE, OBJECT));
+      mixed.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral("new-value")));
+
+      // when
+      final long delta = transactor.inTransaction(tx -> tx.add(GRAPH_1, mixed));
+
+      // then
+      assertThat(delta).isEqualTo(1L);
+      assertThat(store.count(GRAPH_1)).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("count observes the whole named graph — a concurrent add to it fails this"
+        + " transaction's commit as a conflict, unlike add/remove which conflict only on the"
+        + " triples they touch (issue #64 / ADR-0012)")
+    void inTransaction_countThenConcurrentAddToSameGraph_commitFailsAsConflict() throws InterruptedException {
+      // given — tx1 reads tx.count(GRAPH_1) first, then waits for a second, independent
+      // transaction to add an unrelated triple to the same graph and commit, before tx1 itself
+      // commits. Two latches make the interleave deterministic: tx1 signals "count read" (latch
+      // A), the writer thread waits for that, runs its own full inTransaction adding a triple to
+      // GRAPH_1 (commit completes), then signals "done" (latch B); only then does tx1's work
+      // function return and its own commit run. count() reads via
+      // RepositoryConnection#size(context), a whole-graph observation, so this conflict is the
+      // deliberately kept guard behaviour — see the "count/export remain whole-graph guards"
+      // documentation on DatasetTxRdf4j/DatasetTransactorRdf4j and ADR-0012 — not the bug add/
+      // remove had.
+      final CountDownLatch countRead = new CountDownLatch(1);
+      final CountDownLatch concurrentAddCommitted = new CountDownLatch(1);
+
+      final Thread writer = new Thread(() -> {
+        awaitUninterruptibly(countRead);
+        transactor.inTransaction(tx -> {
+          tx.add(GRAPH_1, valueTriple("concurrent"));
+          return null;
+        });
+        concurrentAddCommitted.countDown();
+      });
+      writer.start();
+
+      // when, then
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> {
+        tx.count(GRAPH_1);
+        countRead.countDown();
+        awaitUninterruptibly(concurrentAddCommitted);
+        return null;
+      })).isInstanceOf(ConcurrencyConflictException.class);
+
+      writer.join();
+    }
+
+    @Test
     @DisplayName("remove returns the net number of triples removed, like GraphStore#remove")
     void inTransaction_remove_returnsNetDelta() {
       // given
@@ -1024,6 +1082,73 @@ class DatasetRdf4jTest {
       graph
           .add(rdf.createTriple(RDF4JIRI.of("https://example.org/seed-subject"), PREDICATE, rdf.createLiteral("seed")));
       return graph;
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Backend.class)
+    @DisplayName("overlapping transactions adding disjoint triples to the same named graph both"
+        + " commit (regression test for issue #64)")
+    void inTransaction_overlappingDisjointAdds_toSameNamedGraph_bothCommitsSucceed(final Backend backend,
+        @TempDir final Path tempDir) throws InterruptedException {
+      // given — two independent transactions each add one triple, disjoint from the other's, to
+      // the same named graph. A barrier inside each work function forces both writes to complete
+      // before either transaction commits, so the two commits genuinely race instead of relying on
+      // a timing window. Neither transaction reads anything the other writes, so under a correct
+      // SERIALIZABLE implementation neither should conflict.
+      //
+      // Before the fix for issue #64, DatasetTxRdf4j#add computed its return delta by sampling
+      // RepositoryConnection#size(context) before and after the mutation. RDF4J's
+      // ObservingSailDataset registers size(context) as a wildcard read of the *entire* named
+      // graph, so it conflicted with ANY concurrent commit to that graph — including this one,
+      // which shares no triple with it. That made this exact scenario fail on effectively every
+      // run (20 of 20 measured against MemoryStore). Since the fix, add/remove observe only the
+      // triples they themselves touch (RepositoryConnection#hasStatement per triple), so two
+      // transactions writing disjoint triples to the same graph must not conflict — see ADR-0012.
+      final Repository backendRepository = backend.create(tempDir);
+      backendRepository.init();
+      try {
+        final GraphStoreRdf4j backendStore = new GraphStoreRdf4j(backendRepository);
+        final DatasetTransactorRdf4j backendTransactor = new DatasetTransactorRdf4j(backendRepository);
+        final CyclicBarrier bothWritesDone = new CyclicBarrier(2);
+        final AtomicReference<Throwable> firstFailure = new AtomicReference<>();
+        final AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+
+        final Thread first = new Thread(() -> {
+          try {
+            backendTransactor.inTransaction(tx -> {
+              tx.add(GRAPH_1, valueTriple("value-1"));
+              awaitUninterruptibly(bothWritesDone);
+              return null;
+            });
+          } catch (RuntimeException e) {
+            firstFailure.set(e);
+          }
+        });
+        final Thread second = new Thread(() -> {
+          try {
+            backendTransactor.inTransaction(tx -> {
+              tx.add(GRAPH_1, valueTriple("value-2"));
+              awaitUninterruptibly(bothWritesDone);
+              return null;
+            });
+          } catch (RuntimeException e) {
+            secondFailure.set(e);
+          }
+        });
+
+        // when
+        first.start();
+        second.start();
+        first.join();
+        second.join();
+
+        // then — neither commit lost a race, and the graph holds both disjoint triples
+        assertThat(firstFailure.get()).isNull();
+        assertThat(secondFailure.get()).isNull();
+        assertThat(backendStore.count(GRAPH_1)).isEqualTo(2L);
+      } finally {
+        backendRepository.shutDown();
+      }
     }
 
     @ParameterizedTest(name = "{0}")
