@@ -21,3 +21,4 @@ not a historical log of every change that led here.
 | [0010](0010-sparql-parameter-binding.md) | SPARQL parameter binding via `Map<String, RDFTerm>` overloads |
 | [0011](0011-datasettx-composes-content-ports.md) | `DatasetTx` composes `GraphStore`, `SparqlQuery` and `SparqlUpdate` |
 | [0012](0012-per-triple-conflict-surface-for-add-remove.md) | Per-triple conflict surface for `DatasetTx#add`/`#remove` |
+| [0013](0013-standalone-dataset-export-port.md) | `DatasetExport` is a standalone, non-transactional port |
