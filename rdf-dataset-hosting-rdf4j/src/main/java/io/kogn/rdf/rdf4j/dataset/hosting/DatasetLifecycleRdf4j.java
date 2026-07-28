@@ -5,6 +5,7 @@ package io.kogn.rdf.rdf4j.dataset.hosting;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,9 +31,11 @@ import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 
 import io.kogn.rdf.dataset.BindingSet;
+import io.kogn.rdf.dataset.DatasetExport;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.dataset.GraphStore;
+import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
@@ -40,6 +43,7 @@ import io.kogn.rdf.dataset.hosting.DatasetId;
 import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
+import io.kogn.rdf.rdf4j.dataset.DatasetExportRdf4j;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
 import io.kogn.rdf.rdf4j.dataset.GraphStoreRdf4j;
 import io.kogn.rdf.rdf4j.dataset.SparqlQueryRdf4j;
@@ -383,13 +387,14 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
 
   // ---------------------------------------------------------------------------
 
-  /** A cached, leasable dataset: its store and the four port wrappers over it. */
+  /** A cached, leasable dataset: its store and the five port wrappers over it. */
   private static final class ManagedDataset {
 
     private final Repository repository;
     private final GraphStore graphStore;
     private final SparqlQuery sparqlQuery;
     private final SparqlUpdate sparqlUpdate;
+    private final DatasetExport datasetExport;
     private final DatasetTransactor transactor;
     private final AtomicInteger leaseCount = new AtomicInteger();
 
@@ -398,6 +403,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       this.graphStore = new GraphStoreRdf4j(repository);
       this.sparqlQuery = new SparqlQueryRdf4j(repository);
       this.sparqlUpdate = new SparqlUpdateRdf4j(repository);
+      this.datasetExport = new DatasetExportRdf4j(repository);
       this.transactor = new DatasetTransactorRdf4j(repository);
     }
   }
@@ -410,6 +416,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     private final GraphStore graphStore;
     private final SparqlQuery sparqlQuery;
     private final SparqlUpdate sparqlUpdate;
+    private final DatasetExport datasetExport;
     private final DatasetTransactor transactor;
 
     private LeasedDatasetHandle(final ManagedDataset managed) {
@@ -417,6 +424,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       this.graphStore = new HandleBoundGraphStore(managed.graphStore, closed);
       this.sparqlQuery = new HandleBoundSparqlQuery(managed.sparqlQuery, closed);
       this.sparqlUpdate = new HandleBoundSparqlUpdate(managed.sparqlUpdate, closed);
+      this.datasetExport = new HandleBoundDatasetExport(managed.datasetExport, closed);
       this.transactor = new HandleBoundDatasetTransactor(managed.transactor, closed);
     }
 
@@ -433,6 +441,11 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     @Override
     public SparqlUpdate sparqlUpdate() {
       return sparqlUpdate;
+    }
+
+    @Override
+    public DatasetExport datasetExport() {
+      return datasetExport;
     }
 
     @Override
@@ -585,6 +598,38 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     public void update(final String sparql, final Map<String, RDFTerm> bindings) {
       ensureOpen(closed);
       delegate.update(sparql, bindings);
+    }
+  }
+
+  /**
+   * Thin, per-handle {@link DatasetExport} delegate that checks the owning handle's
+   * {@code closed} flag before every call.
+   *
+   * <p>The check is made when the call starts, as in every wrapper here. That matters more
+   * for an export than for the others: a dump streams at the pace of the caller's sink, so a
+   * handle closed while one is running does not stop it — it only releases the lease that
+   * was keeping the store from being evicted or deleted underneath it.</p>
+   */
+  private static final class HandleBoundDatasetExport implements DatasetExport {
+
+    private final DatasetExport delegate;
+    private final AtomicBoolean closed;
+
+    private HandleBoundDatasetExport(final DatasetExport delegate, final AtomicBoolean closed) {
+      this.delegate = delegate;
+      this.closed = closed;
+    }
+
+    @Override
+    public void export(final OutputStream out, final RdfFormat format) {
+      ensureOpen(closed);
+      delegate.export(out, format);
+    }
+
+    @Override
+    public void export(final OutputStream out, final RdfFormat format, final IRI namedGraph) {
+      ensureOpen(closed);
+      delegate.export(out, format, namedGraph);
     }
   }
 

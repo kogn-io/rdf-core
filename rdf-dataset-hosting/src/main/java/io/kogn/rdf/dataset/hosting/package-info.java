@@ -4,6 +4,7 @@
  * <p>Where {@code rdf-dataset} defines what a consumer does <em>with</em> a
  * store (the content ports {@link io.kogn.rdf.dataset.GraphStore},
  * {@link io.kogn.rdf.dataset.SparqlQuery}, {@link io.kogn.rdf.dataset.SparqlUpdate},
+ * {@link io.kogn.rdf.dataset.DatasetExport},
  * {@link io.kogn.rdf.dataset.DatasetTransactor}), this package is about
  * <em>owning</em> a pool of them: an id-to-store registry with open-or-create,
  * eviction, deletion and lease-based in-flight protection.</p>
