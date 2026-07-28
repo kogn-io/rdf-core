@@ -9,6 +9,7 @@ import java.util.Objects;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
+import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.RDFHandlerException;
 import org.eclipse.rdf4j.rio.Rio;
@@ -94,14 +95,16 @@ public class DatasetExportRdf4j implements DatasetExport {
    * @param format the neutral format to serialize in
    * @param contexts the named graphs to export; empty means the entire repository, following
    *     RDF4J's own vararg-context convention
-   * @throws RdfExportException if the writer cannot write to {@code out}
+   * @throws RdfExportException if the writer cannot write to {@code out}, or the connection
+   *     fails while reading the statements to export
    */
   private void writeTo(final OutputStream out, final RdfFormat format, final Resource... contexts) {
     try (RepositoryConnection conn = repository.getConnection()) {
       conn.export(Rio.createWriter(toRDF4JFormat(format), out), contexts);
-    } catch (final RDFHandlerException e) {
-      // Rio wraps the sink's IOException in an RDFHandlerException; keep it as cause so the
-      // caller can see what the stream did, without an RDF4J type on the port.
+    } catch (final RepositoryException | RDFHandlerException e) {
+      // RDFHandlerException is where Rio wraps the sink's IOException; RepositoryException can
+      // surface if the connection itself fails while reading. Either way, keep it as cause so
+      // the caller can see what happened, without an RDF4J type reaching the port.
       throw new RdfExportException("failed to write the " + format + " export to the output stream", e);
     }
   }

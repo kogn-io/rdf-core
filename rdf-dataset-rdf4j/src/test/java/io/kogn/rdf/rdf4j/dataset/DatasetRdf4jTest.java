@@ -824,6 +824,30 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("a connection failure while reading surfaces as the neutral RdfExportException, not RepositoryException")
+    void export_whenTheConnectionFails_throwsNeutralExportException() {
+      // given — the read side of the connection, not the sink, fails this time
+      final Repository failingExport = new RepositoryWrapper(repository) {
+        @Override
+        public RepositoryConnection getConnection() {
+          return new RepositoryConnectionWrapper(this, super.getConnection()) {
+            @Override
+            public void export(final org.eclipse.rdf4j.rio.RDFHandler handler, final Resource... contexts) {
+              throw new RepositoryException("connection failed mid-read");
+            }
+          };
+        }
+      };
+
+      // when / then
+      assertThatThrownBy(
+          () -> new DatasetExportRdf4j(failingExport).export(new ByteArrayOutputStream(), RdfFormat.TRIG))
+          .isInstanceOf(RdfExportException.class)
+          .hasCauseInstanceOf(RepositoryException.class)
+          .hasRootCauseMessage("connection failed mid-read");
+    }
+
+    @Test
     @DisplayName("null arguments fail with a NullPointerException naming the violated precondition")
     void export_withNullArguments_throwsNullPointerException() {
       final ByteArrayOutputStream out = new ByteArrayOutputStream();
