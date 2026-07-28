@@ -34,7 +34,7 @@ Dependencies point left only: `rdf-dataset` depends on `rdf-terms`;
 callers program against the ports.
 
 Hosting is a third, optional arm above the content ports. `rdf-dataset-hosting`
-depends on `rdf-dataset` (for the four content-port types a handle exposes) and
+depends on `rdf-dataset` (for the five content-port types a handle exposes) and
 `rdf-terms`; its RDF4J adapter `rdf-dataset-hosting-rdf4j` depends on
 `rdf-dataset-hosting` **and** on `rdf-dataset-rdf4j` — it builds the backing
 store and composes the content-adapter wrappers behind a leased handle. A
@@ -203,17 +203,20 @@ Settled semantics worth knowing before consuming it:
   (a `MemoryStore` for `IN_MEMORY`, a `NativeStore` for `PERSISTENT`); it is
   never handed out. The content ports behind each handle are the `rdf-dataset-rdf4j`
   wrappers, composed over that `Repository`.
-- **A handle exposes four content ports, not five.** `DatasetExport` is not among
-  them, and since the lifecycle never hands out its `Repository`, a hosted
-  dataset currently cannot be serialized through the hosting arm at all. The gap
-  is known and left open on purpose: adding an accessor to `DatasetHandle` breaks
-  every implementation of that interface, so it waits for a release window that
-  accepts a breaking interface change
-  ([ADR-0013](docs/adr/0013-standalone-dataset-export-port.md)).
+- **A handle exposes all five content ports, `DatasetExport` among them.** Since
+  the lifecycle never hands out its `Repository`, the accessor is the only way a
+  hosted dataset can be serialized at all — which is why it was added even though
+  a new abstract method on `DatasetHandle` breaks every implementation of that
+  interface ([ADR-0013](docs/adr/0013-standalone-dataset-export-port.md) records
+  the port design and named this gap while it was still open). The guard against
+  a closed handle is checked when the export call starts, so closing a handle
+  does not abort a dump already streaming — it only drops the lease that was
+  keeping the store from being evicted underneath it.
 - **In-flight protection is per-dataset lease counting under a per-key lock**,
   closing the time-of-check-to-time-of-use race between acquisition and
   eviction/deletion. Enforcement reaches the accessors too: each of
-  `graphStore()`/`sparqlQuery()`/`sparqlUpdate()`/`transactor()` returns a thin,
+  `graphStore()`/`sparqlQuery()`/`sparqlUpdate()`/`datasetExport()`/`transactor()`
+  returns a thin,
   per-handle wrapper that throws `IllegalStateException` once *that* handle is
   closed, while the underlying shared instance keeps working for any other open
   handle on the same dataset. `shutDownAll()` is the deliberate exception — a

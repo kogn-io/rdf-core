@@ -3,6 +3,7 @@
 
 package io.kogn.rdf.dataset.hosting;
 
+import io.kogn.rdf.dataset.DatasetExport;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.SparqlQuery;
@@ -82,6 +83,20 @@ public interface DatasetHandle extends AutoCloseable {
    * @return the {@link SparqlUpdate}; never {@code null}
    */
   SparqlUpdate sparqlUpdate();
+
+  /**
+   * Returns the serialization port for this dataset.
+   *
+   * <p>The returned instance is bound to this handle: once this handle is
+   * {@linkplain #close() closed}, every subsequent call to it throws
+   * {@link IllegalStateException}. An export is not part of a transaction and
+   * streams at the pace of the caller's sink, so it must nevertheless finish
+   * before the handle is closed — the lease is what keeps the underlying store
+   * from being evicted or deleted while the dump is still being written.</p>
+   *
+   * @return the {@link DatasetExport}; never {@code null}
+   */
+  DatasetExport datasetExport();
 
   /**
    * Returns the transactional unit-of-work port for this dataset.

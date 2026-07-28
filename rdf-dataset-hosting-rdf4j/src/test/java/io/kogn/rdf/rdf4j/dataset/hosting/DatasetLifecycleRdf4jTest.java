@@ -7,8 +7,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -30,8 +32,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.kogn.rdf.dataset.DatasetExport;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.GraphStore;
+import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
@@ -129,6 +133,38 @@ class DatasetLifecycleRdf4jTest {
 
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }
+    }
+
+    @Test
+    @DisplayName("datasetExport() serializes the hosted dataset, graph names included")
+    void datasetExport_wholeDataset_containsTheData() {
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+      try (DatasetHandle ds = inMemory().acquire(new DatasetId("exported"))) {
+        ds.graphStore().add(GRAPH, singleTriple());
+
+        ds.datasetExport().export(out, RdfFormat.TRIG);
+      }
+
+      // Asserting that the IRIs reached the stream is all this test is after: it proves the
+      // handle really wires the export port to its own store. Serialization semantics per
+      // format are the content adapter's business and are covered by DatasetRdf4jTest.
+      assertThat(out.toString(StandardCharsets.UTF_8)).contains(GRAPH.getIRIString()).contains(SUBJECT.getIRIString());
+    }
+
+    @Test
+    @DisplayName("datasetExport() serializes a single named graph")
+    void datasetExport_namedGraph_containsThatGraphOnly() {
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+      final IRI otherGraph = RDF4JIRI.of("https://example.org/graph/2");
+      try (DatasetHandle ds = inMemory().acquire(new DatasetId("exported-graph"))) {
+        ds.graphStore().add(GRAPH, singleTriple());
+        ds.graphStore().add(otherGraph, singleTriple());
+
+        ds.datasetExport().export(out, RdfFormat.NQUADS, GRAPH);
+      }
+
+      assertThat(out.toString(StandardCharsets.UTF_8)).contains(GRAPH.getIRIString())
+          .doesNotContain(otherGraph.getIRIString());
     }
   }
 
@@ -243,6 +279,21 @@ class DatasetLifecycleRdf4jTest {
       }
 
       assertThatThrownBy(() -> retained.update(INSERT_TRIPLE)).isInstanceOf(IllegalStateException.class)
+          .hasMessage("handle is closed");
+    }
+
+    @Test
+    @DisplayName("datasetExport() accessor retained after close throws on use")
+    void datasetExport_afterClose_throws() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final DatasetExport retained;
+      try (DatasetHandle ds = lc.acquire(new DatasetId("closed-dataset-export"))) {
+        retained = ds.datasetExport();
+        retained.export(new ByteArrayOutputStream(), RdfFormat.TRIG); // usable while the handle is open
+      }
+
+      assertThatThrownBy(() -> retained.export(new ByteArrayOutputStream(), RdfFormat.TRIG))
+          .isInstanceOf(IllegalStateException.class)
           .hasMessage("handle is closed");
     }
 
