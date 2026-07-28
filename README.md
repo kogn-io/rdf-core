@@ -15,7 +15,7 @@ Licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-
 | Directory | Maven artifact | Role |
 |---|---|---|
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF data model — technology-agnostic term interfaces, graph types and vocabulary constants. Zero external dependencies. |
-| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset content ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetTransactor`, `DatasetTx`. Nothing here presumes the library hosts the store. |
+| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset content ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetExport` (serialize the dataset or one named graph to a stream, in an `RdfFormat`), `DatasetTransactor`, `DatasetTx`. Nothing here presumes the library hosts the store. |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J backend implementing the dataset content ports — store-agnostic wrappers over a caller-supplied `Repository`. |
 | `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` (open-or-create/close/delete/list by opaque `DatasetId`, lease-protected; `acquire` returns a leased `DatasetHandle` — an access handle, not an RDF dataset), with `DatasetStoreConfig`. Depends on `rdf-dataset` for the content ports the handle exposes. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J backend for the hosting port: builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |

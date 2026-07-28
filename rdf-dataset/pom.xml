@@ -13,7 +13,7 @@
 	<artifactId>rdf-dataset</artifactId>
 	<name>Kogn RDF Dataset</name>
 	<description
-  >Named-graph-addressed dataset ports: GraphStore, SparqlUpdate, DatasetTransactor and DatasetTx</description>
+  >Named-graph-addressed dataset ports: GraphStore, SparqlQuery, SparqlUpdate, DatasetExport, DatasetTransactor and DatasetTx</description>
 
 	<dependencies>
 		<!-- RDF Terms data model -->

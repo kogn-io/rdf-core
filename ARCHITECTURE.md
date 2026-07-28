@@ -51,7 +51,7 @@ write-path variant should join it.
 | Module | Artifact | Role |
 |---|---|---|
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `NamedGraph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
-| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
+| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetExport` (with `RdfFormat`), `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository`. RDF4J types never appear in public signatures. |
 | `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
@@ -80,6 +80,20 @@ concern:
 - **`SparqlQuery`** — non-transactional `SELECT`/`CONSTRUCT`/`ASK`
   (`DESCRIBE` is not supported).
 - **`SparqlUpdate`** — SPARQL 1.1 Update.
+- **`DatasetExport`** — serialization to a byte stream: the whole dataset (only
+  in a quad-capable `RdfFormat` — TriG or N-Quads — since a triple-only format
+  would flatten the named graphs and silently lose which statement came from
+  where) or a single named graph (any format). The counterpart to
+  `GraphStore#export(IRI)`, which despite its name returns an in-memory graph
+  rather than a document. The stream stays the caller's: it is written to and
+  flushed, never closed, and a failure to write surfaces as the neutral
+  `RdfExportException`. Deliberately *not* part of `DatasetTx`
+  ([ADR-0013](docs/adr/0013-standalone-dataset-export-port.md)): a dump streams
+  at the pace of the caller's sink and would hold a transaction open for that
+  span while observing the whole store, and a dump cannot act as the
+  optimistic-concurrency guard that price buys. For a snapshot atomic with other
+  work, take `DatasetTx#export(IRI)` inside the transaction and serialize it
+  afterwards.
 - **`DatasetTransactor`** / **`DatasetTx`** — an atomic, all-or-nothing
   unit-of-work (`inTransaction(work)`; roll back on any `RuntimeException` or
   `Error` the work throws — the adapter catches `Throwable` itself rather than
@@ -142,10 +156,15 @@ Implements the content ports on top of an RDF4J `Repository`, without leaking
 RDF4J types to callers ([ADR-0005](docs/adr/0005-rdf4j-backend-for-dataset-ports.md)):
 
 - `GraphStoreRdf4j` / `SparqlQueryRdf4j` / `SparqlUpdateRdf4j` /
-  `DatasetTransactorRdf4j` (with the package-private `DatasetTxRdf4j`) each wrap
-  a *caller-supplied* `Repository` and are store-agnostic — hand them a
-  `Repository` from anywhere and they work. They do not build a store; assembling
-  one is the hosting adapter's job (below).
+  `DatasetExportRdf4j` / `DatasetTransactorRdf4j` (with the package-private
+  `DatasetTxRdf4j`) each wrap a *caller-supplied* `Repository` and are
+  store-agnostic — hand them a `Repository` from anywhere and they work. They do
+  not build a store; assembling one is the hosting adapter's job (below).
+- `DatasetExportRdf4j` streams: `RepositoryConnection#export` feeds a `Rio`
+  writer that writes straight to the caller's stream, so no intermediate `Model`
+  is built and a dataset larger than memory can still be dumped. The four writer
+  modules that serve `RdfFormat` are runtime dependencies, resolved through
+  `Rio`'s `ServiceLoader` registry.
 - Foreign term implementations are accepted throughout via `RDF4JConverters`,
   so the adapter is a genuine portability layer rather than an RDF4J-only island
   ([ADR-0004](docs/adr/0004-converter-based-interop.md)).
@@ -184,6 +203,13 @@ Settled semantics worth knowing before consuming it:
   (a `MemoryStore` for `IN_MEMORY`, a `NativeStore` for `PERSISTENT`); it is
   never handed out. The content ports behind each handle are the `rdf-dataset-rdf4j`
   wrappers, composed over that `Repository`.
+- **A handle exposes four content ports, not five.** `DatasetExport` is not among
+  them, and since the lifecycle never hands out its `Repository`, a hosted
+  dataset currently cannot be serialized through the hosting arm at all. The gap
+  is known and left open on purpose: adding an accessor to `DatasetHandle` breaks
+  every implementation of that interface, so it waits for a release window that
+  accepts a breaking interface change
+  ([ADR-0013](docs/adr/0013-standalone-dataset-export-port.md)).
 - **In-flight protection is per-dataset lease counting under a per-key lock**,
   closing the time-of-check-to-time-of-use race between acquisition and
   eviction/deletion. Enforcement reaches the accessors too: each of
