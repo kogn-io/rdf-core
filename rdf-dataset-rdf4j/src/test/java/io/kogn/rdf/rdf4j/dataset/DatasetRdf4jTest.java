@@ -6,6 +6,10 @@ package io.kogn.rdf.rdf4j.dataset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.query.MalformedQueryException;
 import org.eclipse.rdf4j.repository.Repository;
@@ -26,6 +31,9 @@ import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.repository.base.RepositoryConnectionWrapper;
 import org.eclipse.rdf4j.repository.base.RepositoryWrapper;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
+import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.RDFHandlerException;
+import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.sail.SailConflictException;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
@@ -41,6 +49,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.MalformedSparqlException;
+import io.kogn.rdf.dataset.RdfExportException;
+import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -627,6 +637,224 @@ class DatasetRdf4jTest {
       assertThatThrownBy(() -> sparqlQuery.select("SELECT * WHERE {}", bindings).toList())
           .isInstanceOf(NullPointerException.class)
           .hasMessage("term must not be null");
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("DatasetExportRdf4j")
+  class DatasetExportTests {
+
+    private DatasetExportRdf4j export;
+    private GraphStoreRdf4j store;
+
+    @BeforeEach
+    void setUp() {
+      export = new DatasetExportRdf4j(repository);
+      store = new GraphStoreRdf4j(repository);
+    }
+
+    /**
+     * Parses back what the exporter wrote. Asserting on the parsed statements rather than on the
+     * raw bytes is deliberate: an RDF4J export hands the writer every namespace declaration the
+     * repository knows, so even a dump with no statements is not an empty byte array.
+     */
+    private Model parse(final ByteArrayOutputStream out, final RDFFormat format) throws IOException {
+      return Rio.parse(new ByteArrayInputStream(out.toByteArray()), "", format);
+    }
+
+    @Test
+    @DisplayName("whole dataset in TriG carries every named graph and its graph name")
+    void exportDataset_asTriG_keepsGraphNames() throws IOException {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      store.add(GRAPH_2, valueTriple("value-2"));
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TRIG);
+
+      // then
+      final Model parsed = parse(out, RDFFormat.TRIG);
+      assertThat(parsed).hasSize(2);
+      assertThat(parsed.contexts()).extracting(Resource::stringValue)
+          .containsExactlyInAnyOrder(GRAPH_1.getIRIString(), GRAPH_2.getIRIString());
+    }
+
+    @Test
+    @DisplayName("whole dataset in N-Quads carries every named graph and its graph name")
+    void exportDataset_asNQuads_keepsGraphNames() throws IOException {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      store.add(GRAPH_2, valueTriple("value-2"));
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.NQUADS);
+
+      // then
+      final Model parsed = parse(out, RDFFormat.NQUADS);
+      assertThat(parsed).hasSize(2);
+      assertThat(parsed.contexts()).extracting(Resource::stringValue)
+          .containsExactlyInAnyOrder(GRAPH_1.getIRIString(), GRAPH_2.getIRIString());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RdfFormat.class, names = {"TURTLE", "NTRIPLES"})
+    @DisplayName("whole dataset in a triple-only format is refused before anything is written")
+    void exportDataset_asTripleOnlyFormat_isRejected(final RdfFormat format) {
+      // given — two named graphs a triple-only document could only flatten into one
+      store.add(GRAPH_1, singleTripleGraph());
+      store.add(GRAPH_2, valueTriple("value-2"));
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when / then — the guard rejects the format rather than silently losing the graph names,
+      // and the caller's stream is left untouched
+      assertThatThrownBy(() -> export.export(out, format)).isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining(format.name());
+      assertThat(out.size()).isZero();
+    }
+
+    @Test
+    @DisplayName("empty dataset yields a document with no statements")
+    void exportDataset_whenEmpty_writesNoStatements() throws IOException {
+      // given — nothing added
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TRIG);
+
+      // then
+      assertThat(parse(out, RDFFormat.TRIG)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("single named graph in Turtle contains that graph's triples only")
+    void exportNamedGraph_asTurtle_containsOnlyThatGraph() throws IOException {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      store.add(GRAPH_2, valueTriple("value-2"));
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TURTLE, GRAPH_1);
+
+      // then — one triple, and Turtle carries no graph name for it
+      final Model parsed = parse(out, RDFFormat.TURTLE);
+      assertThat(parsed).hasSize(1);
+      assertThat(parsed.contexts()).containsExactly((Resource) null);
+      assertThat(parsed.iterator().next().getObject().stringValue()).isEqualTo(OBJECT.getIRIString());
+    }
+
+    @Test
+    @DisplayName("single named graph in N-Triples contains that graph's triples only")
+    void exportNamedGraph_asNTriples_containsOnlyThatGraph() throws IOException {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      store.add(GRAPH_2, valueTriple("value-2"));
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.NTRIPLES, GRAPH_2);
+
+      // then
+      final Model parsed = parse(out, RDFFormat.NTRIPLES);
+      assertThat(parsed).hasSize(1);
+      assertThat(parsed.iterator().next().getObject().stringValue()).isEqualTo("value-2");
+    }
+
+    @Test
+    @DisplayName("single named graph in a quad-capable format keeps the graph name")
+    void exportNamedGraph_asTriG_keepsTheGraphName() throws IOException {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TRIG, GRAPH_1);
+
+      // then — the dump round-trips back into the same named graph
+      assertThat(parse(out, RDFFormat.TRIG).contexts()).extracting(Resource::stringValue)
+          .containsExactly(GRAPH_1.getIRIString());
+    }
+
+    @Test
+    @DisplayName("named graph that does not exist yields a document with no statements,"
+        + " mirroring GraphStore#export(IRI)")
+    void exportNamedGraph_whenGraphIsAbsent_writesNoStatements() throws IOException {
+      // given — GRAPH_2 was never written to
+      store.add(GRAPH_1, singleTripleGraph());
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TURTLE, GRAPH_2);
+
+      // then
+      assertThat(parse(out, RDFFormat.TURTLE)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("the caller's stream is flushed but not closed")
+    void export_leavesTheCallersStreamOpen() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      final CloseTrackingOutputStream out = new CloseTrackingOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TRIG);
+
+      // then — everything the writer produced has reached the stream (no explicit flush by the
+      // test), and closing it is left to whoever opened it
+      assertThat(out.size()).isPositive();
+      assertThat(out.closed).isFalse();
+    }
+
+    @Test
+    @DisplayName("a failing sink surfaces as the neutral RdfExportException, not an RDF4J type")
+    void export_whenTheStreamFails_throwsNeutralExportException() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when / then
+      assertThatThrownBy(() -> export.export(new FailingOutputStream(), RdfFormat.TRIG))
+          .isInstanceOf(RdfExportException.class)
+          .hasCauseInstanceOf(RDFHandlerException.class)
+          .hasRootCauseInstanceOf(IOException.class);
+    }
+
+    @Test
+    @DisplayName("null arguments fail with a NullPointerException naming the violated precondition")
+    void export_withNullArguments_throwsNullPointerException() {
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      assertThatThrownBy(() -> export.export(null, RdfFormat.TRIG)).isInstanceOf(NullPointerException.class)
+          .hasMessage("out must not be null");
+      assertThatThrownBy(() -> export.export(out, null)).isInstanceOf(NullPointerException.class)
+          .hasMessage("format must not be null");
+      assertThatThrownBy(() -> export.export(out, RdfFormat.TURTLE, null)).isInstanceOf(NullPointerException.class)
+          .hasMessage("iri must not be null");
+    }
+  }
+
+  /** An {@link OutputStream} that records whether anyone closed it. */
+  private static final class CloseTrackingOutputStream extends ByteArrayOutputStream {
+
+    private boolean closed;
+
+    @Override
+    public void close() throws IOException {
+      closed = true;
+      super.close();
+    }
+  }
+
+  /** An {@link OutputStream} that refuses every write, standing in for a broken sink. */
+  private static final class FailingOutputStream extends OutputStream {
+
+    @Override
+    public void write(final int b) throws IOException {
+      throw new IOException("sink is gone");
     }
   }
 

@@ -48,6 +48,37 @@
       <groupId>org.eclipse.rdf4j</groupId>
       <artifactId>rdf4j-sail-api</artifactId>
     </dependency>
+    <!-- Rio: RDFFormat/Rio/RDFHandlerException, used by DatasetExportRdf4j -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-rio-api</artifactId>
+    </dependency>
+
+    <!-- The four writers DatasetExport promises, resolved by Rio through its ServiceLoader
+         registry: needed at runtime, never imported, so runtime scope. Unlike the concrete
+         Sail stores below these are not a consumer choice — the port names exactly these
+         formats, so the adapter has to be able to write them. (trig pulls in turtle and
+         nquads pulls in ntriples, but each is declared: what is promised is listed.) -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-rio-turtle</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-rio-ntriples</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-rio-trig</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-rio-nquads</artifactId>
+      <scope>runtime</scope>
+    </dependency>
 
     <!-- Lombok (annotation processor, not a runtime dep) -->
     <dependency>
