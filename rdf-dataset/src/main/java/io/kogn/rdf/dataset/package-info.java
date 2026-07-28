@@ -9,6 +9,9 @@
  *   <li>{@link io.kogn.rdf.dataset.GraphStore} — named-graph-addressed add/remove/clear/export</li>
  *   <li>{@link io.kogn.rdf.dataset.SparqlQuery} — SPARQL SELECT, CONSTRUCT and ASK (read)</li>
  *   <li>{@link io.kogn.rdf.dataset.SparqlUpdate} — SPARQL UPDATE (write)</li>
+ *   <li>{@link io.kogn.rdf.dataset.DatasetExport} — serialization of the whole dataset or one
+ *       named graph to a byte stream, in one of the {@link io.kogn.rdf.dataset.RdfFormat}
+ *       formats (read; not part of the transactional unit of work, see ADR-0013)</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTransactor} — atomic unit-of-work boundary</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — composes the three ports above into one
  *       atomic unit-of-work, plus the transaction-only {@code contains} guard read</li>
