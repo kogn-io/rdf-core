@@ -60,7 +60,7 @@
 		<lombok.version>1.18.46</lombok.version>
 		<jmolecules.version>2.0.1</jmolecules.version>
 		<maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
-		<spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
+		<spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
 		<!-- Maven Central release (central-release profile): sources + javadoc jars,
 		     GPG signing, Sonatype Central publishing. Host-independent (talks to
@@ -78,7 +78,7 @@
 		<!-- Maven 4 default-binding plugins, pinned to silence the "version not
 		     locked" warnings (previously inherited from spring-boot-starter-parent). -->
 		<maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
-		<maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
+		<maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
 		<maven-install-plugin.version>3.1.4</maven-install-plugin.version>
 		<maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
 		<!-- Test-scope only (zero consumer impact). No parent BOM to inherit these
