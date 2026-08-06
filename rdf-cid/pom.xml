@@ -1,0 +1,94 @@
+<project
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"
+>
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>io.kogn.rdf</groupId>
+		<artifactId>rdf-parent</artifactId>
+		<version>${revision}</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+	<artifactId>rdf-cid</artifactId>
+	<name>Kogn RDF Content Identifier (CID)</name>
+	<description
+  >Content-addressed IRI generation using CBOR-based serialization and URDNA2015 canonicalization</description>
+
+	<dependencies>
+		<!-- RDF Terms data model -->
+		<dependency>
+			<groupId>io.kogn.rdf</groupId>
+			<artifactId>rdf-terms</artifactId>
+		</dependency>
+
+		<!-- Lombok (annotation processor, not a runtime dep) -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- SLF4J for @Slf4j logging -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+		</dependency>
+
+		<!-- Blake2b-256 digest for the content hash -->
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+		</dependency>
+
+		<!-- byte[]/Byte[] boxing helpers -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+		</dependency>
+
+		<!-- Base32 encoding of the hash -->
+		<dependency>
+			<groupId>commons-codec</groupId>
+			<artifactId>commons-codec</artifactId>
+		</dependency>
+
+		<!-- URDNA2015 dataset canonicalization.
+		     rdf-urdna pulls titanium-json-ld-jre8, the Java 8 build of the same
+		     library: it ships the same com.apicatalog.rdf.* classes as the
+		     titanium-json-ld below, so both on the classpath would leave it to
+		     classpath order which com/apicatalog/rdf/Rdf.class wins, and it drags
+		     okhttp + kotlin-stdlib into every consumer's runtime for an HTTP
+		     document loader this module never uses. Excluded; the explicit
+		     titanium-json-ld dependency supplies the API. -->
+		<dependency>
+			<groupId>io.setl</groupId>
+			<artifactId>rdf-urdna</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>com.apicatalog</groupId>
+					<artifactId>titanium-json-ld-jre8</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<!-- Titanium RDF dataset model, the input/output type of rdf-urdna.
+		     Pinned to the version rdf-urdna itself builds against (1.4.1). -->
+		<dependency>
+			<groupId>com.apicatalog</groupId>
+			<artifactId>titanium-json-ld</artifactId>
+		</dependency>
+
+		<!-- JUnit 5 for testing -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+</project>
