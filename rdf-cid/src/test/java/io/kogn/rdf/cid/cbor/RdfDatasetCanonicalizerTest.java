@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -106,29 +107,26 @@ class RdfDatasetCanonicalizerTest {
   }
 
   @Test
-  void testDifferentDatatypesStayDistinguishableAfterCanonicalization() {
-    // Canonicalization must not collapse two values that differ only in datatype. Whether the
-    // *identifier* keeps them apart is a different question and a different class: this test
-    // serializes with its own helper below and never touches ContentAddressableRdfSerializer,
-    // so it cannot see a collision there. That is covered by ContentAddressedIriGeneratorCborTest.
+  void testLiteralsWithLanguageTags() {
+    // The round trip through Titanium has a separate branch for language-tagged literals.
+    // If it dropped the tag, "Bank"@en and "Bank"@de would reach the serializer as the same
+    // literal and share an identifier — a collision the serializer could no longer prevent.
     IRI subject = rdf.createIRI("http://example.org/resource");
-    IRI predicate = rdf.createIRI("http://example.org/value");
+    IRI predicate = rdf.createIRI("http://example.org/label");
 
-    List<Triple> graph1 = new ArrayList<>();
-    graph1.add(
-        rdf.createTriple(subject, predicate, rdf.createLiteral("100", rdf.createIRI(VocabXsd.INTEGER.getIRIString()))));
+    List<Triple> graph = new ArrayList<>();
+    graph.add(rdf.createTriple(subject, predicate, rdf.createLiteral("Bank", "en")));
 
-    List<Triple> graph2 = new ArrayList<>();
-    graph2.add(
-        rdf.createTriple(subject, predicate, rdf.createLiteral("100", rdf.createIRI(VocabXsd.DECIMAL.getIRIString()))));
+    Collection<Triple> canonical = canonicalizer.canonicalize(graph);
 
-    Collection<Triple> canonical1 = canonicalizer.canonicalize(graph1);
-    Collection<Triple> canonical2 = canonicalizer.canonicalize(graph2);
-
-    String serialized1 = serializeToString(canonical1);
-    String serialized2 = serializeToString(canonical2);
-
-    assertNotEquals(serialized1, serialized2, "Different datatypes should produce different serialization");
+    assertEquals(1, canonical.size(), "Graph should contain one triple");
+    io.kogn.rdf.terms.RDFTerm object = canonical.iterator().next().getObject();
+    if (object instanceof Literal lit) {
+      assertEquals("Bank", lit.getLexicalForm(), "Lexical form should be preserved");
+      assertEquals(Optional.of("en"), lit.getLanguageTag(), "Language tag should be preserved");
+    } else {
+      throw new AssertionError("Object should be a Literal");
+    }
   }
 
   // Helper methods
