@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.cid.cbor;
+package io.kogn.rdf.cid.sexpr;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -73,23 +73,36 @@ public class ContentAddressableRdfSerializer {
   private final RDF rdf;
 
   /**
-   * Creates a serializer.
+   * Creates a serializer using {@link SimpleRdf} to create the resulting URN and the
+   * intermediate skolem IRIs.
    *
    * @param canonicalizer the URDNA2015 canonicalizer applied before hashing
    */
   public ContentAddressableRdfSerializer(RdfDatasetCanonicalizer canonicalizer) {
-    this.canonicalizer = canonicalizer;
-    this.rdf = new SimpleRdf();
+    this(canonicalizer, new SimpleRdf());
   }
 
   /**
-   * Serializes RDF triples and generates content-addressed URNs.
-   * Groups triples by IRI subject and generates one URN per resource.
+   * Creates a serializer.
    *
-   * @param triples the triples to serialize
-   * @return result containing URNs mapped to their serialized content
-   * @throws IllegalArgumentException if a triple is not reachable from any IRI subject, because
-   *         such a triple would silently drop out of every identifier derived here
+   * @param canonicalizer the URDNA2015 canonicalizer applied before hashing
+   * @param rdf the term factory used to create the resulting URN and the intermediate skolem
+   *        IRIs
+   */
+  public ContentAddressableRdfSerializer(RdfDatasetCanonicalizer canonicalizer, RDF rdf) {
+    this.canonicalizer = canonicalizer;
+    this.rdf = rdf;
+  }
+
+  /**
+   * Serializes RDF triples and generates a content-addressed URN.
+   *
+   * @param triples the triples to serialize; must hold exactly one IRI subject, plus any blank
+   *        node triples reachable from it
+   * @return result containing the URN mapped to its serialized content
+   * @throws IllegalArgumentException if the triples hold other than exactly one IRI subject, or
+   *         hold a triple not reachable from that subject, because such a triple would silently
+   *         drop out of the identifier derived here
    */
   public ContentAddressableResult serializeWithUrn(Collection<Triple> triples) {
     ContentAddressableResult result = new ContentAddressableResult();
@@ -108,7 +121,8 @@ public class ContentAddressableRdfSerializer {
    *
    * @param triples the triples to group
    * @return map of IRI subjects to their associated triples (including BlankNode triples)
-   * @throws IllegalArgumentException if a triple is reachable from no IRI subject
+   * @throws IllegalArgumentException if the triples hold other than exactly one IRI subject, or
+   *         a triple is reachable from no IRI subject
    */
   private Map<IRI, Collection<Triple>> groupTriplesByIriSubject(Collection<Triple> triples) {
     Map<BlankNodeOrIRI, List<Triple>> bySubject = triples.stream().collect(Collectors.groupingBy(Triple::getSubject));
@@ -119,6 +133,12 @@ public class ContentAddressableRdfSerializer {
         .map(IRI.class::cast)
         .distinct()
         .toList();
+
+    if (iriSubjects.size() != 1) {
+      throw new IllegalArgumentException(
+          "Content addressing describes exactly one resource, so the triples must hold exactly "
+              + "one IRI subject, but hold " + iriSubjects.size());
+    }
 
     Map<IRI, Collection<Triple>> result = new HashMap<>();
     Set<Triple> reachable = new HashSet<>();
@@ -182,7 +202,7 @@ public class ContentAddressableRdfSerializer {
     Collection<Triple> canonicalTriples = canonicalizer.canonicalize(triples);
 
     // 2. Skolemize blank nodes into deterministic IRIs
-    Map<BlankNode, IRI> mapping = buildCanonicalBlankNodeMapping(canonicalTriples);
+    Map<BlankNode, IRI> mapping = skolemMapping(canonicalTriples);
     List<Triple> skolemizedTriples = canonicalTriples.stream()
         .map(t -> skolemizeTripleWithMapping(t, mapping))
         .toList();
@@ -227,48 +247,35 @@ public class ContentAddressableRdfSerializer {
   }
 
   /**
-   * Creates a deterministic mapping from BlankNodes to Skolem IRIs.
-   * Based on graph structure (predicates and objects), not on BlankNode IDs.
+   * Creates a deterministic mapping from BlankNodes to Skolem IRIs, one IRI per distinct blank
+   * node.
+   *
+   * <p>The mapping is keyed off {@link BlankNode#uniqueReference()} rather than a hash of the
+   * node's local neighbourhood: URDNA2015 (step 1, run by {@link #canonicalizer} before this is
+   * called) already assigns every blank node a canonical, <strong>injective</strong> label
+   * ({@code c14n0}, {@code c14n1}, ...). Two blank nodes with the same predicate/object
+   * neighbourhood — siblings holding the same data, for instance — are still two distinct
+   * URDNA2015 labels; hashing the neighbourhood instead would collapse them onto the same
+   * skolem IRI and silently merge two blank nodes into one in the digest.
    *
    * @param triples the triples containing BlankNodes
    * @return mapping from BlankNodes to deterministic Skolem IRIs
    */
-  private Map<BlankNode, IRI> buildCanonicalBlankNodeMapping(Collection<Triple> triples) {
-    Map<BlankNode, List<String>> blankNodeSignatures = new HashMap<>();
-
+  private Map<BlankNode, IRI> skolemMapping(Collection<Triple> triples) {
+    Map<BlankNode, IRI> mapping = new HashMap<>();
     for (Triple t : triples) {
       if (t.getSubject() instanceof BlankNode bn) {
-        blankNodeSignatures.computeIfAbsent(bn, _ -> new ArrayList<>())
-            .add(t.getPredicate().getIRIString() + ":" + termSignature(t.getObject()));
+        mapping.computeIfAbsent(bn, this::toSkolemIri);
       }
       if (t.getObject() instanceof BlankNode bn) {
-        // ^ marks inverse direction
-        blankNodeSignatures.computeIfAbsent(bn, _ -> new ArrayList<>()).add("^" + t.getPredicate().getIRIString());
+        mapping.computeIfAbsent(bn, this::toSkolemIri);
       }
     }
-
-    Map<BlankNode, IRI> mapping = new HashMap<>();
-    for (Map.Entry<BlankNode, List<String>> entry : blankNodeSignatures.entrySet()) {
-      List<String> signature = entry.getValue();
-      signature.sort(String::compareTo);
-
-      String signatureStr = String.join("|", signature);
-      String hash = hashBlankNodeSignature(signatureStr);
-
-      mapping.put(entry.getKey(), rdf.createIRI(SKOLEM_PREFIX + hash));
-    }
-
     return mapping;
   }
 
-  private String hashBlankNodeSignature(String signature) {
-    Blake2bDigest digest = new Blake2bDigest(256);
-    byte[] input = signature.getBytes(StandardCharsets.UTF_8);
-    digest.update(input, 0, input.length);
-    byte[] hash = new byte[digest.getDigestSize()];
-    digest.doFinal(hash, 0);
-
-    return base32(hash).substring(0, 32);
+  private IRI toSkolemIri(BlankNode bn) {
+    return rdf.createIRI(SKOLEM_PREFIX + bn.uniqueReference());
   }
 
   /** Serializes the graph canonically as a sorted S-expression of length-prefixed fields. */
@@ -316,7 +323,9 @@ public class ContentAddressableRdfSerializer {
       elements.add(toNetstring(KIND_LITERAL));
       elements.add(toNetstring(lit.getLexicalForm()));
       elements.add(toNetstring(lit.getDatatype() == null ? "" : lit.getDatatype().getIRIString()));
-      elements.add(toNetstring(lit.getLanguageTag().orElse("")));
+      // RDF 1.1 compares language tags case-insensitively ("Bank"@en == "Bank"@EN); lower-case
+      // before hashing, or a re-import spelling the same tag differently misses its duplicate.
+      elements.add(toNetstring(lit.getLanguageTag().map(tag -> tag.toLowerCase(Locale.ROOT)).orElse("")));
     }
     case BlankNode bn -> {
       // Should not occur: blank nodes are skolemized into IRIs before serialization.
@@ -325,16 +334,6 @@ public class ContentAddressableRdfSerializer {
     }
     default -> throw new IllegalArgumentException("Unknown term type: " + term.getClass());
     }
-  }
-
-  /**
-   * Renders a term into the string form used to build blank node signatures. Carries the same
-   * components as {@link #appendTerm}, so signatures distinguish exactly what identifiers do.
-   */
-  private String termSignature(RDFTerm term) {
-    List<byte[]> parts = new ArrayList<>();
-    appendTerm(parts, term);
-    return new String(concat(parts.toArray(new byte[0][])), StandardCharsets.ISO_8859_1);
   }
 
   private byte[] toNetstring(String s) {
@@ -379,10 +378,14 @@ public class ContentAddressableRdfSerializer {
     /**
      * Records the serialized form a URN was derived from.
      *
+     * <p>Package-private: only {@link ContentAddressableRdfSerializer} ever hashes the bytes it
+     * records here, so a caller outside this package cannot associate a URN with bytes that were
+     * never hashed into it.
+     *
      * @param urn the content-addressed URN
      * @param sExprBytes the serialized bytes that were hashed into {@code urn}
      */
-    public void put(IRI urn, byte[] sExprBytes) {
+    void put(IRI urn, byte[] sExprBytes) {
       this.sexprBytesByUrn.put(urn, sExprBytes.clone());
     }
 

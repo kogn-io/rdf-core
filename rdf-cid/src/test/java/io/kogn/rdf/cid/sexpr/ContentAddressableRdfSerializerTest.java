@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.cid.cbor;
+package io.kogn.rdf.cid.sexpr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -100,6 +105,43 @@ class ContentAddressableRdfSerializerTest {
     // Then: CIDs should be different
     assertThat(cid1.getIRIString()).as("Different measurement values should produce different CIDs")
         .isNotEqualTo(cid2.getIRIString());
+  }
+
+  @Test
+  @DisplayName("sibling BlankNodes with identical local data get different skolem IRIs")
+  void siblingBlankNodesWithIdenticalLocalDataGetDifferentSkolemIris() {
+    // Given: two sibling BlankNodes, both reachable via the same predicate and both holding
+    // the same local triple — the same depth-1 neighbourhood, so a skolem mapping keyed off a
+    // hash of that neighbourhood would map both to the same IRI.
+    IRI resource = rdf.createIRI("http://example.org/r");
+    IRI p = rdf.createIRI("http://example.org/p");
+    IRI v = rdf.createIRI("http://example.org/v");
+    BlankNode x = rdf.createBlankNode("x");
+    BlankNode y = rdf.createBlankNode("y");
+
+    List<Triple> triples = new ArrayList<>();
+    triples.add(rdf.createTriple(resource, p, x));
+    triples.add(rdf.createTriple(resource, p, y));
+    triples.add(rdf.createTriple(x, v, rdf.createLiteral("1")));
+    triples.add(rdf.createTriple(y, v, rdf.createLiteral("1")));
+
+    // When: serialize and inspect the bytes that were hashed
+    ContentAddressableRdfSerializer.ContentAddressableResult result = serializer.serializeWithUrn(triples);
+    IRI cid = result.iris().findFirst().orElseThrow();
+    String sexpr = new String(result.get(cid), StandardCharsets.ISO_8859_1);
+
+    // Then: the two BlankNodes were mapped to two distinct skolem IRIs, not merged into one.
+    // Each skolem IRI is a netstring field ("<byte-length>:urn:skolem:..."); read the declared
+    // length to slice out exactly the value, rather than a fixed-width guess that could run
+    // into the next field.
+    Set<String> skolemIris = new HashSet<>();
+    Matcher matcher = Pattern.compile("(\\d+):urn:skolem:_:c14n\\d+").matcher(sexpr);
+    while (matcher.find()) {
+      int length = Integer.parseInt(matcher.group(1));
+      int valueStart = matcher.end(1) + 1;
+      skolemIris.add(sexpr.substring(valueStart, valueStart + length));
+    }
+    assertThat(skolemIris).as("two structurally identical siblings must not collapse onto one skolem IRI").hasSize(2);
   }
 
   // Helper methods
