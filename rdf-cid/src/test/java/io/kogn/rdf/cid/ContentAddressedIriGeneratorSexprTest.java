@@ -76,6 +76,21 @@ class ContentAddressedIriGeneratorSexprTest {
     }
 
     @Test
+    @DisplayName("a blank node and an IRI spelling out its skolem name")
+    void blankNodeAndIriSpellingOutItsSkolemName() {
+      Graph withBlankNode = graph();
+      withBlankNode.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createBlankNode("b"));
+
+      // URDNA2015 relabels the single blank node to _:c14n0, so this IRI spells out exactly
+      // the skolem name the blank node is serialized under.
+      Graph withLookalikeIri = graph();
+      withLookalikeIri.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createIRI("urn:skolem:_:c14n0"));
+
+      assertThat(generator.generateIri(withBlankNode)).as("a blank node is not an IRI that spells its skolem name")
+          .isNotEqualTo(generator.generateIri(withLookalikeIri));
+    }
+
+    @Test
     @DisplayName("graphs differing only in their subject IRI")
     void graphsDifferingOnlyInSubjectIri() {
       Graph g1 = graph();
@@ -192,7 +207,7 @@ class ContentAddressedIriGeneratorSexprTest {
           rdf.createLiteral("7", rdf.createIRI(VocabXsd.DECIMAL.getIRIString())));
 
       assertThat(generator.generateIri(graph).getIRIString())
-          .isEqualTo("urn:cid:n7ztj2tfhw5fkccvy5yuuwtlajaphuq7gxfwyntwo4n5dfmor4zq");
+          .isEqualTo("urn:cid:bavfslen5g35ohpplbqxgocd4auadk4p237vxxemxurgdvohzica");
     }
   }
 

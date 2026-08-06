@@ -296,10 +296,10 @@ only — never on the dataset modules — so validation and storage stay separab
 identifier and re-importing a dataset is detectable without keeping a ledger of
 what was imported before
 ([ADR-0014](docs/adr/0014-content-addressed-iri-module.md)). The derivation
-canonicalizes the graph with URDNA2015, skolemizes its blank nodes to
-deterministic IRIs keyed off the canonical label URDNA2015 already assigns them,
-serializes the result into a sorted, length-prefixed S-expression and hashes it
-with Blake2b-256.
+canonicalizes the graph with URDNA2015, serializes the result into a sorted,
+length-prefixed S-expression — blank nodes under their own kind tag with a
+deterministic skolem name keyed off the canonical label URDNA2015 already
+assigns them — and hashes it with Blake2b-256.
 
 Two constraints callers need to know before persisting the result anywhere:
 

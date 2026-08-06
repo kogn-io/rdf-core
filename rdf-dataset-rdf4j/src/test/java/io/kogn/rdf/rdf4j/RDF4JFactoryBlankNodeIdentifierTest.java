@@ -14,7 +14,7 @@ import io.kogn.rdf.terms.RDF;
  * Pins the {@link RDF#createBlankNode(String)} contract for the RDF4J backend:
  * {@link BlankNode#uniqueReference()} of the returned node equals the identifier passed in.
  *
- * <p>Callers outside this module — {@code rdf-cid}'s skolem mapping, for one — round-trip
+ * <p>Callers outside this module — {@code rdf-cid}'s skolem naming, for one — round-trip
  * identifiers through this method and rely on getting the same string back regardless of
  * which {@link RDF} implementation is wired in.</p>
  */

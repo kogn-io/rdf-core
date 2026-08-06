@@ -18,10 +18,10 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Content-addressed IRI generator over a canonicalized, length-prefixed S-expression form.
  *
- * <p>The graph is canonicalized with URDNA2015, its blank nodes are skolemized into
- * deterministic IRIs, the result is serialized into a sorted S-expression of length-prefixed
- * fields and hashed with Blake2b-256. Identical RDF graphs — regardless of blank node labels
- * or triple order — therefore always produce the same identifier.</p>
+ * <p>The graph is canonicalized with URDNA2015, serialized into a sorted S-expression of
+ * length-prefixed fields — blank nodes under deterministic skolem names — and hashed with
+ * Blake2b-256. Identical RDF graphs — regardless of blank node labels or triple order —
+ * therefore always produce the same identifier.</p>
  */
 @Slf4j
 public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGenerator {

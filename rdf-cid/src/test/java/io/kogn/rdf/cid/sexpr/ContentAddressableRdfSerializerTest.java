@@ -108,11 +108,11 @@ class ContentAddressableRdfSerializerTest {
   }
 
   @Test
-  @DisplayName("sibling BlankNodes with identical local data get different skolem IRIs")
-  void siblingBlankNodesWithIdenticalLocalDataGetDifferentSkolemIris() {
+  @DisplayName("sibling BlankNodes with identical local data get different skolem names")
+  void siblingBlankNodesWithIdenticalLocalDataGetDifferentSkolemNames() {
     // Given: two sibling BlankNodes, both reachable via the same predicate and both holding
-    // the same local triple — the same depth-1 neighbourhood, so a skolem mapping keyed off a
-    // hash of that neighbourhood would map both to the same IRI.
+    // the same local triple — the same depth-1 neighbourhood, so a skolem naming keyed off a
+    // hash of that neighbourhood would give both the same name.
     IRI resource = rdf.createIRI("http://example.org/r");
     IRI p = rdf.createIRI("http://example.org/p");
     IRI v = rdf.createIRI("http://example.org/v");
@@ -129,18 +129,18 @@ class ContentAddressableRdfSerializerTest {
     ContentAddressableRdfSerializer.SingleContentAddressableResult result = serializer.serializeWithUrn(triples);
     String sexpr = new String(result.sexprBytes(), StandardCharsets.ISO_8859_1);
 
-    // Then: the two BlankNodes were mapped to two distinct skolem IRIs, not merged into one.
-    // Each skolem IRI is a netstring field ("<byte-length>:urn:skolem:..."); read the declared
-    // length to slice out exactly the value, rather than a fixed-width guess that could run
-    // into the next field.
-    Set<String> skolemIris = new HashSet<>();
+    // Then: the two BlankNodes were serialized under two distinct skolem names, not merged
+    // into one. Each skolem name is a netstring field ("<byte-length>:urn:skolem:..."); read
+    // the declared length to slice out exactly the value, rather than a fixed-width guess
+    // that could run into the next field.
+    Set<String> skolemNames = new HashSet<>();
     Matcher matcher = Pattern.compile("(\\d+):urn:skolem:_:c14n\\d+").matcher(sexpr);
     while (matcher.find()) {
       int length = Integer.parseInt(matcher.group(1));
       int valueStart = matcher.end(1) + 1;
-      skolemIris.add(sexpr.substring(valueStart, valueStart + length));
+      skolemNames.add(sexpr.substring(valueStart, valueStart + length));
     }
-    assertThat(skolemIris).as("two structurally identical siblings must not collapse onto one skolem IRI").hasSize(2);
+    assertThat(skolemNames).as("two structurally identical siblings must not collapse onto one skolem name").hasSize(2);
   }
 
   // Helper methods
