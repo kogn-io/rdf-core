@@ -14,6 +14,7 @@ swappable RDF4J backend. Published under Apache-2.0.
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port: builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Backend-agnostic SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning a neutral `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` (every `sh:message` survives with its language tag; the port picks no language). **Depends only on `rdf-terms`** — no rdf4j. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port (wraps `ShaclValidator`). **Store-independent** — does not depend on `rdf-dataset`/`-rdf4j`. |
+| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(graph)` returns a deterministic `urn:` derived from the graph's content (URDNA2015 canonicalization, blank node skolemization, Blake2b-256 over a canonical serialization). Port and its sole implementation `ContentAddressedIriGeneratorCbor` share this leaf module, as in `rdf-shacl`. **Depends only on `rdf-terms`** — no rdf4j (see ADR-0014). |
 
 Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.
 

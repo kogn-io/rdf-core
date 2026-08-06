@@ -6,10 +6,12 @@ Records](docs/adr/).
 
 ## What it is
 
-Kogn RDF is a backend-agnostic RDF layer built on a pure data model, with two
-independent port families above it — dataset access and SHACL validation — each
-with an RDF4J backend implementing it. Nothing above the RDF4J modules is tied to
-a particular store: the ports are the contract, RDF4J is one adapter behind them.
+Kogn RDF is a backend-agnostic RDF layer built on a pure data model, with three
+independent port families above it — dataset access, SHACL validation and
+content-addressed identifiers. The first two each have an RDF4J backend
+implementing them; the third needs none. Nothing above the RDF4J modules is tied
+to a particular store: the ports are the contract, RDF4J is one adapter behind
+them.
 
 ## Building blocks
 
@@ -24,9 +26,14 @@ data model          content ports             content adapter
     │            (registry, leases)         (builds the store,
     │                                        composes the wrappers)
     │
-    └──────────  rdf-shacl    ◄──────  rdf-shacl-rdf4j
-                 validation port       RDF4J adapter
-                 (no rdf4j)           (wraps ShaclValidator)
+    ├──────────  rdf-shacl    ◄──────  rdf-shacl-rdf4j
+    │            validation port       RDF4J adapter
+    │            (no rdf4j)           (wraps ShaclValidator)
+    │
+    └──────────  rdf-cid
+                 content-addressing port
+                 + its implementation
+                 (no rdf4j, no adapter)
 ```
 
 Dependencies point left only: `rdf-dataset` depends on `rdf-terms`;
@@ -41,12 +48,14 @@ store and composes the content-adapter wrappers behind a leased handle. A
 consumer that wires an adapter for a store this library does not host stays on
 `rdf-dataset` alone and never sees the hosting vocabulary (ADR-0009).
 
-The port families are siblings, not layers: `rdf-shacl` depends on
-`rdf-terms` alone and knows nothing about datasets, so validation is usable
-without a store and a store is usable without validation. Wiring the two
-together — validating on the dataset write path — is not done here today; ADR-0007
-explains why validation stands alone, and issue #2 tracks whether an optional
-write-path variant should join it.
+The port families are siblings, not layers: `rdf-shacl` and `rdf-cid` each
+depend on `rdf-terms` alone and know nothing about datasets, so validation and
+content addressing are usable without a store and a store is usable without
+either. Wiring validation into the dataset write path is not done here today;
+ADR-0007 explains why validation stands alone, and issue #2 tracks whether an
+optional write-path variant should join it. `rdf-cid` differs from the other two
+families in one respect: it has no adapter, because its algorithm is arithmetic
+over the data model rather than a call into a store (ADR-0014).
 
 | Module | Artifact | Role |
 |---|---|---|
@@ -57,6 +66,7 @@ write-path variant should join it.
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
+| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(graph)` over `ReadableGraph`, returning a deterministic `urn:` derived from the graph's content. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorCbor` — there is no backend to swap. No dependency on the dataset ports. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
