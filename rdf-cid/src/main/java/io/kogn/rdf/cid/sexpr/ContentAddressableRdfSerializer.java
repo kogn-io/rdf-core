@@ -35,9 +35,9 @@ import io.kogn.rdf.terms.Triple;
  * Derives a content-addressed {@code urn:cid:} per IRI subject from a collection of triples.
  *
  * <p>Per subject the reachable sub-graph (following blank nodes) is canonicalized with
- * {@link RdfDatasetCanonicalizer}, its blank nodes are skolemized to deterministic
- * {@code urn:skolem:} IRIs, serialized into a sorted, length-prefixed S-expression form
- * and hashed with Blake2b-256; the unpadded, lower-case Base32 digest is the URN.</p>
+ * {@link RdfDatasetCanonicalizer}, serialized into a sorted, length-prefixed S-expression
+ * form — blank nodes under deterministic {@code urn:skolem:} names — and hashed with
+ * Blake2b-256; the unpadded, lower-case Base32 digest is the URN.</p>
  *
  * <h2>What determines the identifier</h2>
  *
@@ -46,14 +46,15 @@ import io.kogn.rdf.terms.Triple;
  * <ul>
  *   <li>an IRI by its IRI string,</li>
  *   <li>a literal by its lexical form, its datatype IRI <em>and</em> its language tag,</li>
- *   <li>a blank node by the skolem IRI it was mapped to, which is derived from the node's
- *       position in the graph rather than from its label.</li>
+ *   <li>a blank node by its deterministic {@code urn:skolem:} name, which is derived from
+ *       the node's position in the graph rather than from its label.</li>
  * </ul>
  *
  * <p>The kind tag is part of the serialized form, so an IRI object and a literal whose
- * lexical form happens to be that same string do not collide. Two literals differing only
- * in datatype or only in language tag do not collide either — the identifier honours
- * {@link Literal}'s three-component equality contract.</p>
+ * lexical form happens to be that same string do not collide, and neither does a blank node
+ * with an IRI that spells out its skolem name. Two literals differing only in datatype or
+ * only in language tag do not collide either — the identifier honours {@link Literal}'s
+ * three-component equality contract.</p>
  *
  * <p>The subject IRI is included as well: a graph is identified by its triples, and the
  * subject is part of a triple. The identifier is therefore independent of blank node labels
@@ -67,13 +68,13 @@ public class ContentAddressableRdfSerializer {
   /** Term kind tags written into the serialized form so terms of different kinds cannot collide. */
   private static final String KIND_IRI = "I";
   private static final String KIND_LITERAL = "L";
+  private static final String KIND_BLANK = "B";
 
   private final RdfDatasetCanonicalizer canonicalizer;
   private final RDF rdf;
 
   /**
-   * Creates a serializer using {@link SimpleRdf} to create the resulting URN and the
-   * intermediate skolem IRIs.
+   * Creates a serializer using {@link SimpleRdf} to create the resulting URN.
    *
    * @param canonicalizer the URDNA2015 canonicalizer applied before hashing
    */
@@ -85,8 +86,7 @@ public class ContentAddressableRdfSerializer {
    * Creates a serializer.
    *
    * @param canonicalizer the URDNA2015 canonicalizer applied before hashing
-   * @param rdf the term factory used to create the resulting URN and the intermediate skolem
-   *        IRIs
+   * @param rdf the term factory used to create the resulting URN
    */
   public ContentAddressableRdfSerializer(RdfDatasetCanonicalizer canonicalizer, RDF rdf) {
     this.canonicalizer = Objects.requireNonNull(canonicalizer, "canonicalizer must not be null");
@@ -194,16 +194,11 @@ public class ContentAddressableRdfSerializer {
     // 1. Canonicalize the RDF dataset (URDNA2015 relabels blank nodes deterministically)
     Collection<Triple> canonicalTriples = canonicalizer.canonicalize(triples);
 
-    // 2. Skolemize blank nodes into deterministic IRIs
-    Map<BlankNode, IRI> mapping = skolemMapping(canonicalTriples);
-    List<Triple> skolemizedTriples = canonicalTriples.stream()
-        .map(t -> skolemizeTripleWithMapping(t, mapping))
-        .toList();
+    // 2. Serialize canonically; blank nodes go in under their own kind tag with the
+    // deterministic skolem name derived from their canonical label
+    byte[] canon = serializeFragmentGraph(canonicalTriples);
 
-    // 3. Serialize canonically
-    byte[] canon = serializeFragmentGraph(skolemizedTriples);
-
-    // 4. Hash (Blake2b-256)
+    // 3. Hash (Blake2b-256)
     byte[] hash = blake2b256(canon);
     IRI iri = rdf.createIRI(URN_PREFIX + base32(hash));
 
@@ -224,51 +219,6 @@ public class ContentAddressableRdfSerializer {
    */
   private String base32(byte[] hash) {
     return new Base32().encodeToString(hash).replace("=", "").toLowerCase(Locale.ROOT);
-  }
-
-  /** Skolemizes a triple using the given mapping. */
-  private Triple skolemizeTripleWithMapping(Triple t, Map<BlankNode, IRI> mapping) {
-    BlankNodeOrIRI subj = t.getSubject();
-    RDFTerm obj = t.getObject();
-    if (subj instanceof BlankNode bn) {
-      subj = mapping.get(bn);
-    }
-    if (obj instanceof BlankNode bn2) {
-      obj = mapping.get(bn2);
-    }
-    return rdf.createTriple(subj, t.getPredicate(), obj);
-  }
-
-  /**
-   * Creates a deterministic mapping from BlankNodes to Skolem IRIs, one IRI per distinct blank
-   * node.
-   *
-   * <p>The mapping is keyed off {@link BlankNode#uniqueReference()} rather than a hash of the
-   * node's local neighbourhood: URDNA2015 (step 1, run by {@link #canonicalizer} before this is
-   * called) already assigns every blank node a canonical, <strong>injective</strong> label
-   * ({@code c14n0}, {@code c14n1}, ...). Two blank nodes with the same predicate/object
-   * neighbourhood — siblings holding the same data, for instance — are still two distinct
-   * URDNA2015 labels; hashing the neighbourhood instead would collapse them onto the same
-   * skolem IRI and silently merge two blank nodes into one in the digest.
-   *
-   * @param triples the triples containing BlankNodes
-   * @return mapping from BlankNodes to deterministic Skolem IRIs
-   */
-  private Map<BlankNode, IRI> skolemMapping(Collection<Triple> triples) {
-    Map<BlankNode, IRI> mapping = new HashMap<>();
-    for (Triple t : triples) {
-      if (t.getSubject() instanceof BlankNode bn) {
-        mapping.computeIfAbsent(bn, this::toSkolemIri);
-      }
-      if (t.getObject() instanceof BlankNode bn) {
-        mapping.computeIfAbsent(bn, this::toSkolemIri);
-      }
-    }
-    return mapping;
-  }
-
-  private IRI toSkolemIri(BlankNode bn) {
-    return rdf.createIRI(SKOLEM_PREFIX + bn.uniqueReference());
   }
 
   /** Serializes the graph canonically as a sorted S-expression of length-prefixed fields. */
@@ -300,7 +250,9 @@ public class ContentAddressableRdfSerializer {
 
   /**
    * Appends a term as a kind tag followed by its components: an IRI as its IRI string, a
-   * literal as lexical form, datatype IRI and language tag, a blank node as its label.
+   * literal as lexical form, datatype IRI and language tag, a blank node as its deterministic
+   * skolem name. The kind tag separates the three term kinds, so in particular a blank node
+   * cannot collide with an IRI that spells out its skolem name.
    *
    * <p>Every component is a netstring, so the field count per kind is fixed and the
    * concatenation is unambiguous — no component can be mistaken for the next one, and no
@@ -320,11 +272,14 @@ public class ContentAddressableRdfSerializer {
       // before hashing, or a re-import spelling the same tag differently misses its duplicate.
       elements.add(toNetstring(lit.getLanguageTag().map(tag -> tag.toLowerCase(Locale.ROOT)).orElse("")));
     }
-    case BlankNode bn ->
-      // Blank nodes are skolemized into IRIs before serialization (see #skolemMapping); one
-      // reaching here unskolemized would hash its raw label, the very property this module
-      // promises independence from, so fail instead of silently hashing it.
-      throw new IllegalStateException("blank node reached the serializer unskolemized: " + bn);
+    case BlankNode bn -> {
+      // Every triple serialized here has passed the canonicalizer, so uniqueReference() is the
+      // canonical, injective URDNA2015 label (_:c14n0, _:c14n1, ...): the skolem name built
+      // from it is independent of the input labels, and two structurally identical siblings
+      // stay two distinct names rather than collapsing into one.
+      elements.add(toNetstring(KIND_BLANK));
+      elements.add(toNetstring(SKOLEM_PREFIX + bn.uniqueReference()));
+    }
     default -> throw new IllegalArgumentException("Unknown term type: " + term.getClass());
     }
   }
