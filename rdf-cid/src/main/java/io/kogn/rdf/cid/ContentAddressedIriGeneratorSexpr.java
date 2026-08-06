@@ -4,10 +4,11 @@
 package io.kogn.rdf.cid;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
-import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer.ContentAddressableResult;
+import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer.SingleContentAddressableResult;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.ReadableGraph;
@@ -35,8 +36,9 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
    * @param contentAddressableRdfSerializer the serializer that derives the content-addressed URN
    */
   public ContentAddressedIriGeneratorSexpr(RDF rdf, ContentAddressableRdfSerializer contentAddressableRdfSerializer) {
-    this.rdf = rdf;
-    this.contentAddressableRdfSerializer = contentAddressableRdfSerializer;
+    this.rdf = Objects.requireNonNull(rdf, "rdf must not be null");
+    this.contentAddressableRdfSerializer = Objects.requireNonNull(contentAddressableRdfSerializer,
+        "contentAddressableRdfSerializer must not be null");
   }
 
   @Override
@@ -47,7 +49,7 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
 
     List<Triple> triples = graph.stream().collect(Collectors.toList());
 
-    ContentAddressableResult result;
+    SingleContentAddressableResult result;
     try {
       result = contentAddressableRdfSerializer.serializeWithUrn(triples);
     } catch (IllegalArgumentException | ContentAddressingException e) {
@@ -56,10 +58,7 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
       throw new ContentAddressingException("Failed to generate content-addressed IRI", e);
     }
 
-    String iriString = result.iris()
-        .findFirst()
-        .orElseThrow(() -> new ContentAddressingException("Serialization yielded no content-addressed IRI", null))
-        .getIRIString();
+    String iriString = result.urn().getIRIString();
 
     log.debug("Generated content-addressed IRI: {} for graph with {} triples", iriString, graph.size());
 

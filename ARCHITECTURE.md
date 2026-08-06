@@ -289,6 +289,41 @@ Settled semantics worth knowing before consuming it:
 transient in-memory sails per call. It depends on `rdf-terms` and `rdf-shacl`
 only — never on the dataset modules — so validation and storage stay separable.
 
+## Content-addressed identifiers (`rdf-cid`)
+
+`ContentAddressedIriGenerator.generateIri(graph)` derives a deterministic
+`urn:cid:` from a graph's triples, so the same content always mints the same
+identifier and re-importing a dataset is detectable without keeping a ledger of
+what was imported before
+([ADR-0014](docs/adr/0014-content-addressed-iri-module.md)). The derivation
+canonicalizes the graph with URDNA2015, skolemizes its blank nodes to
+deterministic IRIs keyed off the canonical label URDNA2015 already assigns them,
+serializes the result into a sorted, length-prefixed S-expression and hashes it
+with Blake2b-256.
+
+Two constraints callers need to know before persisting the result anywhere:
+
+- **The graph must describe exactly one IRI subject**, plus whatever blank
+  nodes hang off it. Zero, several, or a triple reachable from none of them all
+  raise `IllegalArgumentException` rather than silently addressing a partial
+  graph — a wrong answer is worse than no answer here, because deduplication and
+  integrity checks both read "same identifier" as "same content".
+- **Every term goes into the digest in full** — an IRI by its IRI string, a
+  literal by lexical form, datatype IRI *and* language tag, the subject IRI
+  itself included. The identifier is therefore independent of blank node labels
+  and triple order, but not of the IRIs the data uses; two graphs describing the
+  same thing under different subject IRIs are different content.
+
+Unlike the other two port families, `rdf-cid` carries its own and only
+implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to
+swap, because the algorithm is arithmetic over `rdf-terms` values rather than a
+call into a store. It depends on `rdf-terms` alone among our modules and on no
+RDF4J artifact (`CidPortHasNoBackendDependencyTest` pins that the same way
+`rdf-shacl` does), but pulls the heaviest third-party dependency set in this
+repository to get there: `io.setl:rdf-urdna` for URDNA2015, BouncyCastle for
+Blake2b-256, Commons Codec for Base32, and Titanium JSON-LD as `rdf-urdna`'s own
+dependency for its RDF dataset model.
+
 ## Build & release
 
 Java 25, built with the pinned Maven wrapper (`./mvnw`). The version is a single

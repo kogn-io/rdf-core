@@ -48,8 +48,8 @@ class ContentAddressableRdfSerializerTest {
     List<Triple> graph2 = createSimpleGraph();
 
     // When: Generate CIDs
-    IRI cid1 = serializer.serializeWithUrn(graph1).iris().findFirst().orElseThrow();
-    IRI cid2 = serializer.serializeWithUrn(graph2).iris().findFirst().orElseThrow();
+    IRI cid1 = serializer.serializeWithUrn(graph1).urn();
+    IRI cid2 = serializer.serializeWithUrn(graph2).urn();
 
     // Then: CIDs should be identical
     assertThat(cid1.getIRIString()).isEqualTo(cid2.getIRIString());
@@ -63,8 +63,8 @@ class ContentAddressableRdfSerializerTest {
     List<Triple> graph2 = createNestedResourceGraph("xyz", "abc", "def");
 
     // When: Generate CIDs
-    IRI cid1 = serializer.serializeWithUrn(graph1).iris().findFirst().orElseThrow();
-    IRI cid2 = serializer.serializeWithUrn(graph2).iris().findFirst().orElseThrow();
+    IRI cid1 = serializer.serializeWithUrn(graph1).urn();
+    IRI cid2 = serializer.serializeWithUrn(graph2).urn();
 
     // Then: CIDs should be identical (same data, just different BlankNode IDs)
     assertThat(cid1.getIRIString()).as("Identical content with different BlankNode IDs should produce same CID")
@@ -82,8 +82,8 @@ class ContentAddressableRdfSerializerTest {
         "also_different", "random_id", 100.0);
 
     // Generate CIDs
-    IRI cid1 = serializer.serializeWithUrn(firstImport).iris().findFirst().orElseThrow();
-    IRI cid2 = serializer.serializeWithUrn(secondImport).iris().findFirst().orElseThrow();
+    IRI cid1 = serializer.serializeWithUrn(firstImport).urn();
+    IRI cid2 = serializer.serializeWithUrn(secondImport).urn();
 
     // Then: CIDs should be identical
     assertThat(cid1.getIRIString()).as("Duplicate import with same data should produce same CID")
@@ -99,8 +99,8 @@ class ContentAddressableRdfSerializerTest {
     // value!
 
     // When: Generate CIDs
-    IRI cid1 = serializer.serializeWithUrn(graph1).iris().findFirst().orElseThrow();
-    IRI cid2 = serializer.serializeWithUrn(graph2).iris().findFirst().orElseThrow();
+    IRI cid1 = serializer.serializeWithUrn(graph1).urn();
+    IRI cid2 = serializer.serializeWithUrn(graph2).urn();
 
     // Then: CIDs should be different
     assertThat(cid1.getIRIString()).as("Different measurement values should produce different CIDs")
@@ -126,9 +126,8 @@ class ContentAddressableRdfSerializerTest {
     triples.add(rdf.createTriple(y, v, rdf.createLiteral("1")));
 
     // When: serialize and inspect the bytes that were hashed
-    ContentAddressableRdfSerializer.ContentAddressableResult result = serializer.serializeWithUrn(triples);
-    IRI cid = result.iris().findFirst().orElseThrow();
-    String sexpr = new String(result.get(cid), StandardCharsets.ISO_8859_1);
+    ContentAddressableRdfSerializer.SingleContentAddressableResult result = serializer.serializeWithUrn(triples);
+    String sexpr = new String(result.sexprBytes(), StandardCharsets.ISO_8859_1);
 
     // Then: the two BlankNodes were mapped to two distinct skolem IRIs, not merged into one.
     // Each skolem IRI is a netstring field ("<byte-length>:urn:skolem:..."); read the declared

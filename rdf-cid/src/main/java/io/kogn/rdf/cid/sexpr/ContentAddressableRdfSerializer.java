@@ -14,10 +14,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.commons.codec.binary.Base32;
 import org.bouncycastle.crypto.digests.Blake2bDigest;
@@ -67,7 +67,6 @@ public class ContentAddressableRdfSerializer {
   /** Term kind tags written into the serialized form so terms of different kinds cannot collide. */
   private static final String KIND_IRI = "I";
   private static final String KIND_LITERAL = "L";
-  private static final String KIND_BLANK_NODE = "B";
 
   private final RdfDatasetCanonicalizer canonicalizer;
   private final RDF rdf;
@@ -90,8 +89,8 @@ public class ContentAddressableRdfSerializer {
    *        IRIs
    */
   public ContentAddressableRdfSerializer(RdfDatasetCanonicalizer canonicalizer, RDF rdf) {
-    this.canonicalizer = canonicalizer;
-    this.rdf = rdf;
+    this.canonicalizer = Objects.requireNonNull(canonicalizer, "canonicalizer must not be null");
+    this.rdf = Objects.requireNonNull(rdf, "rdf must not be null");
   }
 
   /**
@@ -99,21 +98,15 @@ public class ContentAddressableRdfSerializer {
    *
    * @param triples the triples to serialize; must hold exactly one IRI subject, plus any blank
    *        node triples reachable from it
-   * @return result containing the URN mapped to its serialized content
+   * @return the URN together with the serialized content it was derived from
    * @throws IllegalArgumentException if the triples hold other than exactly one IRI subject, or
    *         hold a triple not reachable from that subject, because such a triple would silently
    *         drop out of the identifier derived here
    */
-  public ContentAddressableResult serializeWithUrn(Collection<Triple> triples) {
-    ContentAddressableResult result = new ContentAddressableResult();
-
+  public SingleContentAddressableResult serializeWithUrn(Collection<Triple> triples) {
     Map<IRI, Collection<Triple>> groupedBySubject = groupTriplesByIriSubject(triples);
-
-    groupedBySubject.values().forEach(subjectTriples -> {
-      SingleContentAddressableResult sr = serializeWithUrnInternal(subjectTriples);
-      result.put(sr.urn(), sr.sexprBytes());
-    });
-    return result;
+    Collection<Triple> subjectTriples = groupedBySubject.values().iterator().next();
+    return serializeWithUrnInternal(subjectTriples);
   }
 
   /**
@@ -327,11 +320,11 @@ public class ContentAddressableRdfSerializer {
       // before hashing, or a re-import spelling the same tag differently misses its duplicate.
       elements.add(toNetstring(lit.getLanguageTag().map(tag -> tag.toLowerCase(Locale.ROOT)).orElse("")));
     }
-    case BlankNode bn -> {
-      // Should not occur: blank nodes are skolemized into IRIs before serialization.
-      elements.add(toNetstring(KIND_BLANK_NODE));
-      elements.add(toNetstring(bn.uniqueReference()));
-    }
+    case BlankNode bn ->
+      // Blank nodes are skolemized into IRIs before serialization (see #skolemMapping); one
+      // reaching here unskolemized would hash its raw label, the very property this module
+      // promises independence from, so fail instead of silently hashing it.
+      throw new IllegalStateException("blank node reached the serializer unskolemized: " + bn);
     default -> throw new IllegalArgumentException("Unknown term type: " + term.getClass());
     }
   }
@@ -361,52 +354,29 @@ public class ContentAddressableRdfSerializer {
     return res;
   }
 
-  /** One URN together with the S-expression bytes it was derived from. */
-  private record SingleContentAddressableResult(IRI urn, byte[] sexprBytes) {
-  }
+  /**
+   * One URN together with the S-expression bytes it was derived from.
+   *
+   * @param urn the content-addressed URN
+   * @param sexprBytes the serialized bytes {@code urn} was derived from; defensively copied
+   *     on construction and on every {@link #sexprBytes()} call, so neither the caller's
+   *     original array nor a returned copy can change what this result reports having hashed
+   */
+  public record SingleContentAddressableResult(IRI urn, byte[] sexprBytes) {
 
-  /** The URNs derived from one call, each mapped to the bytes that were hashed for it. */
-  public static class ContentAddressableResult {
-
-    private final Map<IRI, byte[]> sexprBytesByUrn = new HashMap<>();
-
-    /** Creates an empty result. */
-    public ContentAddressableResult() {
-      // nothing to initialise beyond the empty map
+    /** Defensively copies {@code sexprBytes} so this result owns an immutable snapshot of it. */
+    public SingleContentAddressableResult {
+      sexprBytes = sexprBytes.clone();
     }
 
     /**
-     * Records the serialized form a URN was derived from.
+     * Returns the serialized form {@link #urn()} was derived from.
      *
-     * <p>Package-private: only {@link ContentAddressableRdfSerializer} ever hashes the bytes it
-     * records here, so a caller outside this package cannot associate a URN with bytes that were
-     * never hashed into it.
-     *
-     * @param urn the content-addressed URN
-     * @param sExprBytes the serialized bytes that were hashed into {@code urn}
+     * @return a copy of the serialized bytes
      */
-    void put(IRI urn, byte[] sExprBytes) {
-      this.sexprBytesByUrn.put(urn, sExprBytes.clone());
-    }
-
-    /**
-     * Returns the serialized form a URN was derived from.
-     *
-     * @param iri the URN to look up
-     * @return a copy of the serialized bytes, or {@code null} if this result holds no such URN
-     */
-    public byte[] get(IRI iri) {
-      byte[] bytes = this.sexprBytesByUrn.get(iri);
-      return bytes == null ? null : bytes.clone();
-    }
-
-    /**
-     * Returns the URNs held by this result.
-     *
-     * @return a stream of the content-addressed URNs, in no particular order
-     */
-    public Stream<IRI> iris() {
-      return this.sexprBytesByUrn.keySet().stream();
+    @Override
+    public byte[] sexprBytes() {
+      return sexprBytes.clone();
     }
   }
 }
