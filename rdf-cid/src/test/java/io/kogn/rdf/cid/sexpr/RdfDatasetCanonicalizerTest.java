@@ -3,8 +3,7 @@
 
 package io.kogn.rdf.cid.sexpr;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,15 +40,15 @@ class RdfDatasetCanonicalizerTest {
   }
 
   @Test
-  void testCanonicalizationIsDeterministic() {
+  void canonicalizationIsDeterministic() {
     // Create two identical graphs with different BlankNode IDs
     List<Triple> graph1 = createNutrientGraph("bn1", "bn2");
     List<Triple> graph2 = createNutrientGraph("xyz", "abc");
 
     // The BlankNode IDs should differ
-    String bn1_graph1 = extractFirstBlankNodeId(graph1);
-    String bn1_graph2 = extractFirstBlankNodeId(graph2);
-    assertNotEquals(bn1_graph1, bn1_graph2, "BlankNode IDs should differ");
+    String bn1Graph1 = extractFirstBlankNodeId(graph1);
+    String bn1Graph2 = extractFirstBlankNodeId(graph2);
+    assertThat(bn1Graph1).as("BlankNode IDs should differ").isNotEqualTo(bn1Graph2);
 
     // Canonicalize both graphs
     Collection<Triple> canonical1 = canonicalizer.canonicalize(graph1);
@@ -58,16 +57,17 @@ class RdfDatasetCanonicalizerTest {
     // After canonicalization the BlankNode IDs should be identical
     String canonicalBn1 = extractFirstBlankNodeId(canonical1);
     String canonicalBn2 = extractFirstBlankNodeId(canonical2);
-    assertEquals(canonicalBn1, canonicalBn2, "Canonicalized BlankNode IDs should be identical for identical graphs");
+    assertThat(canonicalBn1).as("Canonicalized BlankNode IDs should be identical for identical graphs")
+        .isEqualTo(canonicalBn2);
 
     // The serialized forms should be byte-identical
     String serialized1 = serializeToString(canonical1);
     String serialized2 = serializeToString(canonical2);
-    assertEquals(serialized1, serialized2, "Canonicalized graphs should serialize identically");
+    assertThat(serialized1).as("Canonicalized graphs should serialize identically").isEqualTo(serialized2);
   }
 
   @Test
-  void testNestedBlankNodes() {
+  void nestedBlankNodesCanonicalizeDeterministically() {
     // Test with nested BlankNodes (e.g. table -> entry -> quantity)
     List<Triple> graph1 = createNestedBlankNodeGraph("table1", "entry1", "value1");
     List<Triple> graph2 = createNestedBlankNodeGraph("xyz", "abc", "def");
@@ -77,11 +77,11 @@ class RdfDatasetCanonicalizerTest {
 
     String serialized1 = serializeToString(canonical1);
     String serialized2 = serializeToString(canonical2);
-    assertEquals(serialized1, serialized2, "Nested BlankNodes should canonicalize deterministically");
+    assertThat(serialized1).as("Nested BlankNodes should canonicalize deterministically").isEqualTo(serialized2);
   }
 
   @Test
-  void testLiteralsWithDatatypes() {
+  void literalsWithDatatypesArePreserved() {
     // Verify that datatype information is preserved
     IRI subject = rdf.createIRI("http://example.org/resource");
     IRI predicate = rdf.createIRI("http://example.org/value");
@@ -93,21 +93,19 @@ class RdfDatasetCanonicalizerTest {
     Collection<Triple> canonical = canonicalizer.canonicalize(graph);
 
     // Verify that the Literal with its datatype is preserved
-    assertEquals(1, canonical.size(), "Graph should contain one triple");
+    assertThat(canonical).as("Graph should contain one triple").hasSize(1);
     Triple triple = canonical.iterator().next();
 
     io.kogn.rdf.terms.RDFTerm object = triple.getObject();
-    if (object instanceof Literal lit) {
-      assertEquals("123.45", lit.getLexicalForm(), "Lexical form should be preserved");
-      IRI xsdDecimal = rdf.createIRI(VocabXsd.DECIMAL.getIRIString());
-      assertEquals(xsdDecimal, lit.getDatatype(), "Datatype should be preserved");
-    } else {
-      throw new AssertionError("Object should be a Literal");
-    }
+    assertThat(object).isInstanceOf(Literal.class);
+    Literal lit = (Literal) object;
+    assertThat(lit.getLexicalForm()).as("Lexical form should be preserved").isEqualTo("123.45");
+    IRI xsdDecimal = rdf.createIRI(VocabXsd.DECIMAL.getIRIString());
+    assertThat(lit.getDatatype()).as("Datatype should be preserved").isEqualTo(xsdDecimal);
   }
 
   @Test
-  void testLiteralsWithLanguageTags() {
+  void literalsWithLanguageTagsArePreserved() {
     // The round trip through Titanium has a separate branch for language-tagged literals.
     // If it dropped the tag, "Bank"@en and "Bank"@de would reach the serializer as the same
     // literal and share an identifier — a collision the serializer could no longer prevent.
@@ -119,14 +117,12 @@ class RdfDatasetCanonicalizerTest {
 
     Collection<Triple> canonical = canonicalizer.canonicalize(graph);
 
-    assertEquals(1, canonical.size(), "Graph should contain one triple");
+    assertThat(canonical).as("Graph should contain one triple").hasSize(1);
     io.kogn.rdf.terms.RDFTerm object = canonical.iterator().next().getObject();
-    if (object instanceof Literal lit) {
-      assertEquals("Bank", lit.getLexicalForm(), "Lexical form should be preserved");
-      assertEquals(Optional.of("en"), lit.getLanguageTag(), "Language tag should be preserved");
-    } else {
-      throw new AssertionError("Object should be a Literal");
-    }
+    assertThat(object).isInstanceOf(Literal.class);
+    Literal lit = (Literal) object;
+    assertThat(lit.getLexicalForm()).as("Lexical form should be preserved").isEqualTo("Bank");
+    assertThat(lit.getLanguageTag()).as("Language tag should be preserved").isEqualTo(Optional.of("en"));
   }
 
   // Helper methods

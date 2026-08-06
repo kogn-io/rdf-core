@@ -31,9 +31,10 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * Derives a content-addressed {@code urn:cid:} per IRI subject from a collection of triples.
+ * Derives a content-addressed {@code urn:cid:} for the single IRI subject of a collection of
+ * triples.
  *
- * <p>Per subject the reachable sub-graph (following blank nodes) is canonicalized with
+ * <p>The reachable sub-graph (following blank nodes) is canonicalized with
  * {@link RdfDatasetCanonicalizer}, serialized into a sorted, length-prefixed S-expression
  * form — blank nodes under deterministic {@code urn:skolem:} names — and hashed with
  * Blake2b-256; the unpadded, lower-case Base32 digest is the URN.</p>
@@ -102,7 +103,7 @@ public class ContentAddressableRdfSerializer {
    *         hold a triple not reachable from that subject, because such a triple would silently
    *         drop out of the identifier derived here
    */
-  public SingleContentAddressableResult serializeWithUrn(Collection<Triple> triples) {
+  public ContentAddressableResult serializeWithUrn(Collection<Triple> triples) {
     return serializeWithUrnInternal(triplesOfTheSingleIriSubject(triples));
   }
 
@@ -181,7 +182,7 @@ public class ContentAddressableRdfSerializer {
     return result;
   }
 
-  private SingleContentAddressableResult serializeWithUrnInternal(Collection<Triple> triples) {
+  private ContentAddressableResult serializeWithUrnInternal(Collection<Triple> triples) {
     // 1. Canonicalize the RDF dataset (URDNA2015 relabels blank nodes deterministically)
     Collection<Triple> canonicalTriples = canonicalizer.canonicalize(triples);
 
@@ -193,7 +194,7 @@ public class ContentAddressableRdfSerializer {
     byte[] hash = blake2b256(canon);
     IRI iri = rdf.createIRI(URN_PREFIX + base32(hash));
 
-    return new SingleContentAddressableResult(iri, canon);
+    return new ContentAddressableResult(iri, canon);
   }
 
   private byte[] blake2b256(byte[] input) {
@@ -308,10 +309,10 @@ public class ContentAddressableRdfSerializer {
    *     on construction and on every {@link #sexprBytes()} call, so neither the caller's
    *     original array nor a returned copy can change what this result reports having hashed
    */
-  public record SingleContentAddressableResult(IRI urn, byte[] sexprBytes) {
+  public record ContentAddressableResult(IRI urn, byte[] sexprBytes) {
 
     /** Defensively copies {@code sexprBytes} so this result owns an immutable snapshot of it. */
-    public SingleContentAddressableResult {
+    public ContentAddressableResult {
       sexprBytes = sexprBytes.clone();
     }
 

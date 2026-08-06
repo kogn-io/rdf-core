@@ -11,8 +11,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
-import io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
@@ -40,8 +38,7 @@ class ContentAddressedIriGeneratorSexprTest {
   @BeforeEach
   void setUp() {
     rdf = new SimpleRdf();
-    generator = new ContentAddressedIriGeneratorSexpr(rdf,
-        new ContentAddressableRdfSerializer(new RdfDatasetCanonicalizer(rdf), rdf));
+    generator = new ContentAddressedIriGeneratorSexpr(rdf);
   }
 
   @Nested
@@ -278,6 +275,22 @@ class ContentAddressedIriGeneratorSexprTest {
       // reachable part would hand both graphs the same identifier without saying so.
       assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIri(withOrphan))
           .withMessageContaining("not reachable");
+    }
+  }
+
+  @Nested
+  @DisplayName("a derivation failure is reported as ContentAddressingException, not a raw third-party error")
+  class DerivationFailure {
+
+    @Test
+    @DisplayName("a term kind the canonicalizer does not know surfaces its cause")
+    void unknownTermKindFailsCanonicalization() {
+      Graph graph = graph();
+      RDFTerm unknownKind = () -> "unsupported";
+      graph.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), unknownKind);
+
+      assertThatExceptionOfType(ContentAddressingException.class).isThrownBy(() -> generator.generateIri(graph))
+          .withCauseInstanceOf(IllegalArgumentException.class);
     }
   }
 

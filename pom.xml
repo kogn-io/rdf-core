@@ -64,7 +64,7 @@
 		     around them. titanium-json-ld is pinned to 1.4.1, the version io.setl:rdf-urdna
 		     was compiled against (its own titanium-json-ld-jre8 dependency is excluded in
 		     rdf-cid) — raising it here alone risks binary incompatibility with rdf-urdna. -->
-		<bouncycastle.version>1.80</bouncycastle.version>
+		<bouncycastle.version>1.85</bouncycastle.version>
 		<rdf-urdna.version>1.4</rdf-urdna.version>
 		<titanium-json-ld.version>1.4.1</titanium-json-ld.version>
 		<commons-codec.version>1.22.1</commons-codec.version>
