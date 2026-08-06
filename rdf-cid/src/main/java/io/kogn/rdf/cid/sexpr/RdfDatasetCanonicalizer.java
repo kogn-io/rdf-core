@@ -6,6 +6,7 @@ package io.kogn.rdf.cid.sexpr;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import com.apicatalog.rdf.Rdf;
 import com.apicatalog.rdf.RdfDataset;
@@ -22,7 +23,6 @@ import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 import io.setl.rdf.normalization.RdfNormalize;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Canonicalizes RDF datasets using URDNA2015 algorithm.
@@ -33,7 +33,6 @@ import lombok.extern.slf4j.Slf4j;
  * <p>This class converts our RDF API types to Titanium JSON-LD format,
  * applies canonicalization, and converts back.</p>
  */
-@Slf4j
 public class RdfDatasetCanonicalizer {
 
   private final RDF rdf;
@@ -49,7 +48,7 @@ public class RdfDatasetCanonicalizer {
    * @param rdf the term factory used to rebuild terms from the canonical form
    */
   public RdfDatasetCanonicalizer(RDF rdf) {
-    this.rdf = rdf;
+    this.rdf = Objects.requireNonNull(rdf, "rdf must not be null");
   }
 
   /**
@@ -74,8 +73,7 @@ public class RdfDatasetCanonicalizer {
 
       // 3. Convert back to our RDF API
       return fromTitaniumDataset(normalized);
-    } catch (Exception e) {
-      log.error("Failed to canonicalize RDF dataset", e);
+    } catch (RuntimeException e) {
       throw new ContentAddressingException("RDF canonicalization failed", e);
     }
   }
