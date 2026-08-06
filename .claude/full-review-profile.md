@@ -9,11 +9,29 @@ carries what is specific to this codebase. Read it before starting the audit.
 |---|---|---|
 | `rdf-dataset` | **highest** | pure contract; every promise here binds all future backends |
 | `rdf-dataset-rdf4j` | **highest** | the only code that has to keep those promises |
+| `rdf-dataset-hosting` | **highest** | port module with real validation logic and lifecycle contracts |
+| `rdf-dataset-hosting-rdf4j` | **highest** | owns stores and leases; the round-2 lifecycle findings all lived here |
 | `rdf-cid` | high | its own promise ("same content -> same identifier") is a correctness property, not just a contract; the heaviest third-party dependency set in the repo (ADR-0014); wrong output is silent (a wrong CID looks exactly like a right one) |
 | `rdf-shacl` / `rdf-shacl-rdf4j` | medium | smaller surface, value types, no concurrency |
 | `rdf-terms` | low | library-free data model, no I/O, no state |
 
 At ~6k LOC the whole tree fits in one pass. Do not sample.
+
+## Review-Kadenz
+
+| Modul | Pfad | Priorität | Letzter Review-Commit | Datum |
+|---|---|---|---|---|
+| rdf-dataset | `rdf-dataset` | 1 | `357a557` | 2026-08-06 |
+| rdf-dataset-rdf4j | `rdf-dataset-rdf4j` | 1 | `357a557` | 2026-08-06 |
+| rdf-dataset-hosting | `rdf-dataset-hosting` | 1 | `357a557` | 2026-08-06 |
+| rdf-dataset-hosting-rdf4j | `rdf-dataset-hosting-rdf4j` | 1 | `357a557` | 2026-08-06 |
+| rdf-shacl | `rdf-shacl` | 2 | `45aee87` | 2026-07-26 |
+| rdf-shacl-rdf4j | `rdf-shacl-rdf4j` | 2 | `45aee87` | 2026-07-26 |
+| rdf-terms | `rdf-terms` | 3 | `45aee87` | 2026-07-26 |
+
+The 2026-08-06 stamp covers the delta since `45aee87` in the four dataset modules (the
+DatasetExport vertical plus the round-2 fix commits) and an independent re-derivation of the
+#64/#68/#73 fixes — not a from-scratch re-audit of the unchanged remainder.
 
 ## Calibration — what each sweep has already found here
 
@@ -53,6 +71,21 @@ first-ever pass, since none of them existed at the time of round 1. Result: 11 n
 | Phase 1 — `@throws` completeness re-checked on the *newest* code, not just the code round 1 already fixed | **#72** — `DatasetLifecycleRdf4j`'s constructor and the `DatasetLifecycle` port both under-document NPE paths that are correctly enforced but never named. |
 | Phase 5 — three independent minor gaps bundled because none justified its own priority | **#73** (rdf-dataset-rdf4j: null-binding-value NPE, untranslated `QueryEvaluationException`, inferred-statement divergence) |
 | Phase 5 — same bundling logic, other module | **#74** (rdf-shacl: `Severity.INFO` never produced in a test, `ShaclResult.path()==null` never exercised against real RDF4J output rather than just the record constructor, null-argument contract untested) |
+
+## Calibration — round 3 (2026-08-06, commit `357a557`)
+
+Scoped run: the DatasetExport vertical (new in v0.3.0) plus re-derivation of the #64/#68/#73
+fixes. All three prior fixes held. New findings, per sweep:
+
+| Sweep | Found |
+|---|---|
+| Phase 1.4 / Phase 6 — a whole-dataset claim ("every statement tagged with the graph it belongs to") held against a state the model officially excludes but a sibling port can create | **#98** — the headline: `SparqlUpdate` `INSERT DATA` without a `GRAPH` clause puts statements into the default graph; `conn.export` writes them untagged (TriG unnamed block, N-Quads triple line), and no port can reach them individually. The named-graphs-only invariant is caller-maintained but documented nowhere as a caller obligation. |
+| Phase 1.1 — the catch clause held against the *full* set of unchecked exceptions the wrapped calls can raise, verified at the source jars | **#99** — `UnsupportedRDFormatException extends RuntimeException` directly (not `RDF4JException`), so `DatasetExportRdf4j`'s `catch (RepositoryException \| RDFHandlerException)` misses it; sail iterations can likewise rethrow foreign `RuntimeException`s unwrapped. |
+| Phase 5 — "which documented sentence has no failing test" | **#100** — "Namespaces travel along" (trivially testable, untested), `includeInferred=false` (needs an inferencer sail), N-Quads named-graph round-trip (only TriG is parse-back-tested), error/stream-hygiene tests only exercise the 2-arg overload. |
+
+Verification lesson that paid off: reading the RDF4J *source jars* (not just javap) settled
+`includeInferred`, the `endRDF()` flush chain, and the exception hierarchy in one pass —
+`./mvnw dependency:sources` first, then `unzip -p` on `~/.m2/.../*-sources.jar`.
 
 ## Project-specific traps
 
