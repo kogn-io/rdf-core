@@ -61,10 +61,9 @@
 		<lombok.version>1.18.46</lombok.version>
 		<jmolecules.version>2.0.1</jmolecules.version>
 		<!-- rdf-cid only: Blake2b hashing, URDNA2015 canonicalization and the helpers
-		     around them. titanium-json-ld is pinned to the version io.setl:rdf-urdna
-		     itself depends on (titanium-json-ld-jre8:1.4.1) — raising it here alone
-		     would put the explicit compile dependency out of step with the transitive
-		     one that rdf-urdna resolves at runtime. -->
+		     around them. titanium-json-ld is pinned to 1.4.1, the version io.setl:rdf-urdna
+		     was compiled against (its own titanium-json-ld-jre8 dependency is excluded in
+		     rdf-cid) — raising it here alone risks binary incompatibility with rdf-urdna. -->
 		<bouncycastle.version>1.80</bouncycastle.version>
 		<rdf-urdna.version>1.4</rdf-urdna.version>
 		<titanium-json-ld.version>1.4.1</titanium-json-ld.version>
