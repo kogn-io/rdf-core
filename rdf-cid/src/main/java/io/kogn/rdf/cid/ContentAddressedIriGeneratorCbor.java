@@ -15,14 +15,17 @@ import io.kogn.rdf.terms.Triple;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * CBOR-based content-addressed IRI generator.
+ * Content-addressed IRI generator over a canonicalized, length-prefixed S-expression form.
  *
- * <p>This implementation uses CBOR (Compact Binary Object Representation) for
- * deterministic RDF serialization and generates content identifiers (CIDs)
- * based on cryptographic hashes of the normalized RDF content.</p>
+ * <p>The graph is canonicalized with URDNA2015, its blank nodes are skolemized into
+ * deterministic IRIs, the result is serialized into a sorted S-expression of length-prefixed
+ * fields and hashed with Blake2b-256. Identical RDF graphs — regardless of blank node labels
+ * or triple order — therefore always produce the same identifier.</p>
  *
- * <p>Identical RDF graphs (regardless of syntactic variations) will always
- * produce the same CID.</p>
+ * <p>The {@code Cbor} in the name and the {@code io.kogn.rdf.cid.cbor} package below it are
+ * inherited from the origin of this code and are inaccurate: nothing here serializes CBOR.
+ * The names are kept because they are a published API surface; ADR-0014 records the
+ * trade-off.</p>
  */
 @Slf4j
 public class ContentAddressedIriGeneratorCbor implements ContentAddressedIriGenerator {
@@ -49,19 +52,26 @@ public class ContentAddressedIriGeneratorCbor implements ContentAddressedIriGene
 
     List<Triple> triples = graph.stream().collect(Collectors.toList());
 
+    long iriSubjects = triples.stream().map(Triple::getSubject).filter(IRI.class::isInstance).distinct().count();
+    if (iriSubjects != 1) {
+      throw new IllegalArgumentException(
+          "Content addressing describes exactly one resource, so the graph must hold triples of "
+              + "exactly one IRI subject, but holds " + iriSubjects);
+    }
+
     ContentAddressableResult result;
     try {
       result = contentAddressableRdfSerializer.serializeWithUrn(triples);
-    } catch (Exception e) {
-      throw new IllegalStateException("Failed to generate content-addressed IRI", e);
+    } catch (IllegalArgumentException e) {
+      throw e;
+    } catch (RuntimeException e) {
+      throw new ContentAddressingException("Failed to generate content-addressed IRI", e);
     }
 
-    if (result.iris().count() != 1) {
-      throw new IllegalStateException(
-          "Expected exactly one IRI from content-based addressing, but is: " + result.iris().count());
-    }
-
-    String iriString = result.iris().findFirst().orElseThrow().getIRIString();
+    String iriString = result.iris()
+        .findFirst()
+        .orElseThrow(() -> new ContentAddressingException("Serialization yielded no content-addressed IRI", null))
+        .getIRIString();
 
     log.debug("Generated content-addressed IRI: {} for graph with {} triples", iriString, graph.size());
 

@@ -68,7 +68,6 @@
 		<bouncycastle.version>1.80</bouncycastle.version>
 		<rdf-urdna.version>1.4</rdf-urdna.version>
 		<titanium-json-ld.version>1.4.1</titanium-json-ld.version>
-		<commons-lang3.version>3.20.0</commons-lang3.version>
 		<commons-codec.version>1.22.1</commons-codec.version>
 		<maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
 		<spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
@@ -222,11 +221,6 @@
 				<groupId>com.apicatalog</groupId>
 				<artifactId>titanium-json-ld</artifactId>
 				<version>${titanium-json-ld.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.commons</groupId>
-				<artifactId>commons-lang3</artifactId>
-				<version>${commons-lang3.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>commons-codec</groupId>

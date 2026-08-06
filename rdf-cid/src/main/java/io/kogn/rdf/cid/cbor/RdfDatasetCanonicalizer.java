@@ -12,6 +12,7 @@ import com.apicatalog.rdf.RdfDataset;
 import com.apicatalog.rdf.RdfResource;
 import com.apicatalog.rdf.RdfTriple;
 
+import io.kogn.rdf.cid.ContentAddressingException;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -51,6 +52,8 @@ public class RdfDatasetCanonicalizer {
    *
    * @param triples the triples to canonicalize
    * @return canonicalized triples with deterministic blank node labels
+   * @throws ContentAddressingException if canonicalization fails; the underlying failure is
+   *         kept as cause
    */
   public Collection<Triple> canonicalize(Collection<Triple> triples) {
     try {
@@ -64,7 +67,7 @@ public class RdfDatasetCanonicalizer {
       return fromTitaniumDataset(normalized);
     } catch (Exception e) {
       log.error("Failed to canonicalize RDF dataset", e);
-      throw new RuntimeException("RDF canonicalization failed", e);
+      throw new ContentAddressingException("RDF canonicalization failed", e);
     }
   }
 
