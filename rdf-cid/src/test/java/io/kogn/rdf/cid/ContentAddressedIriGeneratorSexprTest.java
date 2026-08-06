@@ -11,8 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import io.kogn.rdf.cid.cbor.ContentAddressableRdfSerializer;
-import io.kogn.rdf.cid.cbor.RdfDatasetCanonicalizer;
+import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
+import io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
@@ -22,7 +22,7 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.vocab.VocabXsd;
 
 /**
- * Tests {@link ContentAddressedIriGeneratorCbor} through the port a consumer actually calls.
+ * Tests {@link ContentAddressedIriGeneratorSexpr} through the port a consumer actually calls.
  *
  * <p>The centre of gravity is {@link Distinctness}: an identifier that two different graphs
  * share is worse than no identifier at all, because deduplication and integrity checks both
@@ -30,7 +30,7 @@ import io.kogn.rdf.terms.vocab.VocabXsd;
  * — and every one of them was a real collision before, the whole point of the class being to
  * keep them from coming back.</p>
  */
-class ContentAddressedIriGeneratorCborTest {
+class ContentAddressedIriGeneratorSexprTest {
 
   private static final String EX = "http://example.org/";
 
@@ -40,8 +40,8 @@ class ContentAddressedIriGeneratorCborTest {
   @BeforeEach
   void setUp() {
     rdf = new SimpleRdf();
-    generator = new ContentAddressedIriGeneratorCbor(rdf,
-        new ContentAddressableRdfSerializer(new RdfDatasetCanonicalizer()));
+    generator = new ContentAddressedIriGeneratorSexpr(rdf,
+        new ContentAddressableRdfSerializer(new RdfDatasetCanonicalizer(rdf), rdf));
   }
 
   @Nested
@@ -92,12 +92,6 @@ class ContentAddressedIriGeneratorCborTest {
     void graphsDifferingOnlyDeepInsideABlankNodeChain() {
       assertThat(nestedGraphCid("100")).isNotEqualTo(nestedGraphCid("200"));
     }
-
-    private IRI cidOf(RDFTerm object) {
-      Graph graph = graph();
-      graph.add(rdf.createIRI(EX + "resource"), rdf.createIRI(EX + "value"), object);
-      return generator.generateIri(graph);
-    }
   }
 
   @Nested
@@ -117,6 +111,15 @@ class ContentAddressedIriGeneratorCborTest {
       IRI cid2 = generator.generateIri(nestedGraph("100", "totally", "different"));
 
       assertThat(cid1).isEqualTo(cid2);
+    }
+
+    @Test
+    @DisplayName("regardless of the case of the language tag — RDF 1.1 compares them case-insensitively")
+    void regardlessOfLanguageTagCase() {
+      IRI cid1 = cidOf(rdf.createLiteral("Bank", "en"));
+      IRI cid2 = cidOf(rdf.createLiteral("Bank", "EN"));
+
+      assertThat(cid1).as("\"Bank\"@en and \"Bank\"@EN are the same RDF literal").isEqualTo(cid2);
     }
 
     @Test
@@ -216,6 +219,12 @@ class ContentAddressedIriGeneratorCborTest {
 
   private IRI nestedGraphCid(String value) {
     return generator.generateIri(nestedGraph(value, "table", "entry"));
+  }
+
+  private IRI cidOf(RDFTerm object) {
+    Graph graph = graph();
+    graph.add(rdf.createIRI(EX + "resource"), rdf.createIRI(EX + "value"), object);
+    return generator.generateIri(graph);
   }
 
   /** A resource whose measurement hangs off two chained blank nodes. */

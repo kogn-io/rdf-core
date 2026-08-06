@@ -33,7 +33,7 @@
  *
  * <h2>Architecture role</h2>
  * <p>This is a backend-neutral port: {@link io.kogn.rdf.cid.ContentAddressedIriGenerator}
- * defines the contract, {@link io.kogn.rdf.cid.ContentAddressedIriGeneratorCbor} is its
+ * defines the contract, {@link io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr} is its
  * only implementation, both live in this leaf module.</p>
  *
  * @see io.kogn.rdf.cid.ContentAddressedIriGenerator

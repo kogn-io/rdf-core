@@ -45,9 +45,9 @@ the package renamed to `io.kogn.rdf.cid.*`:
 
 - **`ContentAddressedIriGenerator`** — the port: `IRI generateIri(ReadableGraph)`.
   Neutral in and out, `rdf-terms` types only.
-- **`ContentAddressedIriGeneratorCbor`** — the implementation, with
+- **`ContentAddressedIriGeneratorSexpr`** — the implementation, with
   `ContentAddressableRdfSerializer` and `RdfDatasetCanonicalizer` in
-  `io.kogn.rdf.cid.cbor` beneath it.
+  `io.kogn.rdf.cid.sexpr` beneath it.
 
 **Port and implementation share the module**, as in `rdf-shacl` — but for a
 different reason, and the difference is the point. `rdf-shacl` is split from
@@ -125,15 +125,20 @@ suggested otherwise:
   same `com.apicatalog.rdf.*` classes as the `titanium-json-ld` we depend on
   explicitly, and brings okhttp plus the Kotlin standard library along for a
   document loader this module never invokes.
-- The `cbor` package name, and the `Cbor` suffix on the implementation class,
-  are inherited from the origin and are inaccurate: the serialization that gets
-  hashed is a length-prefixed S-expression form, not CBOR. Renaming a published
-  package is a breaking change for no functional gain, so the names stay — but
-  only the names. The prose that actively claimed a CBOR serialization (class
-  and package javadoc, the POM description) is corrected, and each surviving
-  name says at its own site that it is a misnomer and points here. A name a
-  reader can look up is a cost; a name backed by documentation repeating the
-  falsehood is a trap.
+- The `cbor` package name and the `Cbor` suffix on the implementation class,
+  inherited from the origin, were inaccurate: the serialization that gets
+  hashed is a length-prefixed S-expression form, not CBOR. Unlike the rest of
+  this ADR's "nothing is published yet" reasoning, an earlier draft of this
+  decision kept the misnomer anyway, on the premise that renaming a published
+  package is a breaking change for no functional gain — a premise that does
+  not hold for a module extracted in this very change and not yet released.
+  The names are corrected before the fact rather than documented as a defect
+  after it: the package is `io.kogn.rdf.cid.sexpr`, the class is
+  `ContentAddressedIriGeneratorSexpr`. Renaming after a release, once a
+  consumer or a federated peer has the old names in code or in a persisted
+  `urn:cid:` provenance record, would be the breaking change this ADR's
+  own reasoning elsewhere warns against — so this is the last point at which
+  the correction is free.
 - The identifier is `urn:cid:<hash>`, the hash being the Base32 digest
   lower-cased and **without** `=` padding. The `cid:` segment was what the port
   javadoc had promised all along while the code emitted a bare `urn:` plus a

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.cid.cbor;
+package io.kogn.rdf.cid.sexpr;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,11 +36,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class RdfDatasetCanonicalizer {
 
-  private final RDF rdf = new SimpleRdf();
+  private final RDF rdf;
 
-  /** Creates a canonicalizer. */
+  /** Creates a canonicalizer using {@link SimpleRdf} to rebuild terms from the canonical form. */
   public RdfDatasetCanonicalizer() {
-    // stateless apart from the term factory
+    this(new SimpleRdf());
+  }
+
+  /**
+   * Creates a canonicalizer.
+   *
+   * @param rdf the term factory used to rebuild terms from the canonical form
+   */
+  public RdfDatasetCanonicalizer(RDF rdf) {
+    this.rdf = rdf;
   }
 
   /**
