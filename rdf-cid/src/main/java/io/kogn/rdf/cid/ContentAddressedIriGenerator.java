@@ -20,7 +20,19 @@ import io.kogn.rdf.terms.ReadableGraph;
  *   <li>Content-addressed storage systems</li>
  * </ul>
  *
- * <p>The generated IRIs typically follow the format: {@code urn:cid:<hash>}</p>
+ * <p>The generated IRIs follow the format {@code urn:cid:<hash>}, the hash being an
+ * unpadded, lower-case Base32 digest.</p>
+ *
+ * <h2>What the identifier is derived from</h2>
+ *
+ * <p>Every term of every triple goes into the hash in full: an IRI by its IRI string, a
+ * literal by its lexical form, its datatype <em>and</em> its language tag, a blank node by
+ * its structural position rather than its label. Two graphs therefore share an identifier
+ * if and only if they hold the same triples up to blank node labelling and triple order.</p>
+ *
+ * <p>Read the other way round: the identifier is <strong>not</strong> independent of the
+ * IRIs the data uses. Two graphs that describe the same thing under different subject IRIs
+ * are different content and get different identifiers.</p>
  *
  * @see ReadableGraph
  * @see IRI
@@ -34,10 +46,19 @@ public interface ContentAddressedIriGenerator {
    * based on a cryptographic hash of the normalized RDF representation.
    * The same graph content will always produce the same IRI.</p>
    *
+   * <p><strong>Preconditions.</strong> The graph must describe exactly one resource: it holds
+   * triples of <strong>exactly one
+   * IRI subject</strong>, plus any blank node triples reachable from it. A graph with no IRI
+   * subject, with several of them, or with triples no IRI subject reaches is rejected rather
+   * than silently reduced — an identifier that ignores part of its input would let two
+   * different graphs share one.</p>
+   *
    * @param graph the RDF graph to generate an IRI for
    * @return a content-addressed IRI (e.g., {@code urn:cid:abc123...})
-   * @throws IllegalArgumentException if the graph is null or empty
-   * @throws IllegalStateException if content addressing fails
+   * @throws IllegalArgumentException if the graph is null or empty, does not hold exactly one
+   *         IRI subject, or holds triples not reachable from that subject
+   * @throws ContentAddressingException if the graph satisfies those preconditions but the
+   *         identifier cannot be derived
    */
   IRI generateIri(ReadableGraph graph);
 }

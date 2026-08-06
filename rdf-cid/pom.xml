@@ -13,7 +13,7 @@
 	<artifactId>rdf-cid</artifactId>
 	<name>Kogn RDF Content Identifier (CID)</name>
 	<description
-  >Content-addressed IRI generation using CBOR-based serialization and URDNA2015 canonicalization</description>
+  >Content-addressed IRI generation using URDNA2015 canonicalization and a canonical, length-prefixed serialization</description>
 
 	<dependencies>
 		<!-- RDF Terms data model -->
@@ -39,12 +39,6 @@
 		<dependency>
 			<groupId>org.bouncycastle</groupId>
 			<artifactId>bcprov-jdk18on</artifactId>
-		</dependency>
-
-		<!-- byte[]/Byte[] boxing helpers -->
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-lang3</artifactId>
 		</dependency>
 
 		<!-- Base32 encoding of the hash -->

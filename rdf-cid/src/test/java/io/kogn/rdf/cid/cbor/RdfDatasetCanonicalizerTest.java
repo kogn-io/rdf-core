@@ -106,8 +106,11 @@ class RdfDatasetCanonicalizerTest {
   }
 
   @Test
-  void testDifferentDatatypesMakeDifferentCIDs() {
-    // Two graphs with the same value but different datatypes should have different CIDs
+  void testDifferentDatatypesStayDistinguishableAfterCanonicalization() {
+    // Canonicalization must not collapse two values that differ only in datatype. Whether the
+    // *identifier* keeps them apart is a different question and a different class: this test
+    // serializes with its own helper below and never touches ContentAddressableRdfSerializer,
+    // so it cannot see a collision there. That is covered by ContentAddressedIriGeneratorCborTest.
     IRI subject = rdf.createIRI("http://example.org/resource");
     IRI predicate = rdf.createIRI("http://example.org/value");
 
