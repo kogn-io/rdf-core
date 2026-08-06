@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -104,20 +103,19 @@ public class ContentAddressableRdfSerializer {
    *         drop out of the identifier derived here
    */
   public SingleContentAddressableResult serializeWithUrn(Collection<Triple> triples) {
-    Map<IRI, Collection<Triple>> groupedBySubject = groupTriplesByIriSubject(triples);
-    Collection<Triple> subjectTriples = groupedBySubject.values().iterator().next();
-    return serializeWithUrnInternal(subjectTriples);
+    return serializeWithUrnInternal(triplesOfTheSingleIriSubject(triples));
   }
 
   /**
-   * Groups triples by their IRI subject and collects all related BlankNode triples.
+   * Returns the triples of the single IRI subject, including all transitively reachable
+   * BlankNode triples.
    *
-   * @param triples the triples to group
-   * @return map of IRI subjects to their associated triples (including BlankNode triples)
+   * @param triples the triples to validate and collect from
+   * @return the subject's triples (including BlankNode triples)
    * @throws IllegalArgumentException if the triples hold other than exactly one IRI subject, or
    *         a triple is reachable from no IRI subject
    */
-  private Map<IRI, Collection<Triple>> groupTriplesByIriSubject(Collection<Triple> triples) {
+  private Collection<Triple> triplesOfTheSingleIriSubject(Collection<Triple> triples) {
     Map<BlankNodeOrIRI, List<Triple>> bySubject = triples.stream().collect(Collectors.groupingBy(Triple::getSubject));
 
     List<IRI> iriSubjects = triples.stream()
@@ -133,16 +131,9 @@ public class ContentAddressableRdfSerializer {
               + "one IRI subject, but hold " + iriSubjects.size());
     }
 
-    Map<IRI, Collection<Triple>> result = new HashMap<>();
-    Set<Triple> reachable = new HashSet<>();
-    for (IRI subject : iriSubjects) {
-      Collection<Triple> resourceTriples = collectTriplesForResource(bySubject, subject);
-      reachable.addAll(resourceTriples);
-      result.put(subject, resourceTriples);
-    }
-
-    rejectUnreachable(triples, reachable);
-    return result;
+    Collection<Triple> resourceTriples = collectTriplesForResource(bySubject, iriSubjects.getFirst());
+    rejectUnreachable(triples, new HashSet<>(resourceTriples));
+    return resourceTriples;
   }
 
   /**
