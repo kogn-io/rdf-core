@@ -8,12 +8,13 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
-import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer.SingleContentAddressableResult;
+import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer.ContentAddressableResult;
+import io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.ReadableGraph;
+import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Content-addressed IRI generator over a canonicalized, length-prefixed S-expression form.
@@ -23,11 +24,24 @@ import lombok.extern.slf4j.Slf4j;
  * Blake2b-256. Identical RDF graphs — regardless of blank node labels or triple order —
  * therefore always produce the same identifier.</p>
  */
-@Slf4j
 public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGenerator {
 
   private final RDF rdf;
   private final ContentAddressableRdfSerializer contentAddressableRdfSerializer;
+
+  /** Creates a generator using {@link SimpleRdf} to create the resulting IRI. */
+  public ContentAddressedIriGeneratorSexpr() {
+    this(new SimpleRdf());
+  }
+
+  /**
+   * Creates a generator.
+   *
+   * @param rdf the term factory used to create the resulting IRI
+   */
+  public ContentAddressedIriGeneratorSexpr(RDF rdf) {
+    this(rdf, new ContentAddressableRdfSerializer(new RdfDatasetCanonicalizer(rdf), rdf));
+  }
 
   /**
    * Creates a generator.
@@ -49,7 +63,7 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
 
     List<Triple> triples = graph.stream().collect(Collectors.toList());
 
-    SingleContentAddressableResult result;
+    ContentAddressableResult result;
     try {
       result = contentAddressableRdfSerializer.serializeWithUrn(triples);
     } catch (IllegalArgumentException | ContentAddressingException e) {
@@ -58,10 +72,6 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
       throw new ContentAddressingException("Failed to generate content-addressed IRI", e);
     }
 
-    String iriString = result.urn().getIRIString();
-
-    log.debug("Generated content-addressed IRI: {} for graph with {} triples", iriString, graph.size());
-
-    return rdf.createIRI(iriString);
+    return rdf.createIRI(result.urn().getIRIString());
   }
 }
