@@ -21,6 +21,7 @@ Licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J backend for the hosting port: builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Standalone SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning a neutral `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity`. Every `sh:message` survives with its language tag — the port selects no language, so a multilingual shape reaches the caller intact. Depends only on `rdf-terms` — no rdf4j. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J backend for the SHACL port (wraps `ShaclValidator`). Store-independent — no dependency on the dataset modules. |
+| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation: `ContentAddressedIriGenerator.generateIri(graph)` derives a deterministic `urn:` from a graph's content alone, so identical content yields the same identifier regardless of blank node labels, triple order or the environment it was minted in. The sole implementation ships with the port (URDNA2015 canonicalization, Blake2b-256 hash). Depends only on `rdf-terms` — no rdf4j. |
 
 These modules were extracted from a larger RDF stack; the `io.kogn.*` group id
 reflects that origin. The library itself is deliberately framework- and
