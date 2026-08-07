@@ -24,7 +24,7 @@ import io.kogn.rdf.dataset.SparqlUpdate;
  * it — through which the neutral dataset ports are reached. The RDF data itself
  * is reached via
  * {@link #graphStore()} / {@link #sparqlQuery()} and is modelled as named graphs
- * only (see the package documentation).</p>
+ * only (see the {@code io.kogn.rdf.dataset} package documentation).</p>
  *
  * <p>The handle is the unit of <em>in-flight protection</em>. While at least one
  * handle for a dataset is open, the underlying store must not be shut down,

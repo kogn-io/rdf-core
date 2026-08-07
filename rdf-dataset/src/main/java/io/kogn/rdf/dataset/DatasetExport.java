@@ -44,6 +44,15 @@ public interface DatasetExport {
    * {@link #export(OutputStream, RdfFormat, IRI)} if a single graph is what you want in
    * Turtle or N-Triples.</p>
    *
+   * <p><strong>The "every statement tagged" promise assumes the named-graphs-only model
+   * is honoured.</strong> This port does not itself police that model — see
+   * {@link SparqlUpdate} — so an {@code INSERT DATA} without a {@code GRAPH} clause can
+   * leave statements in the store's default graph. Such statements are serialized
+   * untagged (an unnamed block in TriG, no fourth term in N-Quads) and, once written,
+   * are reachable only through this whole-dataset export: neither
+   * {@link #export(OutputStream, RdfFormat, IRI)} nor {@link GraphStore#export(IRI)} can
+   * address a default graph, since both require a named-graph {@link IRI}.</p>
+   *
    * <p>An empty dataset yields a document with no statements; depending on the format
    * that document may still carry a preamble such as namespace declarations.</p>
    *

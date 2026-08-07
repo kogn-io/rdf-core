@@ -77,6 +77,7 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the named graph to export; must not be {@code null}
    * @return a snapshot of all triples in the named graph
+   * @see DatasetExport#export(java.io.OutputStream, RdfFormat, IRI)
    */
   ReadableGraph export(IRI namedGraph);
 
