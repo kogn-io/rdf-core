@@ -11,7 +11,7 @@ carries what is specific to this codebase. Read it before starting the audit.
 | `rdf-dataset-rdf4j` | **highest** | the only code that has to keep those promises |
 | `rdf-dataset-hosting` | **highest** | port module with real validation logic and lifecycle contracts |
 | `rdf-dataset-hosting-rdf4j` | **highest** | owns stores and leases; the round-2 lifecycle findings all lived here |
-| `rdf-cid` | high | its own promise ("same content -> same identifier") is a correctness property, not just a contract; the heaviest third-party dependency set in the repo (ADR-0014); wrong output is silent (a wrong CID looks exactly like a right one) |
+| `rdf-cid` | high | its own promise ("same content -> same identifier") is a correctness property, not just a contract; the only backend-free module with a third-party dependency footprint at all (ADR-0014); wrong output is silent (a wrong CID looks exactly like a right one) |
 | `rdf-shacl` / `rdf-shacl-rdf4j` | medium | smaller surface, value types, no concurrency |
 | `rdf-terms` | low | library-free data model, no I/O, no state |
 

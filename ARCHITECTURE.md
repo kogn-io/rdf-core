@@ -299,7 +299,7 @@ what was imported before
 canonicalizes the graph with URDNA2015, serializes the result into a sorted,
 length-prefixed S-expression — blank nodes under their own kind tag with a
 deterministic skolem name keyed off the canonical label URDNA2015 already
-assigns them — and hashes it with Blake2b-256.
+assigns them — and hashes it with SHA3-256.
 
 Two constraints callers need to know before persisting the result anywhere:
 
@@ -319,10 +319,12 @@ implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to
 swap, because the algorithm is arithmetic over `rdf-terms` values rather than a
 call into a store. It depends on `rdf-terms` alone among our modules and on no
 RDF4J artifact (`CidPortHasNoBackendDependencyTest` pins that the same way
-`rdf-shacl` does), but pulls the heaviest third-party dependency set in this
-repository to get there: `io.setl:rdf-urdna` for URDNA2015, BouncyCastle for
-Blake2b-256, Commons Codec for Base32, and Titanium JSON-LD as `rdf-urdna`'s own
-dependency for its RDF dataset model.
+`rdf-shacl` does). It is the only backend-free module in this repository with a
+third-party dependency footprint of any size — the RDF4J adapter modules pull
+considerably more: `io.setl:rdf-urdna` for URDNA2015, Commons Codec for Base32,
+and Titanium JSON-LD, a direct dependency used by `RdfDatasetCanonicalizer` as
+`rdf-urdna`'s input/output model. SHA3-256, the digest, is a JDK-native
+`MessageDigest` algorithm and adds no dependency of its own.
 
 ## Build & release
 

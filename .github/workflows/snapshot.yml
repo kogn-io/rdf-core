@@ -2,7 +2,8 @@ name: Deploy snapshot to Central
 
 # Snapshot pipeline for the io.kogn.rdf OSS vertical. On push to main the job
 # builds, tests and deploys the module artifacts (rdf-terms, rdf-dataset,
-# rdf-dataset-rdf4j, rdf-shacl, rdf-shacl-rdf4j, rdf-cid) + parent POM as SNAPSHOT
+# rdf-dataset-rdf4j, rdf-dataset-hosting, rdf-dataset-hosting-rdf4j, rdf-shacl,
+# rdf-shacl-rdf4j, rdf-cid) + parent POM as SNAPSHOT
 # (default ${revision} = 0.0.1-SNAPSHOT) to the Sonatype Central Portal snapshot
 # repository. Pull requests and other branches only build + test (no deploy).
 #

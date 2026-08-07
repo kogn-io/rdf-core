@@ -14,8 +14,19 @@ ledger of what was imported before.
 
 The implementation canonicalizes the graph with URDNA2015
 (`io.setl:rdf-urdna`), skolemizes blank nodes to deterministic IRIs, serializes
-the result into a canonical byte form and hashes it with Blake2b-256
-(BouncyCastle), Base32-encoding the digest into a `urn:`.
+the result into a canonical byte form and hashes it with SHA3-256
+(`java.security.MessageDigest`, no third-party dependency), Base32-encoding the
+digest into a `urn:`. An earlier draft used Blake2b-256 via BouncyCastle
+without ever writing down why; a review found the choice unjustified and, with
+nothing published yet, this is corrected in the same breath as everything
+else in this ADR. For this purpose — collision resistance over an internal
+byte string, not a password or a compatibility target — SHA3-256 and Blake2b
+offer comparable security margins; SHA3-256 is additionally a NIST standard
+(FIPS 202) shipped by every JDK since 9, so it drops the entire BouncyCastle
+provider — 10 of the module's then 10.8 MiB of third-party jars — for no
+loss. If a future consumer needs Blake2b specifically (speed, or
+compatibility with something external), that is a reason to write down here,
+not to reintroduce silently.
 
 The point that made this an extraction candidate rather than a rewrite: the code
 was already written **entirely against `io.kogn.rdf.terms.*`**. A dependency
@@ -54,7 +65,7 @@ different reason, and the difference is the point. `rdf-shacl` is split from
 `rdf-shacl-rdf4j` because the validation *is* a call into a backend engine, so a
 second backend is a real prospect and the port exists to keep it swappable. Here
 there is no backend to swap: the algorithm runs on `rdf-terms` values and its
-third-party dependencies (rdf-urdna, BouncyCastle, commons-codec) are libraries
+third-party dependencies (rdf-urdna, commons-codec) are libraries
 it calls, not a store it talks to. Splitting off an `rdf-cid-<backend>` would
 name a backend that does not exist. The module therefore depends on `rdf-terms`
 alone among our modules and on **no** RDF4J artifact, which
@@ -116,15 +127,35 @@ suggested otherwise:
   correction above was taken precisely because nothing was published yet — the
   same change after a release would cost a migration, and after federation would
   cost more than that.
-- The module carries the heaviest third-party dependency set in this repository
-  (rdf-urdna, titanium-json-ld, BouncyCastle, commons-codec),
-  where every other non-adapter module carries almost none. That is contained
-  by it being a leaf: nothing else here depends on `rdf-cid`, so a consumer that
+- The module is the only backend-free (non-adapter) module in this repository
+  with a third-party dependency set of any weight at all (rdf-urdna,
+  titanium-json-ld, commons-codec) — every other non-adapter module carries
+  almost none. It is not, however, the heaviest dependency set in the
+  repository overall: the RDF4J adapter modules (`rdf-shacl-rdf4j`,
+  `rdf-dataset-rdf4j`, `rdf-dataset-hosting-rdf4j`) pull considerably more,
+  both in jar count and in bytes. That earlier, broader claim was measured and
+  found false; this ADR, README.md, ARCHITECTURE.md and CLAUDE.md all carried
+  it and are corrected together. `rdf-cid`'s own weight is contained by it
+  being a leaf: nothing else here depends on `rdf-cid`, so a consumer that
   does not want those jars simply does not put the module on its classpath.
   `rdf-urdna`'s transitive `titanium-json-ld-jre8` is excluded — it ships the
   same `com.apicatalog.rdf.*` classes as the `titanium-json-ld` we depend on
   explicitly, and brings okhttp plus the Kotlin standard library along for a
   document loader this module never invokes.
+- **Not every graph meeting `generateIri`'s documented preconditions gets an
+  identifier.** `io.setl:rdf-urdna` caps the permutations it will try in the
+  `hash-n-degree-quads` step while telling apart blank nodes it cannot yet
+  distinguish; a graph with enough symmetric blank node structure — measured
+  on this branch with a complete graph over `n` blank nodes, every edge the
+  same predicate, hanging off one IRI subject — exceeds that cap at `n=7` (49
+  triples) and gets no identifier at all, only a
+  `CanonicalizationResourceLimitExceededException`. This is a property of
+  `io.setl:rdf-urdna`, not of URDNA2015 itself: another conformant
+  implementation may address a graph this one cannot. That makes the set of
+  addressable graphs implementation-defined, not just the digest — a
+  canonicalizer swap is therefore a compatibility break in two ways, not one,
+  and both belong in the "generated identifiers are a compatibility surface"
+  consequence above.
 - The `cbor` package name and the `Cbor` suffix on the implementation class,
   inherited from the origin, were inaccurate: the serialization that gets
   hashed is a length-prefixed S-expression form, not CBOR. Unlike the rest of

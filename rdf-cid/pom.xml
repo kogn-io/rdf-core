@@ -29,12 +29,6 @@
 			<scope>provided</scope>
 		</dependency>
 
-		<!-- Blake2b-256 digest for the content hash -->
-		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-jdk18on</artifactId>
-		</dependency>
-
 		<!-- Base32 encoding of the hash -->
 		<dependency>
 			<groupId>commons-codec</groupId>
