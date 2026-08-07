@@ -517,11 +517,10 @@ class DatasetLifecycleRdf4jTest {
 
       assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
 
-      // what is left behind is neither the old dataset nor a fresh one, and the cleanup cannot be
-      // finished — so the dataset is refused rather than opened over the remains, and it stays
-      // refused for as long as they are there.
+      // the cleanup cannot be finished — so the dataset is refused rather than opened over
+      // whatever remains, and it stays refused for as long as they are there.
       assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("half-deleted")
+          .hasMessageContaining("unfinished delete")
           .hasCauseReference(diskFailure);
       assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class);
     }
@@ -573,7 +572,7 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("a repeated delete that succeeds clears the half-deleted mark")
+    @DisplayName("a repeated delete that succeeds clears the unfinished-delete mark")
     void delete_retriedSuccessfully_clearsTheMark() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("retry-delete");
@@ -597,6 +596,100 @@ class DatasetLifecycleRdf4jTest {
 
       assertThat(lc.list()).doesNotContain(id);
       assertThatCode(() -> lc.acquire(id).close()).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("the unfinished-delete mark survives a restart: a second instance over the same storage root"
+        + " still refuses the remains if the cleanup keeps failing")
+    void delete_diskTeardownFails_secondInstanceOverSameRoot_stillRefusesTheRemains() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("restart-refused");
+      final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
+      final DatasetLifecycleRdf4j first = new DatasetLifecycleRdf4j(
+          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(id)) {
+            throw diskFailure; // the OS refuses to remove the storage
+          }
+          super.deleteStorageOnDisk(toDelete);
+        }
+      };
+      first.acquire(id).close();
+      assertThatThrownBy(() -> first.delete(id)).isSameAs(diskFailure);
+      first.shutDownAll(); // the process goes down with the mark still unresolved
+
+      // a brand-new instance — its in-process tracking starts empty, so only the on-disk marker
+      // can be what makes it refuse the remains too.
+      final DatasetLifecycleRdf4j second = new DatasetLifecycleRdf4j(
+          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(id)) {
+            throw diskFailure; // still refuses to remove the storage after the "restart"
+          }
+          super.deleteStorageOnDisk(toDelete);
+        }
+      };
+      lifecycle = second;
+
+      assertThat(second.list()).contains(id);
+      assertThatThrownBy(() -> second.acquire(id)).isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("unfinished delete")
+          .hasCauseReference(diskFailure);
+    }
+
+    @Test
+    @DisplayName("the unfinished-delete mark survives a restart: a second instance over the same storage root"
+        + " cleans up the remains and seeds a fresh dataset once the cleanup succeeds")
+    void delete_diskTeardownFails_secondInstanceOverSameRoot_cleansUpAndSeedsAfresh() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("restart-recovers");
+      final IRI otherGraph = RDF4JIRI.of("https://example.org/graph/2");
+      final String askOther = "ASK { GRAPH <" + otherGraph.getIRIString() + "> { ?s ?p ?o } }";
+      final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
+      final AtomicInteger seeds = new AtomicInteger();
+      final DatasetLifecycleRdf4j first = new DatasetLifecycleRdf4j(
+          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC,
+          (seeded, graphStore) -> {
+            seeds.incrementAndGet();
+            graphStore.add(GRAPH, singleTriple());
+          }) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(id)) {
+            throw diskFailure; // the OS refuses to remove the storage, and never gets to try again
+          }
+          super.deleteStorageOnDisk(toDelete);
+        }
+      };
+      try (DatasetHandle ds = first.acquire(id)) {
+        ds.graphStore().add(otherGraph, singleTriple()); // written after seeding — tells old from new
+      }
+      assertThatThrownBy(() -> first.delete(id)).isSameAs(diskFailure);
+      first.shutDownAll(); // the process goes down with the mark still unresolved
+
+      // precondition of the hazard: the remains are still on disk, not just the marker.
+      assertThat(soleDatasetDirectory(root)).isNotEmptyDirectory();
+
+      // a brand-new instance, real (non-overridden) on-disk teardown this time: the transient
+      // failure has cleared, so its retry of the cleanup — triggered by the marker it finds on
+      // disk, not by any in-process state, since this instance never attempted the delete itself
+      // — succeeds.
+      final DatasetLifecycleRdf4j second = new DatasetLifecycleRdf4j(
+          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC,
+          (seeded, graphStore) -> {
+            seeds.incrementAndGet();
+            graphStore.add(GRAPH, singleTriple());
+          });
+      lifecycle = second;
+
+      assertThat(second.list()).contains(id);
+      try (DatasetHandle ds = second.acquire(id)) {
+        assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // freshly seeded
+        assertThat(ds.sparqlQuery().ask(askOther)).isFalse(); // and nothing of the old dataset survived
+      }
     }
 
     private Path soleDatasetDirectory(final Path root) throws IOException {
