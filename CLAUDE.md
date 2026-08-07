@@ -1,4 +1,4 @@
-# Kogn RDF — Contributor Notes
+# kognio-rdf — Contributor Notes
 
 Backend-agnostic RDF abstraction: a pure data model, dataset ports and a
 swappable RDF4J backend. Published under Apache-2.0.

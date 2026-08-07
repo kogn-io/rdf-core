@@ -11,7 +11,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 	<artifactId>rdf-terms</artifactId>
-	<name>Kogn RDF Terms</name>
+	<name>kognio-rdf Terms</name>
 	<description
   >RDF data model - technology-agnostic term interfaces, graph types, and vocabulary constants (Commons-RDF aligned, zero external dependencies)</description>
 

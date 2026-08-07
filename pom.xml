@@ -10,7 +10,7 @@
 	<artifactId>rdf-parent</artifactId>
 	<version>${revision}</version>
 	<packaging>pom</packaging>
-	<name>Kogn RDF</name>
+	<name>kognio-rdf</name>
 	<description
   >Technology-agnostic RDF data model, dataset ports and RDF4J backend</description>
 

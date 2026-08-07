@@ -1,4 +1,4 @@
-# Full-review profile — kogn-rdf
+# Full-review profile — kognio-rdf
 
 Project calibration for the `/full-review` skill. The skill carries the method; this file
 carries what is specific to this codebase. Read it before starting the audit.

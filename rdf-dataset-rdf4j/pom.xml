@@ -11,7 +11,7 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>rdf-dataset-rdf4j</artifactId>
-  <name>Kogn RDF Dataset RDF4J Implementation</name>
+  <name>kognio-rdf Dataset RDF4J Implementation</name>
   <description
   >RDF4J-based implementation of the rdf-dataset ports (GraphStore, SparqlQuery, SparqlUpdate, DatasetExport, DatasetTransactor/DatasetTx) plus RDF4J term/factory helpers. Store-agnostic wrappers over a caller-supplied Repository; dataset hosting lives in rdf-dataset-hosting-rdf4j.</description>
 
