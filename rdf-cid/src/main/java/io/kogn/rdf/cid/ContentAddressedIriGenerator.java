@@ -53,12 +53,24 @@ public interface ContentAddressedIriGenerator {
    * than silently reduced — an identifier that ignores part of its input would let two
    * different graphs share one.</p>
    *
+   * <p><strong>Not every graph meeting those preconditions gets an identifier.</strong> The
+   * shipped canonicalizer caps the permutations it will try while telling apart blank nodes
+   * it cannot yet distinguish; a graph with enough symmetric blank node structure — for
+   * instance a densely interconnected cluster where every edge carries the same predicate —
+   * can exceed that cap and come back with no identifier at all, as a
+   * {@link CanonicalizationResourceLimitExceededException}. This is a property of the
+   * canonicalizer this module ships, not of URDNA2015 itself, so the exact set of
+   * addressable graphs is implementation-defined and may change with the canonicalizer.</p>
+   *
    * @param graph the RDF graph to generate an IRI for
    * @return a content-addressed IRI (e.g., {@code urn:cid:abc123...})
    * @throws IllegalArgumentException if the graph is null or empty, does not hold exactly one
    *         IRI subject, or holds triples not reachable from that subject
+   * @throws CanonicalizationResourceLimitExceededException if the graph satisfies those
+   *         preconditions but its blank node structure exceeds the canonicalizer's
+   *         permutation limit
    * @throws ContentAddressingException if the graph satisfies those preconditions but the
-   *         identifier cannot be derived
+   *         identifier cannot otherwise be derived
    */
   IRI generateIri(ReadableGraph graph);
 }

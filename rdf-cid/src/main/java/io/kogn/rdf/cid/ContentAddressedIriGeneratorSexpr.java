@@ -21,7 +21,7 @@ import io.kogn.rdf.terms.Triple;
  *
  * <p>The graph is canonicalized with URDNA2015, serialized into a sorted S-expression of
  * length-prefixed fields — blank nodes under deterministic skolem names — and hashed with
- * Blake2b-256. Identical RDF graphs — regardless of blank node labels or triple order —
+ * SHA3-256. Identical RDF graphs — regardless of blank node labels or triple order —
  * therefore always produce the same identifier.</p>
  */
 public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGenerator {
@@ -57,7 +57,7 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
 
   @Override
   public IRI generateIri(ReadableGraph graph) {
-    if (graph == null || graph.size() == 0) {
+    if (graph == null || graph.isEmpty()) {
       throw new IllegalArgumentException("Graph cannot be null or empty");
     }
 

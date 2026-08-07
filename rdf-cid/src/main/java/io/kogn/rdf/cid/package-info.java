@@ -4,7 +4,7 @@
  * <p>This package derives content identifiers (CIDs) of the form {@code urn:cid:<hash>} from
  * an RDF graph: the graph is canonicalized with URDNA2015, serialized into a sorted,
  * length-prefixed S-expression form — blank nodes under deterministic skolem names — and
- * hashed with Blake2b-256.</p>
+ * hashed with SHA3-256.</p>
  *
  * <h2>Why content addressing</h2>
  * <p>Content addressing creates identifiers based on the actual content rather than

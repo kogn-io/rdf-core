@@ -6,6 +6,9 @@ package io.kogn.rdf.cid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,6 +21,7 @@ import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.vocab.VocabXsd;
+import io.setl.rdf.normalization.MaxResourceExceeded;
 
 /**
  * Tests {@link ContentAddressedIriGeneratorSexpr} through the port a consumer actually calls.
@@ -175,7 +179,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "golden/1"), rdf.createIRI(EX + "name"), rdf.createLiteral("Golden Vector"));
 
       assertThat(generator.generateIri(graph).getIRIString())
-          .isEqualTo("urn:cid:3phz7ycilpfxgkyjzpsckoji353chwzbdoxstrddkeh5gun33zdq");
+          .isEqualTo("urn:cid:7ynfm4av2wpw4ney66r6cnm5dnflsfm3bxfeog7actgr2bpze6qq");
     }
 
     @Test
@@ -188,7 +192,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(subject, rdf.createIRI(EX + "label"), rdf.createLiteral("Golden", "en"));
 
       assertThat(generator.generateIri(graph).getIRIString())
-          .isEqualTo("urn:cid:i2hk6tpaiulbvreirtbdp7zdrjctdas6khqw46ogianc3osmqcya");
+          .isEqualTo("urn:cid:qeuqsome26hzj72kyysq2gvmrfu5z75ujfvc5jkdk7257ycy7t2a");
     }
 
     @Test
@@ -204,7 +208,7 @@ class ContentAddressedIriGeneratorSexprTest {
           rdf.createLiteral("7", rdf.createIRI(VocabXsd.DECIMAL.getIRIString())));
 
       assertThat(generator.generateIri(graph).getIRIString())
-          .isEqualTo("urn:cid:bavfslen5g35ohpplbqxgocd4auadk4p237vxxemxurgdvohzica");
+          .isEqualTo("urn:cid:wc4oelglugf5fbazpzmlxz52pnanlhvtevl7qwjkh5nwgv3j33hq");
     }
   }
 
@@ -291,6 +295,37 @@ class ContentAddressedIriGeneratorSexprTest {
 
       assertThatExceptionOfType(ContentAddressingException.class).isThrownBy(() -> generator.generateIri(graph))
           .withCauseInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("a legal graph too symmetric for the canonicalizer's permutation limit "
+        + "surfaces as a resource-limit failure, not a generic one")
+    void stronglySymmetricBlankNodeStructureExceedsThePermutationLimit() {
+      // K_n: n blank nodes, every ordered pair linked by the same predicate, all hanging off
+      // one IRI subject. n=7 (49 triples, all satisfying generateIri's documented
+      // preconditions) reliably exceeds io.setl:rdf-urdna's permutation cap in the
+      // hash-n-degree-quads step -- measured on this branch, not inferred.
+      Graph graph = graph();
+      IRI subject = rdf.createIRI(EX + "symmetric");
+      IRI predicate = rdf.createIRI(EX + "link");
+      int n = 7;
+      List<BlankNode> nodes = new ArrayList<>();
+      for (int i = 0; i < n; i++) {
+        BlankNode node = rdf.createBlankNode("n" + i);
+        nodes.add(node);
+        graph.add(subject, predicate, node);
+      }
+      for (BlankNode from : nodes) {
+        for (BlankNode to : nodes) {
+          if (from != to) {
+            graph.add(from, predicate, to);
+          }
+        }
+      }
+
+      assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
+          .isThrownBy(() -> generator.generateIri(graph))
+          .withCauseInstanceOf(MaxResourceExceeded.class);
     }
   }
 

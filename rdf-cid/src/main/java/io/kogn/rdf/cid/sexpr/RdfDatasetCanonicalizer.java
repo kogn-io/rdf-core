@@ -13,6 +13,7 @@ import com.apicatalog.rdf.RdfDataset;
 import com.apicatalog.rdf.RdfResource;
 import com.apicatalog.rdf.RdfTriple;
 
+import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.cid.ContentAddressingException;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -22,6 +23,7 @@ import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
+import io.setl.rdf.normalization.MaxResourceExceeded;
 import io.setl.rdf.normalization.RdfNormalize;
 
 /**
@@ -60,8 +62,11 @@ public class RdfDatasetCanonicalizer {
    *
    * @param triples the triples to canonicalize
    * @return canonicalized triples with deterministic blank node labels
-   * @throws ContentAddressingException if canonicalization fails; the underlying failure is
-   *         kept as cause
+   * @throws CanonicalizationResourceLimitExceededException if the graph's blank node
+   *         structure is too symmetric for this canonicalizer's permutation limit — see
+   *         its javadoc
+   * @throws ContentAddressingException if canonicalization otherwise fails; the underlying
+   *         failure is kept as cause
    */
   public Collection<Triple> canonicalize(Collection<Triple> triples) {
     try {
@@ -73,6 +78,12 @@ public class RdfDatasetCanonicalizer {
 
       // 3. Convert back to our RDF API
       return fromTitaniumDataset(normalized);
+    } catch (MaxResourceExceeded e) {
+      throw new CanonicalizationResourceLimitExceededException(
+          "canonicalization exceeded the implementation's resource limit for structurally "
+              + "symmetric blank node graphs (io.setl:rdf-urdna's permutation cap in the "
+              + "hash-n-degree-quads step); a different URDNA2015 implementation may address " + "this graph",
+          e);
     } catch (RuntimeException e) {
       throw new ContentAddressingException("RDF canonicalization failed", e);
     }

@@ -4,10 +4,11 @@
 package io.kogn.rdf.cid.sexpr;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,7 +20,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.codec.binary.Base32;
-import org.bouncycastle.crypto.digests.Blake2bDigest;
 
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -37,7 +37,7 @@ import io.kogn.rdf.terms.Triple;
  * <p>The reachable sub-graph (following blank nodes) is canonicalized with
  * {@link RdfDatasetCanonicalizer}, serialized into a sorted, length-prefixed S-expression
  * form — blank nodes under deterministic {@code urn:skolem:} names — and hashed with
- * Blake2b-256; the unpadded, lower-case Base32 digest is the URN.</p>
+ * SHA3-256; the unpadded, lower-case Base32 digest is the URN.</p>
  *
  * <h2>What determines the identifier</h2>
  *
@@ -190,19 +190,20 @@ public class ContentAddressableRdfSerializer {
     // deterministic skolem name derived from their canonical label
     byte[] canon = serializeFragmentGraph(canonicalTriples);
 
-    // 3. Hash (Blake2b-256)
-    byte[] hash = blake2b256(canon);
+    // 3. Hash (SHA3-256)
+    byte[] hash = sha3256(canon);
     IRI iri = rdf.createIRI(URN_PREFIX + base32(hash));
 
     return new ContentAddressableResult(iri, canon);
   }
 
-  private byte[] blake2b256(byte[] input) {
-    Blake2bDigest digest = new Blake2bDigest(256); // 256-bit = 32 byte
-    digest.update(input, 0, input.length);
-    byte[] output = new byte[digest.getDigestSize()];
-    digest.doFinal(output, 0);
-    return output;
+  private byte[] sha3256(byte[] input) {
+    try {
+      return MessageDigest.getInstance("SHA3-256").digest(input);
+    } catch (NoSuchAlgorithmException e) {
+      // SHA3-256 is a JDK-guaranteed MessageDigest algorithm since Java 9.
+      throw new IllegalStateException("SHA3-256 unavailable", e);
+    }
   }
 
   /**
@@ -217,7 +218,7 @@ public class ContentAddressableRdfSerializer {
   private byte[] serializeFragmentGraph(Collection<Triple> triples) {
     List<byte[]> forms = triples.stream()
         .map(this::tripleToSexpr)
-        .sorted(Comparator.comparing(b -> new String(b, StandardCharsets.ISO_8859_1)))
+        .sorted(Arrays::compareUnsigned)
         .collect(Collectors.toList());
 
     List<byte[]> parts = new ArrayList<>();
