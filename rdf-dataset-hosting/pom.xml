@@ -7,7 +7,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 	<artifactId>rdf-dataset-hosting</artifactId>
-	<name>Kogn RDF Dataset Hosting</name>
+	<name>kognio-rdf Dataset Hosting</name>
 	<description>Backend-neutral dataset hosting port: DatasetLifecycle, DatasetHandle, DatasetId, DatasetStoreConfig</description>
 	<dependencies>
 		<dependency><groupId>io.kogn.rdf</groupId><artifactId>rdf-terms</artifactId></dependency>

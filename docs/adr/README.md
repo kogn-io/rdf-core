@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Short records of the design decisions behind Kogn RDF, in
+Short records of the design decisions behind kognio-rdf, in
 [MADR](https://adr.github.io/madr/)-style. Each file captures one decision: its
 context, the choice made, and the consequences.
 

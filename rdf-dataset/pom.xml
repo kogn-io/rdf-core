@@ -11,7 +11,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 	<artifactId>rdf-dataset</artifactId>
-	<name>Kogn RDF Dataset</name>
+	<name>kognio-rdf Dataset</name>
 	<description
   >Named-graph-addressed dataset ports: GraphStore, SparqlQuery, SparqlUpdate, DatasetExport, DatasetTransactor and DatasetTx</description>
 

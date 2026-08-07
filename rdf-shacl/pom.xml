@@ -11,7 +11,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 	<artifactId>rdf-shacl</artifactId>
-	<name>Kogn RDF SHACL</name>
+	<name>kognio-rdf SHACL</name>
 	<description
   >Backend-neutral, non-transactional SHACL validation port: ShaclValidation</description>
 

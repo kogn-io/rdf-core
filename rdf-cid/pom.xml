@@ -11,7 +11,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 	<artifactId>rdf-cid</artifactId>
-	<name>Kogn RDF Content Identifier (CID)</name>
+	<name>kognio-rdf Content Identifier (CID)</name>
 	<description
   >Content-addressed IRI generation using URDNA2015 canonicalization and a canonical, length-prefixed serialization</description>
 

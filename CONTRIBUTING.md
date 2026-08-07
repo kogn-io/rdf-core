@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in Kogn RDF.
+Thanks for your interest in kognio-rdf.
 
 ## Maintenance status
 

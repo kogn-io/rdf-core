@@ -1,12 +1,12 @@
 # Architecture
 
-A lean, outward-facing overview of how Kogn RDF is put together. For the
+A lean, outward-facing overview of how kognio-rdf is put together. For the
 reasoning behind individual decisions see the [Architecture Decision
 Records](docs/adr/).
 
 ## What it is
 
-Kogn RDF is a backend-agnostic RDF layer built on a pure data model, with three
+kognio-rdf is a backend-agnostic RDF layer built on a pure data model, with three
 independent port families above it — dataset access, SHACL validation and
 content-addressed identifiers. The first two each have an RDF4J backend
 implementing them; the third needs none. Nothing above the RDF4J modules is tied

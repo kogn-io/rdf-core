@@ -11,7 +11,7 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>rdf-shacl-rdf4j</artifactId>
-  <name>Kogn RDF SHACL RDF4J Implementation</name>
+  <name>kognio-rdf SHACL RDF4J Implementation</name>
   <description
   >RDF4J-based implementation of the rdf-shacl port (ShaclValidation), wrapping org.eclipse.rdf4j.sail.shacl.ShaclValidator. Store-independent: no dependency on rdf-dataset / rdf-dataset-rdf4j.</description>
 

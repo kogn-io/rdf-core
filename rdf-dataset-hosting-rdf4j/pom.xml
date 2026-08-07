@@ -7,7 +7,7 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>rdf-dataset-hosting-rdf4j</artifactId>
-  <name>Kogn RDF Dataset Hosting RDF4J Implementation</name>
+  <name>kognio-rdf Dataset Hosting RDF4J Implementation</name>
   <description>RDF4J-based implementation of the rdf-dataset-hosting port (DatasetLifecycle): builds and owns MemoryStore/NativeStore repositories and composes the rdf-dataset-rdf4j content wrappers behind leased handles.</description>
   <dependencies>
     <!-- Own RDF modules: the hosting port + the content ports/wrappers it composes -->
