@@ -98,6 +98,24 @@ import lombok.extern.slf4j.Slf4j;
  * open — this closes the time-of-check-to-time-of-use race that a bare
  * get-or-create + evict design suffers from.</p>
  *
+ * <h2>A delete that failed part-way through</h2>
+ *
+ * <p>Removing a persistent dataset's storage is a directory walk, so it can fail
+ * in the middle — a locked file, a permission problem — and leave remains behind.
+ * Those remains must never be handed out: the directory is no longer empty, so the
+ * store would be opened over whatever survived and the on-create hook would
+ * <em>not</em> run, giving the caller a dataset that is neither the old one nor a
+ * freshly seeded new one.</p>
+ *
+ * <p>{@link #delete(DatasetId)} therefore logs the failure at {@code ERROR} (in
+ * addition to rethrowing it, which a caller may swallow) and remembers the id as
+ * half-deleted. The next {@link #acquire(DatasetId)} first retries the cleanup: if
+ * it succeeds the dataset is created afresh and seeded as usual, and if it fails
+ * again {@code acquire} refuses the dataset with an {@link IllegalStateException}
+ * rather than open the remains. The same applies to the rollback of a failed
+ * creation. Until the remains are gone {@link #list()} keeps reporting the id,
+ * because its directory is still there.</p>
+ *
  * <h2>Path safety</h2>
  *
  * <p>The opaque {@link DatasetId} value is never used as a path. It is
@@ -120,6 +138,9 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   private final BiConsumer<DatasetId, GraphStore> onCreate;
 
   private final ConcurrentHashMap<DatasetId, ManagedDataset> datasets = new ConcurrentHashMap<>();
+
+  /** Ids whose storage deletion failed part-way through; their remains must not be handed out. */
+  private final Set<DatasetId> partiallyDeleted = ConcurrentHashMap.newKeySet();
 
   /**
    * Creates a lifecycle.
@@ -173,10 +194,20 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     this(config, storageRoot, DEFAULT_INDEX_SPEC, null);
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>If an earlier {@link #delete(DatasetId)} failed part-way through its on-disk teardown,
+   * this first retries that cleanup and throws {@link IllegalStateException} if the remains are
+   * still there — see the class documentation.</p>
+   *
+   * @throws IllegalStateException if a failed delete left remains that could not be cleaned up
+   */
   @Override
   public DatasetHandle acquire(final DatasetId id) {
     Objects.requireNonNull(id, "id");
     final ManagedDataset managed = datasets.compute(id, (key, existing) -> {
+      discardRemainsOfFailedDelete(key);
       final ManagedDataset md = existing != null ? existing : createAndSeed(key);
       md.leaseCount.incrementAndGet();
       return md;
@@ -211,6 +242,13 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     }
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>A failure of the on-disk teardown is logged at {@code ERROR} as well as rethrown, and
+   * marks the dataset as half-deleted so the next {@link #acquire(DatasetId)} does not open its
+   * remains — see the class documentation.</p>
+   */
   @Override
   public void delete(final DatasetId id) {
     Objects.requireNonNull(id, "id");
@@ -224,7 +262,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
           shutDownQuietly(md.repository);
         }
         if (config.persistence() != Persistence.IN_MEMORY) {
-          deleteStorageOnDisk(key);
+          deleteStorageOrMarkPartial(key);
         }
         log.debug("Deleted dataset {}", key.value());
       } catch (final RuntimeException e) {
@@ -313,9 +351,60 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       // unseeded. Restore the invariant: a dataset is created-and-seeded atomically, or not at all.
       shutDownQuietly(repository);
       if (isNew && config.persistence() != Persistence.IN_MEMORY) {
-        deleteStorageOnDisk(id);
+        try {
+          deleteStorageOrMarkPartial(id);
+        } catch (final RuntimeException rollbackFailure) {
+          // the rollback itself failed, so the invariant cannot be restored here: the mark keeps
+          // the remains from being handed out. Report the failure that started this, not the one
+          // from cleaning up after it.
+          e.addSuppressed(rollbackFailure);
+        }
       }
       throw e;
+    }
+  }
+
+  /**
+   * Deletes a dataset's storage and keeps {@link #partiallyDeleted} in step: on failure the
+   * directory may hold the remains of a half-deleted dataset, which {@link #acquire(DatasetId)}
+   * must not open as though it were whole.
+   *
+   * <p>The failure is logged at {@code ERROR} because rethrowing alone is not enough to make it
+   * findable in operation — a caller that swallows the exception would otherwise leave no trace
+   * that a dataset is now in a broken intermediate state.</p>
+   */
+  private void deleteStorageOrMarkPartial(final DatasetId id) {
+    try {
+      deleteStorageOnDisk(id);
+    } catch (final RuntimeException e) {
+      partiallyDeleted.add(id);
+      log.error("Deleting the storage of dataset {} failed part-way through; what is left is neither the old"
+          + " dataset nor a fresh one. It cannot be acquired until the remains are gone — the next acquire()"
+          + " retries the cleanup and fails if it cannot complete it.", id.value(), e);
+      throw e;
+    }
+    partiallyDeleted.remove(id);
+  }
+
+  /**
+   * Finishes a storage deletion that failed part-way through, so that no caller is ever handed
+   * the remains.
+   *
+   * <p>Retrying the cleanup is the outcome to prefer: it leaves an empty directory, which
+   * {@link #isNewStore(File)} reads as "new dataset", so the store is created afresh and the
+   * on-create hook runs. Cleaning up is not always available, though — the deletion may fail
+   * again for the very reason it failed the first time — so refusing the dataset is the fallback
+   * that always holds.</p>
+   */
+  private void discardRemainsOfFailedDelete(final DatasetId id) {
+    if (!partiallyDeleted.contains(id)) {
+      return;
+    }
+    try {
+      deleteStorageOrMarkPartial(id);
+    } catch (final RuntimeException e) {
+      throw new IllegalStateException("dataset '" + id.value() + "' was left half-deleted by a failed delete()"
+          + " and the remains could not be cleaned up; it cannot be acquired while they are there", e);
     }
   }
 
