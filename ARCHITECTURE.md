@@ -243,17 +243,23 @@ Settled semantics worth knowing before consuming it:
   cheaply against `PERSISTENT` and silently wipes `IN_MEMORY`. Documented rather
   than prevented — refusing or no-op'ing the call would break the callers relying
   on today's behaviour, and there is no third outcome to offer.
-- **A `delete` that fails part-way through does not leave an acquirable
-  dataset.** Removing a persistent dataset's storage is a directory walk, so it
-  can fail in the middle and leave remains behind — a directory that is no longer
-  empty and would otherwise be opened as an existing dataset, skipping the
-  on-create hook and handing the consumer something that is neither the old
-  dataset nor a fresh one. The failure is logged at `ERROR` as well as rethrown,
-  and the next `acquire` first retries the cleanup: it succeeds and the dataset is
-  created and seeded afresh, or it fails again and `acquire` refuses the
-  identifier with an `IllegalStateException` for as long as the remains are there.
-  `list` keeps reporting the dataset meanwhile, because its directory still
-  exists.
+- **A `delete` that fails does not leave an acquirable dataset.** Removing a
+  persistent dataset's storage is a directory walk, so it can fail in the middle
+  and leave remains behind — a directory that is no longer empty and would
+  otherwise be opened as an existing dataset, skipping the on-create hook and
+  handing the consumer something that is neither the old dataset nor a fresh one.
+  The failure is logged at `ERROR` as well as rethrown, and marks the identifier
+  as having an unfinished delete — every failed delete marks it this way,
+  regardless of how far the on-disk teardown got, even one that failed on its
+  very first file. The mark is a `.deleting` file written inside the dataset's
+  own directory before the teardown starts, so it survives a process restart and
+  a second `DatasetLifecycleRdf4j` instance over the same storage root, not just
+  the instance that attempted the delete; an in-process set is the fallback for
+  when writing that file itself fails. The next `acquire` first retries the
+  cleanup: it succeeds and the dataset is created and seeded afresh, or it fails
+  again and `acquire` refuses the identifier with an `IllegalStateException` for
+  as long as the remains are there. `list` keeps reporting the dataset meanwhile,
+  because its directory still exists.
 - **The opaque `DatasetId` is Base64url-encoded into a single directory
   segment**, so values like `"../etc"` cannot escape the storage root.
 

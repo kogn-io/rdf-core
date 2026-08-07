@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
@@ -98,7 +99,7 @@ import lombok.extern.slf4j.Slf4j;
  * open — this closes the time-of-check-to-time-of-use race that a bare
  * get-or-create + evict design suffers from.</p>
  *
- * <h2>A delete that failed part-way through</h2>
+ * <h2>A delete that fails</h2>
  *
  * <p>Removing a persistent dataset's storage is a directory walk, so it can fail
  * in the middle — a locked file, a permission problem — and leave remains behind.
@@ -108,13 +109,23 @@ import lombok.extern.slf4j.Slf4j;
  * freshly seeded new one.</p>
  *
  * <p>{@link #delete(DatasetId)} therefore logs the failure at {@code ERROR} (in
- * addition to rethrowing it, which a caller may swallow) and remembers the id as
- * half-deleted. The next {@link #acquire(DatasetId)} first retries the cleanup: if
- * it succeeds the dataset is created afresh and seeded as usual, and if it fails
- * again {@code acquire} refuses the dataset with an {@link IllegalStateException}
- * rather than open the remains. The same applies to the rollback of a failed
- * creation. Until the remains are gone {@link #list()} keeps reporting the id,
- * because its directory is still there.</p>
+ * addition to rethrowing it, which a caller may swallow) and marks the id as having
+ * an unfinished delete — every failed delete marks it this way, regardless of how
+ * far the on-disk teardown got, even one that failed on its very first file. The
+ * mark itself is a {@code .deleting} file written inside the dataset's own
+ * directory before the teardown starts and removed by it on success, so it survives
+ * a process restart and a second {@link DatasetLifecycleRdf4j} instance over the
+ * same {@code storageRoot} — not just this instance. Writing that file is
+ * best-effort: if it fails too (most likely for the same reason the deletion is
+ * about to fail), an in-process set is the fallback, upholding the guarantee for
+ * the rest of this process's life but not across a restart.</p>
+ *
+ * <p>The next {@link #acquire(DatasetId)} first retries the cleanup: if it succeeds
+ * the dataset is created afresh and seeded as usual, and if it fails again
+ * {@code acquire} refuses the dataset with an {@link IllegalStateException} rather
+ * than open the remains. The same applies to the rollback of a failed creation.
+ * Until the remains are gone {@link #list()} keeps reporting the id, because its
+ * directory is still there.</p>
  *
  * <h2>Path safety</h2>
  *
@@ -132,6 +143,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   /** Default RDF4J NativeStore triple-index specification. */
   public static final String DEFAULT_INDEX_SPEC = "spoc,posc,cosp";
 
+  /**
+   * Name of the on-disk marker file written inside a dataset's directory while its deletion is
+   * unfinished — see the class documentation.
+   */
+  private static final String DELETION_MARKER_FILE_NAME = ".deleting";
+
   private final DatasetStoreConfig config;
   private final Path storageRoot;
   private final String indexSpec;
@@ -139,8 +156,14 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
 
   private final ConcurrentHashMap<DatasetId, ManagedDataset> datasets = new ConcurrentHashMap<>();
 
-  /** Ids whose storage deletion failed part-way through; their remains must not be handed out. */
-  private final Set<DatasetId> partiallyDeleted = ConcurrentHashMap.newKeySet();
+  /**
+   * In-process fallback for ids whose delete() is unfinished, used when writing the on-disk
+   * {@value #DELETION_MARKER_FILE_NAME} marker itself fails. The marker file is the source of
+   * truth that survives a process restart and a second instance over the same
+   * {@code storageRoot}; this set only covers the rest of this process's life — see the class
+   * documentation.
+   */
+  private final Set<DatasetId> deletionUnfinished = ConcurrentHashMap.newKeySet();
 
   /**
    * Creates a lifecycle.
@@ -197,9 +220,9 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   /**
    * {@inheritDoc}
    *
-   * <p>If an earlier {@link #delete(DatasetId)} failed part-way through its on-disk teardown,
-   * this first retries that cleanup and throws {@link IllegalStateException} if the remains are
-   * still there — see the class documentation.</p>
+   * <p>If an earlier {@link #delete(DatasetId)} left an unfinished on-disk teardown, this first
+   * retries that cleanup and throws {@link IllegalStateException} if the remains are still there
+   * — see the class documentation.</p>
    *
    * @throws IllegalStateException if a failed delete left remains that could not be cleaned up
    */
@@ -207,7 +230,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   public DatasetHandle acquire(final DatasetId id) {
     Objects.requireNonNull(id, "id");
     final ManagedDataset managed = datasets.compute(id, (key, existing) -> {
-      discardRemainsOfFailedDelete(key);
+      requireNoRemainsOfFailedDelete(key);
       final ManagedDataset md = existing != null ? existing : createAndSeed(key);
       md.leaseCount.incrementAndGet();
       return md;
@@ -246,8 +269,8 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
    * {@inheritDoc}
    *
    * <p>A failure of the on-disk teardown is logged at {@code ERROR} as well as rethrown, and
-   * marks the dataset as half-deleted so the next {@link #acquire(DatasetId)} does not open its
-   * remains — see the class documentation.</p>
+   * marks the dataset as having an unfinished delete so the next {@link #acquire(DatasetId)}
+   * does not open its remains — see the class documentation.</p>
    */
   @Override
   public void delete(final DatasetId id) {
@@ -365,29 +388,59 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   }
 
   /**
-   * Deletes a dataset's storage and keeps {@link #partiallyDeleted} in step: on failure the
-   * directory may hold the remains of a half-deleted dataset, which {@link #acquire(DatasetId)}
-   * must not open as though it were whole.
+   * Deletes a dataset's storage, marking the id on any failure — via the on-disk
+   * {@value #DELETION_MARKER_FILE_NAME} file and, as a fallback, {@link #deletionUnfinished} —
+   * regardless of how far the teardown got: {@link #acquire(DatasetId)} must not open the
+   * directory as though it were an intact dataset.
    *
    * <p>The failure is logged at {@code ERROR} because rethrowing alone is not enough to make it
    * findable in operation — a caller that swallows the exception would otherwise leave no trace
    * that a dataset is now in a broken intermediate state.</p>
    */
   private void deleteStorageOrMarkPartial(final DatasetId id) {
+    final Path dir = resolveDir(id).toPath();
+    if (Files.isDirectory(dir)) {
+      // written before the teardown starts (not inside deleteStorageOnDisk, which a test in this
+      // package overrides wholesale) so the mark is unconditional; the reverse-order walk in
+      // deleteStorageOnDisk removes it again along with the rest of the directory on success.
+      markDeletionInProgress(id, dir);
+    }
     try {
       deleteStorageOnDisk(id);
     } catch (final RuntimeException e) {
-      partiallyDeleted.add(id);
-      log.error("Deleting the storage of dataset {} failed part-way through; what is left is neither the old"
-          + " dataset nor a fresh one. It cannot be acquired until the remains are gone — the next acquire()"
-          + " retries the cleanup and fails if it cannot complete it.", id.value(), e);
+      deletionUnfinished.add(id);
+      log.error(
+          "Deleting the storage of dataset {} failed; the identifier is marked as having an unfinished"
+              + " delete, regardless of how far the on-disk teardown got. It cannot be acquired until the remains"
+              + " are gone — the next acquire() retries the cleanup and fails if it cannot complete it.",
+          id.value(), e);
       throw e;
     }
-    partiallyDeleted.remove(id);
+    deletionUnfinished.remove(id);
   }
 
   /**
-   * Finishes a storage deletion that failed part-way through, so that no caller is ever handed
+   * Writes the {@value #DELETION_MARKER_FILE_NAME} marker inside {@code dir}, ignoring it if
+   * already present (a retry of an earlier failed attempt).
+   *
+   * <p>Best-effort: if writing it fails — most likely for the same reason the deletion that is
+   * about to run will also fail, e.g. a permission problem in the directory — the in-process
+   * {@link #deletionUnfinished} set remains as the fallback; see the class documentation.</p>
+   */
+  private void markDeletionInProgress(final DatasetId id, final Path dir) {
+    try {
+      Files.createFile(dir.resolve(DELETION_MARKER_FILE_NAME));
+    } catch (final FileAlreadyExistsException e) {
+      // already marked by an earlier failed attempt — fine, this is a retry.
+    } catch (final IOException e) {
+      log.warn("Could not write the deletion marker for dataset {}; falling back to in-process tracking, which"
+          + " does not survive a process restart.", id.value(), e);
+    }
+  }
+
+  /**
+   * Refuses to hand {@code id} out while a previous {@link #delete(DatasetId)} left it with an
+   * unfinished on-disk teardown — retrying the cleanup first, so that no caller is ever handed
    * the remains.
    *
    * <p>Retrying the cleanup is the outcome to prefer: it leaves an empty directory, which
@@ -396,16 +449,33 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
    * again for the very reason it failed the first time — so refusing the dataset is the fallback
    * that always holds.</p>
    */
-  private void discardRemainsOfFailedDelete(final DatasetId id) {
-    if (!partiallyDeleted.contains(id)) {
+  private void requireNoRemainsOfFailedDelete(final DatasetId id) {
+    if (!hasRemainsOfFailedDelete(id)) {
       return;
     }
     try {
       deleteStorageOrMarkPartial(id);
     } catch (final RuntimeException e) {
-      throw new IllegalStateException("dataset '" + id.value() + "' was left half-deleted by a failed delete()"
-          + " and the remains could not be cleaned up; it cannot be acquired while they are there", e);
+      throw new IllegalStateException("dataset '" + id.value() + "' has an unfinished delete() and the remains"
+          + " could not be cleaned up; it cannot be acquired while they are there", e);
     }
+  }
+
+  /**
+   * Whether {@code id} was left with an unfinished delete — the on-disk
+   * {@value #DELETION_MARKER_FILE_NAME} marker is authoritative and survives a process restart
+   * and a second instance over the same {@code storageRoot}; {@link #deletionUnfinished} is
+   * consulted too, as the fallback for when writing that marker itself failed. {@code IN_MEMORY}
+   * has no storage and is never marked either way.
+   */
+  private boolean hasRemainsOfFailedDelete(final DatasetId id) {
+    if (config.persistence() == Persistence.IN_MEMORY) {
+      return false;
+    }
+    if (deletionUnfinished.contains(id)) {
+      return true;
+    }
+    return Files.exists(resolveDir(id).toPath().resolve(DELETION_MARKER_FILE_NAME));
   }
 
   private static boolean isNewStore(final File dir) {
@@ -445,6 +515,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   /**
    * Package-private (not {@code private}) so a test in this package can override it to force a
    * deterministic on-disk teardown failure — see {@code DatasetLifecycleRdf4jTest}.
+   *
+   * <p>{@code Files.walk} lists {@code dir}'s current contents, so this also deletes a
+   * {@value #DELETION_MARKER_FILE_NAME} marker written into it beforehand: on the reverse-order
+   * walk below, a proper prefix of a path sorts before it, so the parent directory is always
+   * deleted last, after every entry inside it — the marker included, whatever position among its
+   * siblings it happens to sort into.</p>
    */
   void deleteStorageOnDisk(final DatasetId id) {
     final Path dir = resolveDir(id).toPath();
