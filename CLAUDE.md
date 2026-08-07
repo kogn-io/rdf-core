@@ -74,6 +74,12 @@ not *published*. Afterwards bump `<revision>` in the root POM to the next
 ## Conventions
 
 - **Conventional Commits** (`type(scope): subject`), **Semantic Versioning**.
+- **The project is called `kognio-rdf`** — that spelling, lowercase, everywhere a
+  human-readable name appears (POM `<name>`s, README, docs, prose). The Maven
+  coordinate `io.kogn.rdf` and the `io.kogn.rdf.*` packages are something else:
+  a DNS-derived namespace, already published on Maven Central, and they stay.
+  Not an inconsistency to clean up. The repository is still `kogn-io/rdf-core`
+  (issue #107).
 - `record` for value objects (Commons-RDF-oriented term types).
 - `rdf-terms` stays **library-free** — do not add dependencies there.
 - Follow existing patterns, don't guess — look it up in the code.
