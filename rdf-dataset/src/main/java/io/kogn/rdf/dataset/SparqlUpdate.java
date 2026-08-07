@@ -19,6 +19,14 @@ import io.kogn.rdf.terms.RDFTerm;
  * {@link SparqlQuery#select(String, Map) SparqlQuery}'s bindings overloads do — see
  * that class's Javadoc for why binding a value is preferable to concatenating it into
  * the update string.</p>
+ *
+ * <p><strong>Caller must address named graphs explicitly.</strong> The dataset model has
+ * no default graph (see the package documentation), but this port does not parse or
+ * police the SPARQL text it is given: an {@code INSERT DATA} (or {@code DELETE DATA},
+ * {@code INSERT/DELETE WHERE}) without a {@code GRAPH} clause or {@code WITH} still
+ * executes, and lands its statements in the underlying store's default graph — a
+ * location none of the other dataset ports can read back. Every update must therefore
+ * name its target graph explicitly.</p>
  */
 public interface SparqlUpdate {
 
