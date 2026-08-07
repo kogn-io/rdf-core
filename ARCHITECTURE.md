@@ -243,6 +243,17 @@ Settled semantics worth knowing before consuming it:
   cheaply against `PERSISTENT` and silently wipes `IN_MEMORY`. Documented rather
   than prevented — refusing or no-op'ing the call would break the callers relying
   on today's behaviour, and there is no third outcome to offer.
+- **A `delete` that fails part-way through does not leave an acquirable
+  dataset.** Removing a persistent dataset's storage is a directory walk, so it
+  can fail in the middle and leave remains behind — a directory that is no longer
+  empty and would otherwise be opened as an existing dataset, skipping the
+  on-create hook and handing the consumer something that is neither the old
+  dataset nor a fresh one. The failure is logged at `ERROR` as well as rethrown,
+  and the next `acquire` first retries the cleanup: it succeeds and the dataset is
+  created and seeded afresh, or it fails again and `acquire` refuses the
+  identifier with an `IllegalStateException` for as long as the remains are there.
+  `list` keeps reporting the dataset meanwhile, because its directory still
+  exists.
 - **The opaque `DatasetId` is Base64url-encoded into a single directory
   segment**, so values like `"../etc"` cannot escape the storage root.
 

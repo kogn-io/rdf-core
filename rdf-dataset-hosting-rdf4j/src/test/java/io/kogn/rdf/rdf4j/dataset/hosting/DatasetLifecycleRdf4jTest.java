@@ -495,8 +495,8 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("a delete whose on-disk teardown fails still drops the cache entry; retry re-opens a live store")
-    void delete_diskTeardownFails_dropsCacheEntryAndSurfacesFailure() {
+    @DisplayName("a delete whose on-disk teardown keeps failing refuses the next acquire instead of serving the remains")
+    void delete_diskTeardownKeepsFailing_nextAcquireRefusesTheRemains() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("undeletable");
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
@@ -505,26 +505,112 @@ class DatasetLifecycleRdf4jTest {
         @Override
         void deleteStorageOnDisk(final DatasetId toDelete) {
           if (toDelete.equals(id)) {
-            throw diskFailure; // forces the exact failure mode from #33: OS refuses to remove storage
+            throw diskFailure; // the OS refuses to remove the storage — this time and every time
           }
           super.deleteStorageOnDisk(toDelete);
         }
       };
       lifecycle = lc;
-      final GraphStore firstStore;
       try (DatasetHandle ds = lc.acquire(id)) {
         ds.graphStore().add(GRAPH, singleTriple()); // handle released, but the entry stays cached
+      }
+
+      assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
+
+      // what is left behind is neither the old dataset nor a fresh one, and the cleanup cannot be
+      // finished — so the dataset is refused rather than opened over the remains, and it stays
+      // refused for as long as they are there.
+      assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("half-deleted")
+          .hasCauseReference(diskFailure);
+      assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("a delete that failed part-way through is cleaned up by the next acquire, which seeds a fresh dataset")
+    void delete_diskTeardownFailsPartWay_nextAcquireCleansUpAndSeedsAfresh() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("half-deleted");
+      final IRI otherGraph = RDF4JIRI.of("https://example.org/graph/2");
+      final String askOther = "ASK { GRAPH <" + otherGraph.getIRIString() + "> { ?s ?p ?o } }";
+      final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
+      final AtomicBoolean failNext = new AtomicBoolean(true);
+      final AtomicInteger seeds = new AtomicInteger();
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> {
+            seeds.incrementAndGet();
+            graphStore.add(GRAPH, singleTriple());
+          }) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(id) && failNext.compareAndSet(true, false)) {
+            deleteOneFileOfTheSoleDataset(root); // gets part-way through, then gives up
+            throw diskFailure;
+          }
+          super.deleteStorageOnDisk(toDelete); // the cleanup retried by acquire succeeds
+        }
+      };
+      lifecycle = lc;
+      final GraphStore firstStore;
+      try (DatasetHandle ds = lc.acquire(id)) {
+        ds.graphStore().add(otherGraph, singleTriple()); // written after seeding — tells old from new
         firstStore = ds.graphStore();
       }
 
       assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
 
-      // the cache must not keep serving the (already shut-down but now dangling) store: a fresh
-      // acquire creates a brand new one — same identity would mean the dead cached entry survived
-      // — and the fresh store is still fully usable, with the original data intact on disk.
+      // precondition of the hazard: the remains are still on disk, so the directory is not empty
+      // and would be read as "existing dataset" by the next create.
+      assertThat(soleDatasetDirectory(root)).isNotEmptyDirectory();
+      assertThat(lc.list()).contains(id);
+
       try (DatasetHandle ds = lc.acquire(id)) {
-        assertThat(ds.graphStore()).isNotSameAs(firstStore);
-        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+        assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // freshly seeded
+        assertThat(ds.sparqlQuery().ask(askOther)).isFalse(); // and nothing of the old dataset survived
+        assertThat(ds.graphStore()).isNotSameAs(firstStore); // the dead cache entry did not survive either
+      }
+    }
+
+    @Test
+    @DisplayName("a repeated delete that succeeds clears the half-deleted mark")
+    void delete_retriedSuccessfully_clearsTheMark() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("retry-delete");
+      final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
+      final AtomicBoolean failNext = new AtomicBoolean(true);
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(id) && failNext.compareAndSet(true, false)) {
+            throw diskFailure;
+          }
+          super.deleteStorageOnDisk(toDelete);
+        }
+      };
+      lifecycle = lc;
+      lc.acquire(id).close();
+
+      assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
+      lc.delete(id); // the caller retries the delete itself, and this time it goes through
+
+      assertThat(lc.list()).doesNotContain(id);
+      assertThatCode(() -> lc.acquire(id).close()).doesNotThrowAnyException();
+    }
+
+    private Path soleDatasetDirectory(final Path root) throws IOException {
+      try (Stream<Path> children = Files.list(root)) {
+        return children.filter(Files::isDirectory).findFirst().orElseThrow();
+      }
+    }
+
+    /** Simulates a storage deletion that removed something before failing. */
+    private void deleteOneFileOfTheSoleDataset(final Path root) {
+      try (Stream<Path> files = Files.walk(soleDatasetDirectory(root))) {
+        Files.delete(files.filter(Files::isRegularFile).findFirst().orElseThrow());
+      } catch (final IOException e) {
+        throw new UncheckedIOException(e);
       }
     }
 

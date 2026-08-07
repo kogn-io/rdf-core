@@ -39,8 +39,16 @@ public interface DatasetLifecycle {
    * next {@code acquire} creates it anew and runs the hook again. See
    * {@link #close(DatasetId)} for the full contract.</p>
    *
+   * <p>A {@link #delete(DatasetId)} that failed part-way through may leave a dataset
+   * behind that is neither the old one nor a fresh one. An implementation must not
+   * hand such remains out as though they were a whole dataset: it either clears them
+   * away, so that this call creates the dataset anew, or it refuses the identifier
+   * with an {@link IllegalStateException} for as long as they are there.</p>
+   *
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}
+   * @throws IllegalStateException if a failed {@link #delete(DatasetId)} left remains
+   *     that cannot be cleared away
    */
   DatasetHandle acquire(DatasetId id);
 
@@ -71,6 +79,11 @@ public interface DatasetLifecycle {
    * <p>Unlike {@link #close(DatasetId)} this is destructive: it throws if the
    * dataset still has open leases, so that a delete racing with in-flight use is
    * surfaced rather than silently corrupting an open store.</p>
+   *
+   * <p>Deleting a dataset's storage need not be atomic, so this call can fail with
+   * the dataset half gone. What is left over is then no longer a dataset an
+   * implementation may serve — see {@link #acquire(DatasetId)} for how that state is
+   * resolved.</p>
    *
    * @param id the dataset identifier; must not be {@code null}
    * @throws IllegalStateException if the dataset has at least one open lease
