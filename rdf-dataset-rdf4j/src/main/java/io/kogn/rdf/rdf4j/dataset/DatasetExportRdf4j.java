@@ -9,9 +9,7 @@ import java.util.Objects;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
-import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.rio.RDFFormat;
-import org.eclipse.rdf4j.rio.RDFHandlerException;
 import org.eclipse.rdf4j.rio.Rio;
 
 import io.kogn.rdf.dataset.DatasetExport;
@@ -101,10 +99,15 @@ public class DatasetExportRdf4j implements DatasetExport {
   private void writeTo(final OutputStream out, final RdfFormat format, final Resource... contexts) {
     try (RepositoryConnection conn = repository.getConnection()) {
       conn.export(Rio.createWriter(toRDF4JFormat(format), out), contexts);
-    } catch (final RepositoryException | RDFHandlerException e) {
+    } catch (final RuntimeException e) {
       // RDFHandlerException is where Rio wraps the sink's IOException; RepositoryException can
-      // surface if the connection itself fails while reading. Either way, keep it as cause so
-      // the caller can see what happened, without an RDF4J type reaching the port.
+      // surface if the connection itself fails while reading; UnsupportedRDFormatException
+      // reaches here directly (it extends RuntimeException, not RDF4JException) when a consumer
+      // excludes a Rio writer factory. Caught broadly on purpose: NullPointerException and
+      // IllegalArgumentException from argument validation are thrown before this try block runs,
+      // so a blanket catch here cannot mask them — it only closes the door on RDF4J types, known
+      // or not yet encountered, that would otherwise leak through a port whose contract is to
+      // keep the backend out of the consumer. Kept as cause so the caller can see what happened.
       throw new RdfExportException("failed to write the " + format + " export to the output stream", e);
     }
   }

@@ -34,6 +34,7 @@ import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.RDFHandlerException;
 import org.eclipse.rdf4j.rio.Rio;
+import org.eclipse.rdf4j.rio.UnsupportedRDFormatException;
 import org.eclipse.rdf4j.sail.SailConflictException;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
@@ -845,6 +846,62 @@ class DatasetRdf4jTest {
           .isInstanceOf(RdfExportException.class)
           .hasCauseInstanceOf(RepositoryException.class)
           .hasRootCauseMessage("connection failed mid-read");
+    }
+
+    @Test
+    @DisplayName("no writer registered for the format surfaces as the neutral RdfExportException,"
+        + " not UnsupportedRDFormatException")
+    void export_whenNoWriterIsRegisteredForTheFormat_throwsNeutralExportException() {
+      // given — simulates a consumer excluding a Rio writer factory (e.g. rdf4j-rio-trig), which
+      // makes Rio.createWriter throw UnsupportedRDFormatException; that type extends
+      // RuntimeException directly, not RDF4JException, so it used to slip past the old
+      // RepositoryException | RDFHandlerException catch
+      final Repository noWriterForFormat = new RepositoryWrapper(repository) {
+        @Override
+        public RepositoryConnection getConnection() {
+          return new RepositoryConnectionWrapper(this, super.getConnection()) {
+            @Override
+            public void export(final org.eclipse.rdf4j.rio.RDFHandler handler, final Resource... contexts) {
+              throw new UnsupportedRDFormatException("no factory for TRIG");
+            }
+          };
+        }
+      };
+
+      // when / then
+      assertThatThrownBy(
+          () -> new DatasetExportRdf4j(noWriterForFormat).export(new ByteArrayOutputStream(), RdfFormat.TRIG))
+          .isInstanceOf(RdfExportException.class)
+          .hasCauseInstanceOf(UnsupportedRDFormatException.class)
+          .hasRootCauseMessage("no factory for TRIG");
+    }
+
+    @Test
+    @DisplayName("a foreign RuntimeException from the sail iteration surfaces as the neutral"
+        + " RdfExportException, not the backend type")
+    void export_whenAForeignRuntimeExceptionEscapesTheSail_throwsNeutralExportException() {
+      // given — a sail (e.g. an inferencer or federation) that signals via a plain
+      // RuntimeException rather than SailException; SailRepositoryConnection only wraps
+      // SailException into RepositoryException, so anything else used to reach the caller
+      // unwrapped
+      final Repository foreignFailure = new RepositoryWrapper(repository) {
+        @Override
+        public RepositoryConnection getConnection() {
+          return new RepositoryConnectionWrapper(this, super.getConnection()) {
+            @Override
+            public void export(final org.eclipse.rdf4j.rio.RDFHandler handler, final Resource... contexts) {
+              throw new RuntimeException("unwrapped sail failure");
+            }
+          };
+        }
+      };
+
+      // when / then
+      assertThatThrownBy(
+          () -> new DatasetExportRdf4j(foreignFailure).export(new ByteArrayOutputStream(), RdfFormat.TRIG))
+          .isInstanceOf(RdfExportException.class)
+          .hasCauseInstanceOf(RuntimeException.class)
+          .hasRootCauseMessage("unwrapped sail failure");
     }
 
     @Test
