@@ -104,10 +104,22 @@ public interface DatasetLifecycle {
   void delete(DatasetId id);
 
   /**
-   * Returns the identifiers of all known datasets — both currently open and
+   * Returns the identifiers of all usable datasets — both currently open and
    * those persisted but not currently held in memory.
    *
-   * @return the set of known dataset identifiers; never {@code null}
+   * <p>This is an inventory a consumer can act on: every identifier named here
+   * denotes a dataset that {@link #acquire(DatasetId)} would open at that moment,
+   * so a consumer may iterate the listing — shut each one down, back each one up,
+   * migrate each one — without keeping its own bookkeeping alongside. What another
+   * caller does concurrently is of course not frozen by this call.</p>
+   *
+   * <p>The remains of a {@link #delete(DatasetId)} that failed part-way are
+   * therefore <strong>not</strong> reported: {@link #acquire(DatasetId)} refuses
+   * such an identifier for as long as they are there, so naming it here would hand
+   * the consumer an identifier the port itself will not open.</p>
+   *
+   * @return the set of identifiers of datasets that can be acquired; never
+   *     {@code null}
    */
   Set<DatasetId> list();
 }

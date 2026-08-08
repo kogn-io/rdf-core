@@ -270,8 +270,12 @@ Settled semantics worth knowing before consuming it:
   when writing that file itself fails. The next `acquire` first retries the
   cleanup: it succeeds and the dataset is created and seeded afresh, or it fails
   again and `acquire` refuses the identifier with an `IllegalStateException` for
-  as long as the remains are there. `list` keeps reporting the dataset meanwhile,
-  because its directory still exists.
+  as long as the remains are there. `list` leaves the identifier out meanwhile,
+  even though its directory still exists — the listing is an inventory a consumer
+  can act on, so every identifier in it denotes a dataset `acquire` would open at
+  that moment, and remains are not that. The price is that the remains are
+  invisible through the port until they are cleared away; an operator works on the
+  storage directory, guided by the `ERROR` logged when the delete failed.
 - **The opaque `DatasetId` is Base64url-encoded into a single directory
   segment**, so values like `"../etc"` cannot escape the storage root.
 

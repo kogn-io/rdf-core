@@ -124,9 +124,13 @@ import lombok.extern.slf4j.Slf4j;
  * <p>The next {@link #acquire(DatasetId)} first retries the cleanup: if it succeeds
  * the dataset is created afresh and seeded as usual, and if it fails again
  * {@code acquire} refuses the dataset with an {@link IllegalStateException} rather
- * than open the remains. The same applies to the rollback of a failed creation.
- * Until the remains are gone {@link #list()} keeps reporting the id, because its
- * directory is still there.</p>
+ * than open the remains. The same applies to the rollback of a failed creation.</p>
+ *
+ * <p>{@link #list()} leaves a marked id out for as long as the remains are there,
+ * even though its directory still exists: the listing promises identifiers that can
+ * be acquired, and this one cannot. That does make the remains invisible through
+ * this port — an operator who has to clear them away works on the storage
+ * directory, guided by the {@code ERROR} logged when the delete failed.</p>
  *
  * <h2>Path safety</h2>
  *
@@ -310,6 +314,15 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     }
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The identifiers come from the in-memory cache plus every directory under the
+   * {@code storageRoot} whose name decodes back to the canonical Base64url encoding this
+   * lifecycle produces — a foreign directory is skipped. Ids whose storage carries the
+   * unfinished-deletion mark are left out, so the listing names only what
+   * {@link #acquire(DatasetId)} would open — see the class documentation.</p>
+   */
   @Override
   public Set<DatasetId> list() {
     final Set<DatasetId> result = new HashSet<>(datasets.keySet());
@@ -323,6 +336,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
         throw new UncheckedIOException("failed to list datasets under " + storageRoot, e);
       }
     }
+    result.removeIf(this::hasRemainsOfFailedDelete);
     return result;
   }
 
