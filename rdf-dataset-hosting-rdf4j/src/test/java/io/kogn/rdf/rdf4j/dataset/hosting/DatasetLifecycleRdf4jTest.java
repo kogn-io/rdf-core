@@ -480,6 +480,21 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
+    @DisplayName("closing a persisted-but-not-open dataset again reports NOT_OPEN, not STILL_LEASED")
+    void close_twice_reportsClosedThenNotOpen() {
+      final Path root = tmp.resolve("stores");
+      final DatasetLifecycleRdf4j lc = persistent(root);
+      final DatasetId id = new DatasetId("closed-twice");
+      lc.acquire(id).close(); // release the lease
+
+      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED);
+      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.NOT_OPEN);
+
+      // the storage is still there — an idle/TTL policy iterating list() must find it
+      assertThat(lc.list()).contains(id);
+    }
+
+    @Test
     @DisplayName("close discards data for an in-memory store — there is no storage to resume")
     void close_discardsData_forInMemoryStore() {
       final AtomicInteger calls = new AtomicInteger();

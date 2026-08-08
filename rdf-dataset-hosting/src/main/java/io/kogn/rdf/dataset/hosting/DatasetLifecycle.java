@@ -75,8 +75,14 @@ public interface DatasetLifecycle {
    * builds a generic idle/TTL eviction policy against this neutral port must treat
    * {@code close} as destructive for {@code IN_MEMORY} datasets.</p>
    *
+   * <p>If tearing the backing store down fails, this call exits with the backend's
+   * exception instead of an outcome. The entry is dropped regardless, so a subsequent
+   * {@code close} for the same {@link DatasetId} reports {@link DatasetCloseOutcome#NOT_OPEN},
+   * not {@link DatasetCloseOutcome#STILL_LEASED}.</p>
+   *
    * @param id the dataset identifier; must not be {@code null}
    * @return what happened to the dataset; never {@code null}
+   * @throws RuntimeException if tearing the backing store down fails
    */
   DatasetCloseOutcome close(DatasetId id);
 

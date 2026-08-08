@@ -262,6 +262,9 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
         // the cache must not keep serving it to the next acquire() — drop the entry regardless and
         // let the real failure surface, instead of leaking a dead store under a live-looking key.
         teardownFailure[0] = e;
+        // Unreachable today (teardownFailure wins below), but keeps the port's "never null"
+        // promise true even if this path is ever reduced to a log statement.
+        outcome[0] = DatasetCloseOutcome.CLOSED;
       }
       return null;
     });

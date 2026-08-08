@@ -232,6 +232,18 @@ Settled semantics worth knowing before consuming it:
   handle on the same dataset. `shutDownAll()` is the deliberate exception — a
   last-resort teardown that does not consult lease counts, logging a warning
   naming any dataset still leased before tearing everything down regardless.
+- **`close` reports which of three things it did** (`DatasetCloseOutcome`),
+  rather than evicting silently: the dataset was shut down, it still has open
+  leases and the call was a no-op, or the lifecycle was not holding it at all.
+  That last case is not an
+  error — an already-evicted or merely persisted identifier is exactly what a
+  sweep runs into, and `list()` reports persisted-but-closed datasets too, so it
+  cannot be reconstructed from a second call. The distinction is what lets a
+  consumer's idle/TTL policy retry only when a lease is genuinely held, count an
+  eviction it really performed, and treat an identifier already gone as done
+  ([ADR-0015](docs/adr/0015-three-valued-dataset-close-outcome.md)). A failed
+  teardown of the backing store still exits with the backend's exception instead
+  of an outcome.
 - **`close` is eviction only for a `PERSISTENT` store; for `IN_MEMORY` it
   destroys.** The resume half of eviction — drop the store, re-`acquire` later,
   find the data — needs storage to resume *from*, and an `IN_MEMORY` dataset has
@@ -242,7 +254,7 @@ Settled semantics worth knowing before consuming it:
   generic idle/TTL policy against it: applied uniformly, that policy resumes
   cheaply against `PERSISTENT` and silently wipes `IN_MEMORY`. Documented rather
   than prevented — refusing or no-op'ing the call would break the callers relying
-  on today's behaviour, and there is no third outcome to offer.
+  on today's behaviour, and there is no third *behaviour* to offer.
 - **A `delete` that fails does not leave an acquirable dataset.** Removing a
   persistent dataset's storage is a directory walk, so it can fail in the middle
   and leave remains behind — a directory that is no longer empty and would
