@@ -127,10 +127,16 @@ import lombok.extern.slf4j.Slf4j;
  * than open the remains. The same applies to the rollback of a failed creation.</p>
  *
  * <p>{@link #list()} leaves a marked id out for as long as the remains are there,
- * even though its directory still exists: the listing promises identifiers that can
- * be acquired, and this one cannot. That does make the remains invisible through
- * this port — an operator who has to clear them away works on the storage
- * directory, guided by the {@code ERROR} logged when the delete failed.</p>
+ * even though its directory still exists: the listing reports what this
+ * implementation can rule out, not a promise that {@link #acquire(DatasetId)}
+ * would open everything it does not rule out — a marked id whose cleanup would in
+ * fact now succeed is left out just the same. Iterating the listing used to be
+ * enough to meet such an id and so trigger the cleanup retry through a plain
+ * {@code acquire}; now only an {@code acquire} for an already-known id does, so
+ * remains behind a cause that has since cleared can sit unnoticed (tracked as
+ * #115). An operator who has to clear them away in the meantime works on the
+ * storage directory, guided by the {@code ERROR} logged when the delete
+ * failed.</p>
  *
  * <h2>Path safety</h2>
  *
@@ -320,8 +326,8 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
    * <p>The identifiers come from the in-memory cache plus every directory under the
    * {@code storageRoot} whose name decodes back to the canonical Base64url encoding this
    * lifecycle produces — a foreign directory is skipped. Ids whose storage carries the
-   * unfinished-deletion mark are left out, so the listing names only what
-   * {@link #acquire(DatasetId)} would open — see the class documentation.</p>
+   * unfinished-deletion mark are left out — see the class documentation for what that
+   * does, and does not, promise about {@link #acquire(DatasetId)}.</p>
    */
   @Override
   public Set<DatasetId> list() {
