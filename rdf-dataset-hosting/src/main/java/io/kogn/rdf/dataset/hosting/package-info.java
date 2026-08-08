@@ -19,6 +19,9 @@
  *       to one dataset; <em>not</em> an RDF 1.1 dataset value, but a session that must be closed
  *       to release its lease</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetId} — the opaque dataset key</li>
+ *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetCloseOutcome} — what
+ *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#close} did: shut the dataset down,
+ *       found it still leased, or found it not open at all</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetStoreConfig} — the backend-neutral store knobs
  *       (persistence, full-text-search requirement)</li>
  * </ul>

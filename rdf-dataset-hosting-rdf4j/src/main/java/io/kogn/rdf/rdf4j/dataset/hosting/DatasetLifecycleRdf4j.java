@@ -39,6 +39,7 @@ import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.dataset.hosting.DatasetCloseOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
 import io.kogn.rdf.dataset.hosting.DatasetId;
 import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
@@ -239,19 +240,23 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   }
 
   @Override
-  public void close(final DatasetId id) {
+  public DatasetCloseOutcome close(final DatasetId id) {
     Objects.requireNonNull(id, "id");
     final RuntimeException[] teardownFailure = new RuntimeException[1];
+    final DatasetCloseOutcome[] outcome = new DatasetCloseOutcome[1];
     datasets.compute(id, (key, md) -> {
       if (md == null) {
+        outcome[0] = DatasetCloseOutcome.NOT_OPEN;
         return null;
       }
       if (md.leaseCount.get() > 0) {
+        outcome[0] = DatasetCloseOutcome.STILL_LEASED;
         return md; // in use — eviction is a no-op; policy retries later
       }
       try {
         shutDownQuietly(md.repository);
         log.debug("Closed dataset {}", key.value());
+        outcome[0] = DatasetCloseOutcome.CLOSED;
       } catch (final RuntimeException e) {
         // shutDown() is not exception-free; the store may now be half torn-down and unusable, so
         // the cache must not keep serving it to the next acquire() — drop the entry regardless and
@@ -263,6 +268,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
     if (teardownFailure[0] != null) {
       throw teardownFailure[0];
     }
+    return outcome[0];
   }
 
   /**
