@@ -562,6 +562,38 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
+    @DisplayName("list omits the remains of a failed delete while still reporting an intact dataset alongside them")
+    void list_omitsRemainsOfFailedDelete_butKeepsTheIntactDataset() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final DatasetId broken = new DatasetId("half-deleted");
+      final DatasetId intact = new DatasetId("still-there");
+      final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(broken)) {
+            throw diskFailure; // the OS refuses to remove the storage — this time and every time
+          }
+          super.deleteStorageOnDisk(toDelete);
+        }
+      };
+      lifecycle = lc;
+      lc.acquire(broken).close();
+      lc.acquire(intact).close();
+      assertThat(lc.list()).contains(broken, intact); // precondition: both are reported while both are usable
+
+      assertThatThrownBy(() -> lc.delete(broken)).isSameAs(diskFailure);
+
+      // the remains are still on disk — but they are no longer a dataset the port will open, so a
+      // consumer iterating the listing must not be handed the identifier at all.
+      assertThat(Files.list(root).count()).isEqualTo(2L);
+      assertThat(lc.list()).containsExactly(intact);
+      assertThatThrownBy(() -> lc.acquire(broken)).isInstanceOf(IllegalStateException.class);
+      assertThatCode(() -> lc.acquire(intact).close()).doesNotThrowAnyException();
+    }
+
+    @Test
     @DisplayName("a delete that failed part-way through is cleaned up by the next acquire, which seeds a fresh dataset")
     void delete_diskTeardownFailsPartWay_nextAcquireCleansUpAndSeedsAfresh() throws Exception {
       final Path root = tmp.resolve("stores");
@@ -597,7 +629,7 @@ class DatasetLifecycleRdf4jTest {
       // precondition of the hazard: the remains are still on disk, so the directory is not empty
       // and would be read as "existing dataset" by the next create.
       assertThat(soleDatasetDirectory(root)).isNotEmptyDirectory();
-      assertThat(lc.list()).contains(id);
+      assertThat(lc.list()).doesNotContain(id); // …yet the listing does not offer what acquire refuses
 
       try (DatasetHandle ds = lc.acquire(id)) {
         assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
@@ -669,7 +701,7 @@ class DatasetLifecycleRdf4jTest {
       };
       lifecycle = second;
 
-      assertThat(second.list()).contains(id);
+      assertThat(second.list()).doesNotContain(id); // the marker keeps it out of the listing too
       assertThatThrownBy(() -> second.acquire(id)).isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("unfinished delete")
           .hasCauseReference(diskFailure);
@@ -720,7 +752,7 @@ class DatasetLifecycleRdf4jTest {
           });
       lifecycle = second;
 
-      assertThat(second.list()).contains(id);
+      assertThat(second.list()).doesNotContain(id); // marked, so not offered until the remains are gone
       try (DatasetHandle ds = second.acquire(id)) {
         assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // freshly seeded
