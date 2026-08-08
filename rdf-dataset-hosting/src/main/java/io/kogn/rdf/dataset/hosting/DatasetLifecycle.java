@@ -107,19 +107,24 @@ public interface DatasetLifecycle {
    * Returns the identifiers of all usable datasets — both currently open and
    * those persisted but not currently held in memory.
    *
-   * <p>This is an inventory a consumer can act on: every identifier named here
-   * denotes a dataset that {@link #acquire(DatasetId)} would open at that moment,
-   * so a consumer may iterate the listing — shut each one down, back each one up,
-   * migrate each one — without keeping its own bookkeeping alongside. What another
-   * caller does concurrently is of course not frozen by this call.</p>
+   * <p>This is an inventory a consumer can act on: a consumer may iterate the
+   * listing — shut each one down, back each one up, migrate each one — without
+   * keeping its own bookkeeping alongside. That is not, however, a promise that
+   * every identifier named here is one {@link #acquire(DatasetId)} would open at
+   * that moment; it reports what an implementation can positively rule out as
+   * unusable, and an implementation may still refuse an identifier it did not rule
+   * out here. What another caller does concurrently is of course not frozen by
+   * this call either way.</p>
    *
-   * <p>The remains of a {@link #delete(DatasetId)} that failed part-way are
-   * therefore <strong>not</strong> reported: {@link #acquire(DatasetId)} refuses
-   * such an identifier for as long as they are there, so naming it here would hand
-   * the consumer an identifier the port itself will not open.</p>
+   * <p>The remains of a {@link #delete(DatasetId)} that failed part-way are one
+   * case this port does require ruling out: an identifier carrying such remains is
+   * left out here. Whether {@link #acquire(DatasetId)} goes on to accept that
+   * identifier once it has cleaned the remains up itself is not something this
+   * listing decides — only that it is not reported as usable while the remains
+   * stand.</p>
    *
-   * @return the set of identifiers of datasets that can be acquired; never
-   *     {@code null}
+   * @return the identifiers this implementation currently reports as usable;
+   *     never {@code null}
    */
   Set<DatasetId> list();
 }

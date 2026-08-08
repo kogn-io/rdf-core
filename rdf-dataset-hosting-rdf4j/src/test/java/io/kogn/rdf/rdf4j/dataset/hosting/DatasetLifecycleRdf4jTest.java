@@ -629,7 +629,8 @@ class DatasetLifecycleRdf4jTest {
       // precondition of the hazard: the remains are still on disk, so the directory is not empty
       // and would be read as "existing dataset" by the next create.
       assertThat(soleDatasetDirectory(root)).isNotEmptyDirectory();
-      assertThat(lc.list()).doesNotContain(id); // …yet the listing does not offer what acquire refuses
+      // hidden from the listing, though the acquire below reopens it after cleanup
+      assertThat(lc.list()).doesNotContain(id);
 
       try (DatasetHandle ds = lc.acquire(id)) {
         assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
@@ -752,7 +753,8 @@ class DatasetLifecycleRdf4jTest {
           });
       lifecycle = second;
 
-      assertThat(second.list()).doesNotContain(id); // marked, so not offered until the remains are gone
+      // hidden from the listing, though the acquire below reopens it after cleanup
+      assertThat(second.list()).doesNotContain(id);
       try (DatasetHandle ds = second.acquire(id)) {
         assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // freshly seeded
