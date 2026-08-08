@@ -38,6 +38,7 @@ import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.dataset.hosting.DatasetCloseOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
 import io.kogn.rdf.dataset.hosting.DatasetId;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
@@ -122,17 +123,36 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("close is a no-op while a lease is open")
+    @DisplayName("close reports STILL_LEASED and is a no-op while a lease is open")
     void close_whileLeaseOpen_isNoOp() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("busy");
       try (DatasetHandle ds = lc.acquire(id)) {
         ds.graphStore().add(GRAPH, singleTriple());
 
-        lc.close(id); // must not tear the store down under the open lease
+        // must not tear the store down under the open lease
+        assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.STILL_LEASED);
 
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }
+    }
+
+    @Test
+    @DisplayName("close reports CLOSED once the lease holding it open is released")
+    void close_afterLeaseReleased_reportsClosed() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final DatasetId id = new DatasetId("idle");
+      lc.acquire(id).close();
+
+      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED);
+    }
+
+    @Test
+    @DisplayName("close reports NOT_OPEN for an id the lifecycle has never seen")
+    void close_unknownId_reportsNotOpen() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+
+      assertThat(lc.close(new DatasetId("never-opened"))).isEqualTo(DatasetCloseOutcome.NOT_OPEN);
     }
 
     @Test
@@ -454,7 +474,7 @@ class DatasetLifecycleRdf4jTest {
       final DatasetId id = new DatasetId("on-disk");
       lc.acquire(id).close();
 
-      lc.close(id); // evict from cache; storage stays
+      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED); // evict from cache; storage stays
 
       assertThat(lc.list()).contains(id);
     }
@@ -471,7 +491,8 @@ class DatasetLifecycleRdf4jTest {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // precondition: the data is really there
       }
 
-      lifecycle.close(id); // evict — but for IN_MEMORY there is no persisted state to resume
+      // evict — but for IN_MEMORY there is no persisted state to resume
+      assertThat(lifecycle.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED);
 
       try (DatasetHandle ds = lifecycle.acquire(id)) {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isFalse(); // data is gone

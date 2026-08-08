@@ -56,10 +56,16 @@ public interface DatasetLifecycle {
    * Evicts the dataset for {@code id}: shuts the backing store down and drops it
    * from the in-memory cache, <strong>without</strong> deleting its storage.
    *
-   * <p>This is the eviction trigger a consumer's idle/TTL policy invokes. If the
-   * dataset currently has open leases this call is a no-op (the policy is
-   * expected to retry later); it never interrupts in-flight work. A subsequent
-   * {@link #acquire(DatasetId)} re-opens the same persisted dataset.</p>
+   * <p>This is the eviction trigger a consumer's idle/TTL policy invokes. The
+   * returned {@link DatasetCloseOutcome} tells the policy what happened:
+   * {@link DatasetCloseOutcome#CLOSED} if the dataset was shut down,
+   * {@link DatasetCloseOutcome#STILL_LEASED} if it currently has open leases —
+   * this call is then a no-op and never interrupts in-flight work, the policy is
+   * expected to retry later — or {@link DatasetCloseOutcome#NOT_OPEN} if the
+   * lifecycle was not holding that dataset at all, which is not an error:
+   * already evicted, never opened, and an id it has never seen all look the
+   * same from here. A subsequent {@link #acquire(DatasetId)} re-opens the same
+   * persisted dataset.</p>
    *
    * <p><strong>That resume guarantee holds only for a store with {@code PERSISTENT}
    * persistence.</strong> A dataset configured as {@code IN_MEMORY} has no storage to
@@ -70,8 +76,9 @@ public interface DatasetLifecycle {
    * {@code close} as destructive for {@code IN_MEMORY} datasets.</p>
    *
    * @param id the dataset identifier; must not be {@code null}
+   * @return what happened to the dataset; never {@code null}
    */
-  void close(DatasetId id);
+  DatasetCloseOutcome close(DatasetId id);
 
   /**
    * Deletes the dataset for {@code id}, including its on-disk storage.
