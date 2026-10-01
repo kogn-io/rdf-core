@@ -55,10 +55,10 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<maven.compiler.release>25</maven.compiler.release>
-		<maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
-		<rdf4j.version>6.0.0</rdf4j.version>
-		<slf4j.version>2.0.18</slf4j.version>
-		<lombok.version>1.18.46</lombok.version>
+		<maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
+		<rdf4j.version>6.1.0</rdf4j.version>
+		<slf4j.version>2.0.20</slf4j.version>
+		<lombok.version>1.18.48</lombok.version>
 		<jmolecules.version>2.0.1</jmolecules.version>
 		<!-- rdf-cid only: URDNA2015 canonicalization and the helpers around it.
 		     The content hash itself (SHA3-256) is a JDK-native MessageDigest, no
@@ -67,10 +67,10 @@
 		     dependency is excluded in rdf-cid) — raising it here alone risks binary
 		     incompatibility with rdf-urdna. -->
 		<rdf-urdna.version>1.4</rdf-urdna.version>
-		<titanium-json-ld.version>1.4.1</titanium-json-ld.version>
+		<titanium-json-ld.version>1.7.0</titanium-json-ld.version>
 		<commons-codec.version>1.22.1</commons-codec.version>
-		<maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
-		<spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
+		<maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+		<spotless-maven-plugin.version>3.10.3</spotless-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
 		<!-- Maven Central release (central-release profile): sources + javadoc jars,
 		     GPG signing, Sonatype Central publishing. Host-independent (talks to
@@ -84,16 +84,16 @@
 		     main POM, which the Central Portal validator rejects. The fork stages
 		     the resolved consumer POM as the main POM, so ${revision} is interpolated
 		     before upload. See ADR-0006. -->
-		<central-publishing-maven-plugin.version>1.3.0</central-publishing-maven-plugin.version>
+		<central-publishing-maven-plugin.version>1.3.1</central-publishing-maven-plugin.version>
 		<!-- Maven 4 default-binding plugins, pinned to silence the "version not
 		     locked" warnings (previously inherited from spring-boot-starter-parent). -->
 		<maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
 		<maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
-		<maven-install-plugin.version>3.1.4</maven-install-plugin.version>
-		<maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
+		<maven-install-plugin.version>3.2.0</maven-install-plugin.version>
+		<maven-deploy-plugin.version>3.2.0</maven-deploy-plugin.version>
 		<!-- Test-scope only (zero consumer impact). No parent BOM to inherit these
 		     from, so they are pinned here to current stable versions. -->
-		<junit.version>6.1.2</junit.version>
+		<junit.version>6.1.3</junit.version>
 		<assertj.version>3.27.7</assertj.version>
 	</properties>
 
