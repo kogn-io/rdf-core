@@ -27,9 +27,14 @@
  * {@code "100"^^xsd:integer} and {@code "100"^^xsd:decimal} are different content, as are
  * {@code "Bank"@en} and {@code "Bank"@de}.</p>
  *
- * <p>The IRIs in the data are part of that: the identifier does <strong>not</strong> abstract
- * from the URIs a particular environment assigned. Two graphs describing the same thing under
- * different subject IRIs are different content and get different identifiers.</p>
+ * <p>One IRI is the exception: the <em>base IRI</em> of the described resource. It goes into
+ * the digest as a fixed self placeholder in every position — subject, predicate, object and a
+ * literal's datatype — and its fragment IRIs ({@code <base#part>}) by their fragment alone, the
+ * part after the first {@code #}. Two graphs describing the same thing under
+ * different base IRIs are therefore the same content — which is what lets a resource be
+ * renamed to its own identifier and still verify against it. Every other IRI in the data is
+ * part of the content. The placeholder follows the fragment molecules of
+ * <a href="https://openengiadina.codeberg.page/rdf-cbor/">RDF/CBOR</a>.</p>
  *
  * <h2>Architecture role</h2>
  * <p>This is a backend-neutral port: {@link io.kogn.rdf.cid.ContentAddressedIriGenerator}

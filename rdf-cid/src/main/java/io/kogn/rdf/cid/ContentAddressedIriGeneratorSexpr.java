@@ -21,8 +21,10 @@ import io.kogn.rdf.terms.Triple;
  *
  * <p>The graph is canonicalized with URDNA2015, serialized into a sorted S-expression of
  * length-prefixed fields — blank nodes under deterministic skolem names — and hashed with
- * SHA3-256. Identical RDF graphs — regardless of blank node labels or triple order —
- * therefore always produce the same identifier.</p>
+ * SHA3-256. The base IRI of the described resource goes in as a self placeholder and its
+ * fragment IRIs as their fragments, so the identifier can be carried by the resource it is
+ * derived from. Identical RDF graphs — regardless of blank node labels, triple order or the
+ * base IRI — therefore always produce the same identifier.</p>
  */
 public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGenerator {
 
