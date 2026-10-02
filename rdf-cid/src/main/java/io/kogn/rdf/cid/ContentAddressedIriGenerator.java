@@ -33,7 +33,8 @@ import io.kogn.rdf.terms.ReadableGraph;
  * in full: an IRI by its IRI string, a literal by its lexical form, its datatype <em>and</em>
  * its language tag, a blank node by its structural position rather than its label. Two graphs
  * therefore share an identifier if and only if they hold the same triples up to blank node
- * labelling, triple order and the choice of base IRI.</p>
+ * labelling, triple order and a renaming of the base IRI to one the graph does not otherwise
+ * use.</p>
  *
  * <p>Keeping the base out is what lets a resource carry its own identifier: describe it under
  * any provisional IRI, generate the identifier, rename the base to it (and every
