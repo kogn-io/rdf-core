@@ -1,6 +1,6 @@
 # Design note: versioning (#105)
 
-Status: draft for review | Date: 2026-10-02 | Issue: #105
+Status: agreed basis, open questions below | Date: 2026-10-02 | Issue: #105
 
 This note is the agreed basis for implementing #105. It collects the decisions,
 the reasoning behind them and what is still open. It is not an ADR: once the
@@ -82,13 +82,19 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
 |---|---|---|---|
 | **Draft view** (the caller's content graph) | proxy IRI | working state of every proxy | on every write |
 | **Published view** | proxy IRI | content of each proxy's current version | slice replaced on publish |
-| **Version store** | CID | every version, stored once per CID | appended; erased only by D12 |
+| **Version store** | CID | every version, stored once per CID, all in one graph | appended; erased only by D12 |
 | **Proxy graph** | proxy IRI | pointer to the current CID; history | pointer replaced, history appended |
 | **Tag store** | tag IRI | tags (D9) | appended |
 
 - A query chooses the state it wants by choosing the graph (`FROM` / `GRAPH`):
-  draft view for the working state, published view for the published state, a
-  CID for one exact version.
+  draft view for the working state, published view for the published state.
+  One exact version is addressed by its CID as subject in the version store.
+- The version store is **one** named graph, not one graph per CID: a version is
+  its CID's slice there (D1's slice operations, blank-node closure included).
+  A graph per version would make every version a named graph of its
+  own and fill the dataset's graph list with them.
+- A versioned dataset has exactly one content graph, and so one draft view
+  (D13).
 - References between proxy IRIs (`ex:usesTerm <proxy-iri>`) need no
   translation: in the draft view they meet the target's draft, in the published
   view its published state.
@@ -200,6 +206,23 @@ it.
   neither implies the other. An empty draft is not a deletion.
 - Operations that clear whole graphs must not destroy versions as a side effect.
 
+### D13 — A new backend-free module, switched on per dataset
+
+Versioning lives in a new module, `rdf-versioning`, that depends on
+`rdf-dataset` and `rdf-cid` only — no RDF4J, no hosting layer. Everything it
+needs (adding, removing and exporting per named graph, SPARQL, `contains`) is on
+`DatasetTx` already, so it is plain logic over existing ports and runs on any
+`DatasetTx`, including one over a repository the caller supplies. Tying it to
+the hosting layer's `DatasetStoreConfig` would shut those callers out. Port and
+its only implementation share the module, as in `rdf-cid` and `rdf-shacl`.
+
+Versioning is switched on **per dataset**, and a versioned dataset has
+**exactly one content graph**. There is one set of the library's graphs per
+dataset; tag names are unique per dataset and `tagPublished` covers every proxy
+in it — the same unit as D2's transaction. Rejected: switching it on per content
+graph, which would scope tags and deduplication to part of a dataset and need
+one set of library graphs per content graph.
+
 ## Pitfalls to address in the implementation
 
 - **P1 — Time consistency of references.** A version containing
@@ -233,14 +256,17 @@ it.
 - **Q2 — Blank nodes in the version store:** stored as is, or skolemized?
 - **Q3 — Concurrency token shape:** a counter on the proxy, the draft's CID, or
   something else?
-- **Q4 — Placement and naming** of the published view, version store, proxy
-  graph and tag store relative to the caller's content graph.
+- **Q4 — Naming** of the published view, version store, proxy graph and tag
+  store. Settled: one set per dataset (D13) and one graph for all versions (D4).
+  Open: who names them. Proposal: fixed IRIs in a namespace of the library, so
+  a caller cannot pass different names after a restart and scatter the data;
+  the caller names only the content graph, which the library records on first
+  use and checks on every later one, rejecting a different IRI.
 - **Q5 — Export/import:** all graph kinds must travel with a dataset export, or
   history is lost on re-import. There is no import port yet, and
   `DatasetExport` is not transactional (ADR-0013), so a multi-graph export is
   not a consistent snapshot.
-- **Q6 — Where versioning lives:** a new module, opt-in per dataset or per
-  content graph, and how it relates to the hosting layer.
+- **Q6 — Where versioning lives:** answered by D13.
 - **Q7 — Provenance vocabulary** for history entries (`dct:` or PROV-O), and
   whether the timestamp comes from the caller or the library.
 - **Q8 — Migration:** turning an unversioned dataset into a versioned one (an
@@ -264,7 +290,7 @@ Out of scope: SHACL validation before publish is the application's business.
 - **Concurrency token:** the comment reasoned that "the draft disappears on
   publish"; with D3 it does not, and D10 is phrased accordingly.
 - New since the comment: the prerequisite, D1 (slice operations), D4–D7,
-  D11–D12, P1–P6, Q2–Q9.
+  D11–D13, P1–P6, Q2–Q9.
 
 ## Prior art
 
