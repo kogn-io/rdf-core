@@ -10,6 +10,8 @@
  * </ul>
  *
  * <p>These utilities ensure that semantically equivalent RDF graphs produce
- * identical byte representations, enabling reliable content-based addressing.</p>
+ * identical byte representations, enabling reliable content-based addressing. The base IRI of
+ * the described resource never reaches those bytes: it is written as a self placeholder, its
+ * fragment IRIs as their fragments, so the representation is the same under any base IRI.</p>
  */
 package io.kogn.rdf.cid.sexpr;
