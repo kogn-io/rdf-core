@@ -1,6 +1,8 @@
 # ADR-0014: Content-addressed IRI generation as its own leaf module
 
-Status: Accepted
+Status: Accepted — the subject-IRI section is superseded by
+[ADR-0016](0016-content-addressed-iri-self-placeholder.md): the graph's own name
+no longer goes into the digest.
 
 ## Context
 
