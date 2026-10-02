@@ -24,3 +24,4 @@ not a historical log of every change that led here.
 | [0013](0013-standalone-dataset-export-port.md) | `DatasetExport` is a standalone, non-transactional port |
 | [0014](0014-content-addressed-iri-module.md) | Content-addressed IRI generation as its own leaf module |
 | [0015](0015-three-valued-dataset-close-outcome.md) | `DatasetLifecycle#close` reports a three-valued outcome |
+| [0016](0016-content-addressed-iri-self-placeholder.md) | The content-addressed IRI replaces the graph's own name with a placeholder |
