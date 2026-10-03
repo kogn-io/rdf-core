@@ -80,6 +80,11 @@ not *published*. Afterwards bump `<revision>` in the root POM to the next
   a DNS-derived namespace, already published on Maven Central, and they stay.
   Not an inconsistency to clean up. The repository is still `kogn-io/rdf-core`
   (issue #107).
+- **Module artifact ids stay `rdf-*`.** Only the parent POM carries the project
+  name (`kognio-rdf`, #126); the modules keep `rdf-terms`, `rdf-dataset`, … on
+  purpose. Consumers depend on the modules directly, so renaming them would break
+  every consumer and need relocation POMs on Central, while the parent is
+  referenced by no one outside this repository. Not an inconsistency to clean up.
 - `record` for value objects (Commons-RDF-oriented term types).
 - `rdf-terms` stays **library-free** — do not add dependencies there.
 - Follow existing patterns, don't guess — look it up in the code.
