@@ -1037,4 +1037,50 @@ class DatasetLifecycleRdf4jTest {
           .hasMessageContaining("#6");
     }
   }
+
+  // ---------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("null arguments")
+  class NullArguments {
+
+    @Test
+    @DisplayName("acquire(null) throws NullPointerException")
+    void acquire_null_throws() {
+      assertThatThrownBy(() -> inMemory().acquire(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("close(null) throws NullPointerException")
+    void close_null_throws() {
+      assertThatThrownBy(() -> inMemory().close(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("delete(null) throws NullPointerException")
+    void delete_null_throws() {
+      assertThatThrownBy(() -> inMemory().delete(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("a null config throws NullPointerException")
+    void constructor_nullConfig_throws() {
+      assertThatThrownBy(() -> new DatasetLifecycleRdf4j(null, null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("PERSISTENT without a storage root throws NullPointerException")
+    void constructor_persistentWithoutStorageRoot_throws() {
+      assertThatThrownBy(() -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), null))
+          .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("PERSISTENT without an index spec throws NullPointerException")
+    void constructor_persistentWithoutIndexSpec_throws(@TempDir final Path root) {
+      assertThatThrownBy(
+          () -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root, null, null))
+          .isInstanceOf(NullPointerException.class);
+    }
+  }
 }
