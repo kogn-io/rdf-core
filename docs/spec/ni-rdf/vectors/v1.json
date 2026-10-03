@@ -155,6 +155,14 @@
       "hashed": "(8:ni-rdf/1(1:F2:ü1:I26:http://example.org/vocab#p1:L1:x1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I28:http://example.org/vocab#see1:I26:http://example.org/straße)(1:S1:I33:http://example.org/vocab#greeting1:L12:Grüße 🌍1:I53:http://www.w3.org/1999/02/22-rdf-syntax-ns#langString5:de-ch))"
     },
     {
+      "id": "code-point-order",
+      "description": "Blank nodes told apart by literals whose strings sort differently by code point and by UTF-16 code unit: U+E000 sorts before U+1F600 by code point, after it by UTF-16 code unit. RDFC-1.0 orders by code point; an implementation that sorts by UTF-16 code unit issues the labels the other way round.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/p> _:A .\n<http://example.org/a> <http://example.org/p> _:O .\n_:A <http://example.org/q> \"\\uE000\" .\n_:A <http://example.org/q> \"\\U0001F600\" .\n_:O <http://example.org/q> \"o124\" .\n",
+      "name": "ni:///sha3-256;6Jdzia2N_BtKfW0xfYNnLO2RZoJ_pK9IGWV1vrrQV8Q",
+      "hashed": "(8:ni-rdf/1(1:B5:c14n01:I20:http://example.org/q1:L3:1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:B5:c14n01:I20:http://example.org/q1:L4:😀1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:B5:c14n11:I20:http://example.org/q1:L4:o1241:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I20:http://example.org/p1:B5:c14n0)(1:S1:I20:http://example.org/p1:B5:c14n1))"
+    },
+    {
       "id": "limit-clique-6",
       "description": "Six blank nodes all linked to each other by one predicate: core 6, accepted.",
       "base": "http://example.org/a",
