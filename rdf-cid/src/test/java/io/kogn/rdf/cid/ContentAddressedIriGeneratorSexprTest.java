@@ -428,6 +428,25 @@ class ContentAddressedIriGeneratorSexprTest {
     }
 
     @Test
+    @DisplayName("an IRI string that reads as a blank node label is no absolute IRI, in any position")
+    void blankNodeLookingIri() {
+      IRI doc = rdf.createIRI(EX + "doc");
+      Graph asSubject = graph();
+      asSubject.add(rdf.createIRI("_:b0"), rdf.createIRI(EX + "p"), rdf.createLiteral("x"));
+      Graph asPredicate = graph();
+      asPredicate.add(doc, rdf.createIRI("_:p"), rdf.createLiteral("x"));
+      Graph asObject = graph();
+      asObject.add(doc, rdf.createIRI(EX + "p"), rdf.createIRI("_:b0"));
+      Graph asDatatype = graph();
+      asDatatype.add(doc, rdf.createIRI(EX + "p"), rdf.createLiteral("x", rdf.createIRI("_:t")));
+
+      for (Graph graph : List.of(asSubject, asPredicate, asObject, asDatatype)) {
+        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIri(doc, graph))
+            .withMessageStartingWith("[UNSUPPORTED_TERM]");
+      }
+    }
+
+    @Test
     @DisplayName("null base — which resource is meant is the caller's to say")
     void nullBase() {
       Graph graph = graph();
