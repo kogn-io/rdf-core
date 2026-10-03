@@ -129,7 +129,9 @@ public class ContentAddressableRdfSerializer {
    *         {@code [NO_ROOT]} or {@code [UNREACHABLE]}), the first failing one in the order of §3
    * @throws CanonicalizationResourceLimitExceededException if the cost bound of the blank
    *         nodes exceeds the resource limit of ni-rdf/1 §4.3
-   * @throws ContentAddressingException if canonicalization otherwise fails
+   * @throws ContentAddressingException if canonicalization otherwise fails, or if the graph mixes code
+   *         points from U+10000 up with ones from U+E000 to U+FFFF alongside blank nodes
+   *         (titanium-rdf-canon#65)
    */
   public ContentAddressableResult serializeWithIri(IRI base, Collection<Triple> triples) {
     String baseIri = Preconditions.check(base, triples, RESERVED_IRI);

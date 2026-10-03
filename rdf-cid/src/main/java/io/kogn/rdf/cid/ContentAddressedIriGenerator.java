@@ -103,7 +103,9 @@ public interface ContentAddressedIriGenerator {
    * @throws CanonicalizationResourceLimitExceededException if the graph satisfies those
    *         preconditions but its cost bound exceeds the resource limit of ni-rdf/1
    * @throws ContentAddressingException if the graph satisfies those preconditions but the
-   *         identifier cannot otherwise be derived
+   *         identifier cannot be derived: for now also when the graph has blank nodes and mixes
+   *         code points from U+10000 up with ones from U+E000 to U+FFFF, which the pinned
+   *         canonicalizer would order wrongly (titanium-rdf-canon#65)
    */
   IRI generateIri(IRI base, ReadableGraph graph);
 }

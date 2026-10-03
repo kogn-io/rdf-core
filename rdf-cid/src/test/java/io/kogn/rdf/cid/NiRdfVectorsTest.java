@@ -5,7 +5,6 @@ package io.kogn.rdf.cid;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -59,18 +58,23 @@ class NiRdfVectorsTest {
   }
 
   /**
-   * Vectors the pinned titanium-rdfc fails because it sorts by UTF-16 code unit instead of code
-   * point (https://github.com/filip26/titanium-rdf-canon/issues/65). They are skipped, not
-   * deleted: the specification is right and the vector stays in the file for other
-   * implementations; remove the entry once titanium is fixed.
+   * Vectors the pinned titanium-rdfc would get wrong because it sorts by UTF-16 code unit instead
+   * of code point (https://github.com/filip26/titanium-rdf-canon/issues/65). Here the generator
+   * fails closed: it throws a {@link ContentAddressingException} instead of minting a name that
+   * deviates from the specification. The vector stays in the file for other implementations;
+   * remove the entry once titanium is fixed.
    */
   private static final Set<String> BLOCKED_BY_TITANIUM_65 = Set.of("code-point-order");
 
   private void verify(JsonNode vector) {
-    assumeFalse(BLOCKED_BY_TITANIUM_65.contains(vector.get("id").asString()),
-        "titanium-rdf-canon#65: sorts by UTF-16 code unit, not by code point");
     IRI base = rdf.createIRI(vector.get("base").asString());
     Graph graph = parseNTriples(vector.get("input").asString());
+
+    if (BLOCKED_BY_TITANIUM_65.contains(vector.get("id").asString())) {
+      assertThatThrownBy(() -> generator.generateIri(base, graph)).isExactlyInstanceOf(ContentAddressingException.class)
+          .hasMessageContaining("titanium-rdf-canon#65");
+      return;
+    }
 
     if (vector.has("failure")) {
       String code = vector.get("failure").asString();
