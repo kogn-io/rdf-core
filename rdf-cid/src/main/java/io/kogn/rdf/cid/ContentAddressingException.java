@@ -10,8 +10,9 @@ package io.kogn.rdf.cid;
  * <p>Thrown by {@link ContentAddressedIriGenerator#generateIri} when the graph satisfies
  * the documented preconditions but the derivation itself cannot complete: canonicalization
  * fails, the digest cannot be computed, or a term cannot be brought into canonical form.
- * A graph that is empty, holds no IRI subject or IRI subjects of several base IRIs, or holds
- * triples unreachable from an IRI subject is not this — those are input errors and surface as
+ * A graph that fails a precondition of ni-rdf/1 — empty, no IRI subject, an IRI subject of
+ * another resource, triples unreachable from an IRI subject, a reserved IRI, a term that is not
+ * RDF 1.1 — is not this: those are input errors and surface as
  * {@link IllegalArgumentException}.</p>
  *
  * <p>The underlying failure is kept as {@linkplain Throwable#getCause() cause}, so a caller

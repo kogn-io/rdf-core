@@ -5,7 +5,6 @@ package io.kogn.rdf.cid;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
 import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer.ContentAddressableResult;
@@ -17,14 +16,17 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * Content-addressed IRI generator over a canonicalized, length-prefixed S-expression form.
+ * Content-addressed IRI generator implementing the specification ni-rdf/1
+ * ({@code docs/spec/ni-rdf/v1.md} in the kognio-rdf repository).
  *
- * <p>The graph is canonicalized with URDNA2015, serialized into a sorted S-expression of
- * length-prefixed fields — blank nodes under deterministic skolem names — and hashed with
- * SHA3-256. The base IRI of the described resource goes in as a self placeholder and its
- * fragment IRIs as their fragments, so the identifier can be carried by the resource it is
- * derived from. Identical RDF graphs — regardless of blank node labels, triple order or the
- * base IRI — therefore always produce the same identifier.</p>
+ * <p>The graph's language tags are lower-cased, the base IRI and its fragment IRIs are mapped
+ * onto a reserved placeholder IRI, the blank nodes are labelled with RDFC-1.0 (after a
+ * deterministic resource limit, see {@link CanonicalizationResourceLimitExceededException}),
+ * and the triples are serialized into a sorted S-expression of length-prefixed fields, hashed
+ * with SHA3-256 and returned as an RFC 6920 name {@code ni:///sha3-256;<base64url>}. Identical
+ * RDF graphs — regardless of blank node labels, triple order, language tag case or the base
+ * IRI — therefore always produce the same identifier. The work is done by
+ * {@link ContentAddressableRdfSerializer}.</p>
  */
 public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGenerator {
 
@@ -42,14 +44,14 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
    * @param rdf the term factory used to create the resulting IRI
    */
   public ContentAddressedIriGeneratorSexpr(RDF rdf) {
-    this(rdf, new ContentAddressableRdfSerializer(new RdfDatasetCanonicalizer(rdf), rdf));
+    this(rdf, new ContentAddressableRdfSerializer(new RdfDatasetCanonicalizer(), rdf));
   }
 
   /**
    * Creates a generator.
    *
    * @param rdf the term factory used to create the resulting IRI
-   * @param contentAddressableRdfSerializer the serializer that derives the content-addressed URN
+   * @param contentAddressableRdfSerializer the serializer that derives the name
    */
   public ContentAddressedIriGeneratorSexpr(RDF rdf, ContentAddressableRdfSerializer contentAddressableRdfSerializer) {
     this.rdf = Objects.requireNonNull(rdf, "rdf must not be null");
@@ -59,21 +61,21 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
 
   @Override
   public IRI generateIri(IRI base, ReadableGraph graph) {
-    if (graph == null || graph.isEmpty()) {
-      throw new IllegalArgumentException("Graph cannot be null or empty");
+    if (graph == null) {
+      throw new IllegalArgumentException("Graph cannot be null");
     }
 
-    List<Triple> triples = graph.stream().collect(Collectors.toList());
+    List<Triple> triples = graph.stream().toList();
 
     ContentAddressableResult result;
     try {
-      result = contentAddressableRdfSerializer.serializeWithUrn(base, triples);
+      result = contentAddressableRdfSerializer.serializeWithIri(base, triples);
     } catch (IllegalArgumentException | ContentAddressingException e) {
       throw e;
     } catch (RuntimeException e) {
       throw new ContentAddressingException("Failed to generate content-addressed IRI", e);
     }
 
-    return rdf.createIRI(result.urn().getIRIString());
+    return rdf.createIRI(result.iri().getIRIString());
   }
 }

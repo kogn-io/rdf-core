@@ -1,10 +1,12 @@
 /**
  * Content-addressed IRI generation for RDF graphs.
  *
- * <p>This package derives content identifiers (CIDs) of the form {@code urn:cid:<hash>} from
- * an RDF graph: the graph is canonicalized with URDNA2015, serialized into a sorted,
- * length-prefixed S-expression form — blank nodes under deterministic skolem names — and
- * hashed with SHA3-256.</p>
+ * <p>This package derives content identifiers (CIDs) of the form
+ * {@code ni:///sha3-256;<digest>} (RFC 6920 named information) for the one resource an RDF
+ * graph describes, following the procedure ni-rdf/1 ({@code docs/spec/ni-rdf/v1.md} in the
+ * kognio-rdf repository, with test vectors): the blank nodes are labelled with RDFC-1.0, the
+ * triples serialized into a sorted, length-prefixed S-expression form opened by the procedure
+ * tag {@code ni-rdf/1}, and that form hashed with SHA3-256.</p>
  *
  * <h2>Why content addressing</h2>
  * <p>Content addressing creates identifiers based on the actual content rather than
@@ -25,7 +27,9 @@
  * labelling and triple order. Every term goes into the digest in full — an IRI by its IRI
  * string, a literal by lexical form, datatype <em>and</em> language tag — so
  * {@code "100"^^xsd:integer} and {@code "100"^^xsd:decimal} are different content, as are
- * {@code "Bank"@en} and {@code "Bank"@de}.</p>
+ * {@code "Bank"@en} and {@code "Bank"@de}, and {@code "01"^^xsd:integer} and
+ * {@code "1"^^xsd:integer}: lexical forms are not normalized. Only the case of a language tag
+ * is, since RDF 1.1 compares language tags case-insensitively.</p>
  *
  * <p>One IRI is the exception: the <em>base IRI</em> of the described resource, which the
  * caller passes in rather than having it inferred from the triples. It goes into
