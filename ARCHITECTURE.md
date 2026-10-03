@@ -66,7 +66,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
-| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(graph)` over `ReadableGraph`, returning a deterministic `urn:cid:` derived from the graph's triples — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph with exactly one base IRI. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. No dependency on the dataset ports. |
+| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(base, graph)` over `ReadableGraph`, returning a deterministic `urn:cid:` derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. No dependency on the dataset ports. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
@@ -328,8 +328,8 @@ only — never on the dataset modules — so validation and storage stay separab
 
 ## Content-addressed identifiers (`rdf-cid`)
 
-`ContentAddressedIriGenerator.generateIri(graph)` derives a deterministic
-`urn:cid:` from a graph's triples, so the same content always mints the same
+`ContentAddressedIriGenerator.generateIri(base, graph)` derives a deterministic
+`urn:cid:` from the triples describing the resource `base`, so the same content always mints the same
 identifier and re-importing a dataset is detectable without keeping a ledger of
 what was imported before
 ([ADR-0014](docs/adr/0014-content-addressed-iri-module.md)). The derivation
@@ -341,10 +341,13 @@ SHA3-256.
 
 Two things callers need to know before persisting the result anywhere:
 
-- **The graph names itself by exactly one base IRI** — the IRI string before the
-  first `#`. Every IRI subject must be the base or a fragment IRI of that base
-  (`<base#part>`); zero or several bases, or a triple reachable from none of
-  them, raise `IllegalArgumentException` rather than silently addressing a
+- **The caller names the resource by its base IRI** — an IRI without a `#`
+  fragment, passed in and never inferred from the triples
+  ([ADR-0017](docs/adr/0017-content-addressed-iri-takes-the-base.md)). Every IRI
+  subject must be the base or a fragment IRI of it (`<base#part>`, compared on
+  the IRI string before the first `#`); a base with a fragment, an IRI subject
+  of another resource, no subject of the base at all, or a triple reachable from
+  none of them raise `IllegalArgumentException` rather than silently addressing a
   partial graph — a wrong answer is worse than no answer here, because
   deduplication and integrity checks both read "same identifier" as "same
   content".

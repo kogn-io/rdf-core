@@ -246,8 +246,9 @@ one set of library graphs per content graph.
 - **P5 — Growth.** Every distinct version is stored in full. Unproblematic for
   small resources; measure before using it on large graphs.
 - **P6 — `generateIri` can refuse.** Publish, the D3 change check and
-  `tagPublished` call `generateIri`, which rejects an empty draft or a slice with
-  several subjects (IllegalArgumentException) and can exceed the
+  `tagPublished` call `generateIri` with the proxy IRI as base (ADR-0017), which
+  rejects an empty draft or a slice with a subject of another resource
+  (IllegalArgumentException) and can exceed the
   canonicalizer's resource limit for highly symmetric blank-node structures.
   Each operation states what it does in these cases.
 
