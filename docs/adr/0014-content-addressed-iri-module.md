@@ -2,7 +2,9 @@
 
 Status: Accepted — the subject-IRI section is superseded by
 [ADR-0016](0016-content-addressed-iri-self-placeholder.md): the graph's own name
-no longer goes into the digest.
+no longer goes into the digest; the port signature is superseded by
+[ADR-0017](0017-content-addressed-iri-takes-the-base.md): `generateIri` takes the
+base IRI as an argument.
 
 ## Context
 

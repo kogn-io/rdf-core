@@ -1,7 +1,8 @@
 # ADR-0016: The content-addressed IRI replaces the graph's own name with a placeholder
 
 Status: Accepted (2026-10-02) — supersedes the subject-IRI section of
-[ADR-0014](0014-content-addressed-iri-module.md)
+[ADR-0014](0014-content-addressed-iri-module.md); the inferred base is superseded
+by [ADR-0017](0017-content-addressed-iri-takes-the-base.md): the caller passes it
 
 ## Context
 
