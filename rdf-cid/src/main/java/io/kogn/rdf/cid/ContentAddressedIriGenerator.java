@@ -26,7 +26,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  * <h2>What the identifier is derived from</h2>
  *
  * <p>The graph describes one resource, named by a <em>base IRI</em> (an IRI without a
- * fragment). The base IRI itself stays out of the hash: wherever it occurs — subject,
+ * fragment) that the caller passes alongside it: the identifier is that of a resource, not of
+ * an arbitrary graph, and which resource is meant is the caller's to say, never inferred from
+ * the triples. The base IRI itself stays out of the hash: wherever it occurs — subject,
  * predicate, object or a literal's datatype — it goes in as a fixed self placeholder, and each
  * of its fragment IRIs ({@code <base#part>}) as its fragment alone: everything after the first
  * {@code #}, further {@code #} characters included, possibly empty. Every other term goes in
@@ -49,19 +51,22 @@ import io.kogn.rdf.terms.ReadableGraph;
 public interface ContentAddressedIriGenerator {
 
   /**
-   * Generates a content-addressed IRI for the given RDF graph.
+   * Generates a content-addressed IRI for the resource {@code base} that the given graph
+   * describes.
    *
    * <p>The method analyzes the graph content and produces a deterministic IRI
    * based on a cryptographic hash of the normalized RDF representation.
    * The same graph content will always produce the same IRI.</p>
    *
-   * <p><strong>Preconditions.</strong> The graph must describe exactly one resource: all its
-   * IRI subjects share <strong>exactly one base IRI</strong> — the IRI string before the first
-   * {@code #} — and are that base and/or fragment IRIs of it; every other triple is a blank
-   * node triple reachable from one of them. The base itself need not appear as a subject. A
-   * graph with no IRI subject, with IRI subjects of several bases, or with triples no IRI
-   * subject reaches is rejected rather than silently reduced — an identifier that ignores part
-   * of its input would let two different graphs share one.</p>
+   * <p><strong>Preconditions.</strong> The graph must describe exactly the resource
+   * {@code base}: every IRI subject is {@code base} itself or a fragment IRI of it
+   * ({@code <base#part>}, the IRI string before the first {@code #} equal to {@code base}),
+   * and every other triple is a blank node triple reachable from one of them. The base itself
+   * need not appear as a subject. A graph with no such subject, with an IRI subject of another
+   * resource, or with triples no IRI subject reaches is rejected rather than silently reduced —
+   * an identifier that ignores part of its input would let two different graphs share one.
+   * These conditions depend on the triples, so no parameter type can carry them; they are
+   * checked on every call.</p>
    *
    * <p><strong>Not every graph meeting those preconditions gets an identifier.</strong> The
    * shipped canonicalizer caps the permutations it will try while telling apart blank nodes
@@ -72,16 +77,18 @@ public interface ContentAddressedIriGenerator {
    * canonicalizer this module ships, not of URDNA2015 itself, so the exact set of
    * addressable graphs is implementation-defined and may change with the canonicalizer.</p>
    *
-   * @param graph the RDF graph to generate an IRI for
+   * @param base the base IRI of the resource the graph describes; carries no fragment
+   * @param graph the RDF graph describing that resource
    * @return a content-addressed IRI (e.g., {@code urn:cid:abc123...})
-   * @throws IllegalArgumentException if the graph is null or empty, holds no IRI subject or IRI
-   *         subjects of more than one base IRI, or holds triples not reachable from an IRI
-   *         subject
+   * @throws IllegalArgumentException if {@code base} is null or carries a fragment, if the
+   *         graph is null or empty, holds no subject that is {@code base} or a fragment IRI of
+   *         it, holds an IRI subject that is neither, or holds triples not reachable from an
+   *         IRI subject
    * @throws CanonicalizationResourceLimitExceededException if the graph satisfies those
    *         preconditions but its blank node structure exceeds the canonicalizer's
    *         permutation limit
    * @throws ContentAddressingException if the graph satisfies those preconditions but the
    *         identifier cannot otherwise be derived
    */
-  IRI generateIri(ReadableGraph graph);
+  IRI generateIri(IRI base, ReadableGraph graph);
 }
