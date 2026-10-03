@@ -82,9 +82,18 @@ final class Preconditions {
 
   /**
    * Rejects a term that is no RDF 1.1 IRI, blank node or literal — an RDF 1.2 triple term, for
-   * instance, or any other kind the term model may be extended with.
+   * instance, or any other kind the term model may be extended with — and an IRI string that
+   * starts with {@code _:}: no absolute IRI does, and the quad API would read it as a blank node.
    */
   private static void rejectUnsupportedTerms(Collection<Triple> triples) {
+    triples.stream()
+        .flatMap(Preconditions::irisOf)
+        .filter(iri -> iri.startsWith(Terms.BLANK_NODE_PREFIX))
+        .findFirst()
+        .ifPresent(iri -> {
+          throw failure(UNSUPPORTED_TERM,
+              "ni-rdf/1 admits only absolute IRIs, but <" + iri + "> reads as a blank node label");
+        });
     triples.stream()
         .filter(t -> !isResource(t.getSubject()) || (!isResource(t.getObject()) && !(t.getObject() instanceof Literal)))
         .findFirst()

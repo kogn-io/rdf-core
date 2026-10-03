@@ -19,6 +19,22 @@
       "hashed": "(8:ni-rdf/1(1:S1:I29:http://example.org/vocab#part1:F2:p1)(1:S1:I30:http://purl.org/dc/terms/title1:L5:Hello1:I53:http://www.w3.org/1999/02/22-rdf-syntax-ns#langString2:en))"
     },
     {
+      "id": "language-tag-duplicates",
+      "description": "Two triples that differ only in the case of the language tag become one triple after §4.1; same content as \"language-tag-single\".",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/p> \"x\"@EN .\n<http://example.org/a> <http://example.org/p> \"x\"@en .\n",
+      "name": "ni:///sha3-256;7uSzapJVwQXqWs9bsmOAQ_RATltoAkAg76TnbluwSWo",
+      "hashed": "(8:ni-rdf/1(1:S1:I20:http://example.org/p1:L1:x1:I53:http://www.w3.org/1999/02/22-rdf-syntax-ns#langString2:en))"
+    },
+    {
+      "id": "language-tag-single",
+      "description": "One triple with a lower-case language tag; same name as \"language-tag-duplicates\".",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/p> \"x\"@en .\n",
+      "name": "ni:///sha3-256;7uSzapJVwQXqWs9bsmOAQ_RATltoAkAg76TnbluwSWo",
+      "hashed": "(8:ni-rdf/1(1:S1:I20:http://example.org/p1:L1:x1:I53:http://www.w3.org/1999/02/22-rdf-syntax-ns#langString2:en))"
+    },
+    {
       "id": "simple-literal",
       "description": "A simple literal; its datatype is xsd:string.",
       "base": "http://example.org/a",
