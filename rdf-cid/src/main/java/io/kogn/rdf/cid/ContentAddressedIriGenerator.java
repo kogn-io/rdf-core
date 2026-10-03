@@ -82,13 +82,14 @@ public interface ContentAddressedIriGenerator {
    *
    * <p><strong>Not every graph meeting those preconditions gets an identifier.</strong>
    * RDFC-1.0 runs in factorial time on blank nodes it cannot tell apart by their own triples
-   * and that have several mutually indistinguishable neighbours. ni-rdf/1 §4.3 counts those
-   * blank nodes — the <em>core</em> — before canonicalizing, and a graph whose core holds more
-   * than 6 blank nodes (for instance 7 blank nodes all linked to each other by one predicate)
-   * gets no identifier, as a {@link CanonicalizationResourceLimitExceededException}. The limit
+   * and that have several mutually indistinguishable neighbours. ni-rdf/1 §4.3 estimates that
+   * work as a cost bound before canonicalizing, and a graph whose bound exceeds 10 000 000
+   * (for instance 7 blank nodes all linked to each other by one predicate) gets no
+   * identifier, as a {@link CanonicalizationResourceLimitExceededException}. The limit
    * depends on the graph alone, not on the speed or the budget of the canonicalizer, so every
-   * conforming implementation accepts and rejects the same graphs. RDF lists, nested anonymous
-   * structures and repeated identical anonymous nodes have an empty core, however large.</p>
+   * conforming implementation accepts and rejects the same graphs. The bound is deliberately
+   * conservative and also rejects some graphs that would be cheap. RDF lists, nested anonymous
+   * structures and repeated identical anonymous nodes stay far below it.</p>
    *
    * @param base the base IRI of the resource the graph describes; carries no {@code #}
    * @param graph the RDF graph describing that resource
@@ -100,7 +101,7 @@ public interface ContentAddressedIriGenerator {
    *         nor a fragment IRI of it, holds no IRI subject, or holds triples not reachable from
    *         an IRI subject
    * @throws CanonicalizationResourceLimitExceededException if the graph satisfies those
-   *         preconditions but its blank node core exceeds the resource limit of ni-rdf/1
+   *         preconditions but its cost bound exceeds the resource limit of ni-rdf/1
    * @throws ContentAddressingException if the graph satisfies those preconditions but the
    *         identifier cannot otherwise be derived
    */

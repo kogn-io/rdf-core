@@ -127,8 +127,8 @@ public class ContentAddressableRdfSerializer {
    *         code in brackets ({@code [INVALID_BASE]}, {@code [RESERVED_IRI]},
    *         {@code [EMPTY_GRAPH]}, {@code [UNSUPPORTED_TERM]}, {@code [FOREIGN_SUBJECT]},
    *         {@code [NO_ROOT]} or {@code [UNREACHABLE]}), the first failing one in the order of §3
-   * @throws CanonicalizationResourceLimitExceededException if the blank node core exceeds the
-   *         resource limit of ni-rdf/1 §4.3
+   * @throws CanonicalizationResourceLimitExceededException if the cost bound of the blank
+   *         nodes exceeds the resource limit of ni-rdf/1 §4.3
    * @throws ContentAddressingException if canonicalization otherwise fails
    */
   public ContentAddressableResult serializeWithIri(IRI base, Collection<Triple> triples) {

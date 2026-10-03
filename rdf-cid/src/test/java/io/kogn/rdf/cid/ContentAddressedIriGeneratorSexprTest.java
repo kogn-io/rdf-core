@@ -440,6 +440,12 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph asDatatype = graph();
       asDatatype.add(doc, rdf.createIRI(EX + "p"), rdf.createLiteral("x", rdf.createIRI("_:t")));
 
+      Graph plain = graph();
+      plain.add(doc, rdf.createIRI(EX + "p"), rdf.createLiteral("x"));
+      assertThatExceptionOfType(IllegalArgumentException.class)
+          .isThrownBy(() -> generator.generateIri(rdf.createIRI("_:doc"), plain))
+          .withMessageStartingWith("[UNSUPPORTED_TERM]");
+
       for (Graph graph : List.of(asSubject, asPredicate, asObject, asDatatype)) {
         assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIri(doc, graph))
             .withMessageStartingWith("[UNSUPPORTED_TERM]");
@@ -618,10 +624,10 @@ class ContentAddressedIriGeneratorSexprTest {
     }
 
     @Test
-    @DisplayName("a legal graph whose blank node core exceeds 6 surfaces as a resource-limit failure, not a generic one")
-    void blankNodeCoreBeyondTheLimit() {
+    @DisplayName("a legal graph whose cost bound exceeds the limit surfaces as a resource-limit failure, not a generic one")
+    void costBeyondTheLimit() {
       // K_7: seven blank nodes, every ordered pair linked by the same predicate, all hanging off
-      // one IRI subject — a core of 7 (ni-rdf/1 §4.3), one more than the specification admits.
+      // one IRI subject — a cost bound far above the 10 000 000 ni-rdf/1 §4.3 admits.
       Graph graph = graph();
       IRI subject = rdf.createIRI(EX + "symmetric");
       IRI predicate = rdf.createIRI(EX + "link");

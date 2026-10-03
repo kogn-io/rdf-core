@@ -69,7 +69,7 @@ final class Preconditions {
     if (triples.isEmpty()) {
       throw failure(EMPTY_GRAPH, "The graph holds no triple");
     }
-    rejectUnsupportedTerms(triples);
+    rejectUnsupportedTerms(baseIri, triples);
     rejectReservedIris(triples, reserved);
     rejectForeignSubjects(triples, baseIri);
     rejectUnreachable(triples, baseIri);
@@ -85,9 +85,8 @@ final class Preconditions {
    * instance, or any other kind the term model may be extended with — and an IRI string that
    * starts with {@code _:}: no absolute IRI does, and the quad API would read it as a blank node.
    */
-  private static void rejectUnsupportedTerms(Collection<Triple> triples) {
-    triples.stream()
-        .flatMap(Preconditions::irisOf)
+  private static void rejectUnsupportedTerms(String base, Collection<Triple> triples) {
+    Stream.concat(Stream.of(base), triples.stream().flatMap(Preconditions::irisOf))
         .filter(iri -> iri.startsWith(Terms.BLANK_NODE_PREFIX))
         .findFirst()
         .ifPresent(iri -> {
