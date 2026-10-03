@@ -159,8 +159,13 @@ public interface DatasetLifecycle {
    * untouched; the contents of an {@code IN_MEMORY} dataset are lost, as with
    * {@link #close(DatasetId)}. Calling it when nothing is open is a no-op.</p>
    *
-   * @throws RuntimeException if tearing a backing store down fails; the datasets not
-   *     yet shut down at that point are not guaranteed to have been
+   * <p>A backing store that fails to shut down does not stop the others: every open
+   * dataset is attempted, and afterwards none of them is held open any more, the
+   * failed ones included.</p>
+   *
+   * @throws RuntimeException if tearing one or more backing stores down fails, thrown
+   *     only after every store has been attempted; it is the first failure, with any
+   *     further ones attached as suppressed exceptions
    */
   void shutDownAll();
 }
