@@ -450,6 +450,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * any dataset still has an open lease, a warning is logged naming it before
    * teardown proceeds.</p>
    */
+  @Override
   public void shutDownAll() {
     requireNotInsideOnCreate("shutDownAll");
     final Set<DatasetId> stillLeased = datasets.entrySet()

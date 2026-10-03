@@ -234,7 +234,7 @@ Settled semantics worth knowing before consuming it:
   returns a thin,
   per-handle wrapper that throws `IllegalStateException` once *that* handle is
   closed, while the underlying shared instance keeps working for any other open
-  handle on the same dataset. `shutDownAll()` is the deliberate exception — a
+  handle on the same dataset. `shutDownAll()`, a method of the `DatasetLifecycle` port, is the deliberate exception — a
   last-resort teardown that does not consult lease counts, logging a warning
   naming any dataset still leased before tearing everything down regardless.
 - **`close` reports which of three things it did** (`DatasetCloseOutcome`),
