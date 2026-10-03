@@ -89,7 +89,12 @@ concern:
 - **`GraphStore`** — named-graph-addressed `add`/`remove`/`clear`/`export`/`count`.
 - **`SparqlQuery`** — non-transactional `SELECT`/`CONSTRUCT`/`ASK`
   (`DESCRIBE` is not supported).
-- **`SparqlUpdate`** — SPARQL 1.1 Update.
+- **`SparqlUpdate`** — SPARQL 1.1 Update. Both SPARQL ports — and the same
+  operations on `DatasetTx` — fail with neutral exceptions only:
+  `MalformedSparqlException` for a string that does not parse,
+  `SparqlEvaluationException` for a well-formed one the backend could not carry
+  out (an unreachable `SERVICE` endpoint, a `LOAD` that cannot fetch its
+  source), each with the backend's own signal kept as cause.
 - **`DatasetExport`** — serialization to a byte stream: the whole dataset (only
   in a quad-capable `RdfFormat` — TriG or N-Quads — since a triple-only format
   would flatten the named graphs and silently lose which statement came from
