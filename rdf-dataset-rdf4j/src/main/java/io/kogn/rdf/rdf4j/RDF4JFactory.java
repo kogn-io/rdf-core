@@ -6,12 +6,12 @@ package io.kogn.rdf.rdf4j;
 import java.util.List;
 import java.util.Optional;
 
+import org.eclipse.rdf4j.model.BNode;
+import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.eclipse.rdf4j.model.util.RDFCollections;
 import org.eclipse.rdf4j.model.util.Values;
 
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
@@ -132,16 +132,23 @@ public class RDF4JFactory implements RDF {
       return RDFList.empty();
     }
 
-    // Convert RDF terms to RDF4J Values
-    List<Value> values = items.stream().map(this::toRDF4JValue).toList();
+    // Build the bare rdf:first/rdf:rest chain ourselves: RDFCollections.asRDF would add an
+    // rdf:type rdf:List triple on the head, which SimpleRdf does not emit.
+    Model model = new LinkedHashModel();
+    BNode listHead = valueFactory.createBNode();
+    BNode node = listHead;
+    for (int i = 0; i < items.size(); i++) {
+      model.add(node, org.eclipse.rdf4j.model.vocabulary.RDF.FIRST, toRDF4JValue(items.get(i)));
+      boolean last = i == items.size() - 1;
+      Resource rest = last ? org.eclipse.rdf4j.model.vocabulary.RDF.NIL : valueFactory.createBNode();
+      model.add(node, org.eclipse.rdf4j.model.vocabulary.RDF.REST, rest);
+      if (!last) {
+        node = (BNode) rest;
+      }
+    }
 
-    // Create RDF collection with head node
-    Resource listHead = Values.bnode();
-    org.eclipse.rdf4j.model.Model model = RDFCollections.asRDF(values, listHead, new LinkedHashModel());
-
-    // Wrap in abstractions
     Graph listGraph = new RDF4JGraph(model);
-    BlankNode head = new RDF4JBlankNode((org.eclipse.rdf4j.model.BNode) listHead);
+    BlankNode head = new RDF4JBlankNode(listHead);
 
     return new RDFList(head, listGraph);
   }

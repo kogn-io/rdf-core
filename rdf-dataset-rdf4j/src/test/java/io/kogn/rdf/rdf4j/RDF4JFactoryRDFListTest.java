@@ -34,9 +34,6 @@ class RDF4JFactoryRDFListTest {
 
   private final IRI a = rdf.createIRI("http://example.org/a");
 
-  // RDFCollections.asRDF marks the head node with rdf:type rdf:List; not exposed via VocabRdf.
-  private final IRI rdfList = rdf.createIRI(VocabRdf.NAMESPACE + "List");
-
   @Test
   @DisplayName("createRDFList builds rdf:first/rdf:rest chain for a mixed-type term list (all terms RDF4J-native)")
   void buildsRdfListWithMixedTermTypes() {
@@ -51,11 +48,11 @@ class RDF4JFactoryRDFListTest {
     // then
     assertThat(list.hasItems()).isTrue();
     ReadableGraph graph = list.graph();
-    // 3 first + 3 rest + 1 rdf:type List (added by RDFCollections.asRDF on the head node)
-    assertThat(graph.size()).isEqualTo(7);
+    // 3 first + 3 rest, no rdf:type rdf:List
+    assertThat(graph.size()).isEqualTo(6);
 
     BlankNode head = list.head();
-    assertThat(graph.stream(head, VocabRdf.TYPE, null).map(Triple::getObject)).containsExactly(rdfList);
+    assertThat(graph.stream(null, VocabRdf.TYPE, null)).isEmpty();
     assertThat(graph.stream(head, VocabRdf.FIRST, null).map(Triple::getObject)).containsExactly(a);
 
     Triple restOfHead = graph.stream(head, VocabRdf.REST, null).findFirst().orElseThrow();
@@ -86,11 +83,11 @@ class RDF4JFactoryRDFListTest {
     // then
     assertThat(list.hasItems()).isTrue();
     ReadableGraph graph = list.graph();
-    // 3 first + 3 rest + 1 rdf:type List (added by RDFCollections.asRDF on the head node)
-    assertThat(graph.size()).isEqualTo(7);
+    // 3 first + 3 rest, no rdf:type rdf:List
+    assertThat(graph.size()).isEqualTo(6);
 
     BlankNode head = list.head();
-    assertThat(graph.stream(head, VocabRdf.TYPE, null).map(Triple::getObject)).containsExactly(rdfList);
+    assertThat(graph.stream(null, VocabRdf.TYPE, null)).isEmpty();
     assertThat(graph.stream(head, VocabRdf.FIRST, null).map(Triple::getObject)).containsExactly(iri);
 
     Triple restOfHead = graph.stream(head, VocabRdf.REST, null).findFirst().orElseThrow();
