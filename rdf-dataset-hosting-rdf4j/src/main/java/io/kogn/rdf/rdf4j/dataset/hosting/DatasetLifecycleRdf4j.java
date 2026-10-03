@@ -286,7 +286,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
         return md; // in use — eviction is a no-op; policy retries later
       }
       try {
-        shutDownQuietly(md.repository);
+        shutDownRepository(md.repository);
         log.debug("Closed dataset {}", key.value());
         outcome[0] = DatasetCloseOutcome.CLOSED;
       } catch (final RuntimeException e) {
@@ -324,7 +324,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
       }
       try {
         if (md != null) {
-          shutDownQuietly(md.repository);
+          shutDownRepository(md.repository);
         }
         if (config.persistence() != Persistence.IN_MEMORY) {
           deleteStorageOrMarkPartial(key);
@@ -449,6 +449,10 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * never as a substitute for releasing leases in the normal course of business. If
    * any dataset still has an open lease, a warning is logged naming it before
    * teardown proceeds.</p>
+   *
+   * <p>A store that fails to shut down does not stop the others: every store is
+   * attempted and the cache is cleared regardless, then the first failure is
+   * rethrown with any further ones attached as suppressed exceptions.</p>
    */
   @Override
   public void shutDownAll() {
@@ -462,8 +466,24 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
       log.warn("shutDownAll: tearing down {} dataset(s) with an open lease, ignoring in-flight protection: {}",
           stillLeased.size(), stillLeased);
     }
-    datasets.values().forEach(md -> shutDownQuietly(md.repository));
+    RuntimeException teardownFailure = null;
+    for (final ManagedDataset md : datasets.values()) {
+      try {
+        shutDownRepository(md.repository);
+      } catch (final RuntimeException e) {
+        // the process is going down: one stuck store must not keep the rest open (a NativeStore
+        // would keep its directory locked), so carry on and report every failure at the end.
+        if (teardownFailure == null) {
+          teardownFailure = e;
+        } else {
+          teardownFailure.addSuppressed(e);
+        }
+      }
+    }
     datasets.clear();
+    if (teardownFailure != null) {
+      throw teardownFailure;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -503,7 +523,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
       // don't leave a half-created persistent store on disk — that would make isNewStore false
       // on the next acquire, so onCreate would never run again and the dataset would stay
       // unseeded. Restore the invariant: a dataset is created-and-seeded atomically, or not at all.
-      shutDownQuietly(repository);
+      try {
+        shutDownRepository(repository);
+      } catch (final RuntimeException teardownFailure) {
+        // as below: report the failure that started this, and still try to remove the storage.
+        e.addSuppressed(teardownFailure);
+      }
       if (isNew && config.persistence() != Persistence.IN_MEMORY) {
         try {
           deleteStorageOrMarkPartial(id);
@@ -688,10 +713,13 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   }
 
   /**
-   * Package-private (not {@code private}) so a test in this package can override it to force a
-   * deterministic repository-teardown failure — see {@code DatasetLifecycleRdf4jTest}.
+   * Shuts {@code repository} down if it is initialised. Any failure of the backend's
+   * {@code shutDown()} propagates; each caller decides what that means for the cache.
+   *
+   * <p>Package-private (not {@code private}) so a test in this package can override it to force a
+   * deterministic repository-teardown failure — see {@code DatasetLifecycleRdf4jTest}.</p>
    */
-  void shutDownQuietly(final Repository repository) {
+  void shutDownRepository(final Repository repository) {
     if (repository.isInitialized()) {
       repository.shutDown();
     }

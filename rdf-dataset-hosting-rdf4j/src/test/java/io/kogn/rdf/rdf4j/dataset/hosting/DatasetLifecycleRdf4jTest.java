@@ -848,8 +848,8 @@ class DatasetLifecycleRdf4jTest {
       final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
           root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
         @Override
-        void shutDownQuietly(final Repository repository) {
-          super.shutDownQuietly(repository); // real teardown succeeds — lock released, data flushed
+        void shutDownRepository(final Repository repository) {
+          super.shutDownRepository(repository); // real teardown succeeds — lock released, data flushed
           if (failNext.compareAndSet(true, false)) {
             throw teardownFailure; // ...but shutDown() itself is reported as having failed, once
           }
@@ -871,6 +871,75 @@ class DatasetLifecycleRdf4jTest {
         assertThat(ds.graphStore()).isNotSameAs(firstStore);
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }
+    }
+
+    @Test
+    @DisplayName("shutDownAll shuts every store down and clears the cache even when some teardowns fail")
+    void shutDownAll_teardownsFail_attemptsEveryStoreAndSurfacesAllFailures() {
+      final Path root = tmp.resolve("stores");
+      final List<Repository> tornDown = new ArrayList<>();
+      final List<RepositoryException> failures = new ArrayList<>();
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
+        @Override
+        void shutDownRepository(final Repository repository) {
+          super.shutDownRepository(repository);
+          tornDown.add(repository);
+          if (failures.size() < 2) { // the first two stores in iteration order report a failure
+            final RepositoryException failure = new RepositoryException("simulated shutdown failure");
+            failures.add(failure);
+            throw failure;
+          }
+        }
+      };
+      lifecycle = lc;
+      for (final String name : List.of("one", "two", "three")) {
+        lc.acquire(new DatasetId(name)).close();
+      }
+
+      assertThatThrownBy(lc::shutDownAll).isSameAs(failures.get(0))
+          .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(failures.get(1)));
+
+      assertThat(tornDown).hasSize(3).noneMatch(Repository::isInitialized);
+      lc.shutDownAll(); // the cache was cleared: nothing is left to tear down a second time
+      assertThat(tornDown).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("an on-create rollback whose teardown fails still removes the store and reports the on-create failure")
+    void onCreate_throws_rollbackTeardownFails_reportsOriginalAndStillRollsBack() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("rollback-teardown-fails");
+      final IllegalStateException seedFailure = new IllegalStateException("boom");
+      final RepositoryException teardownFailure = new RepositoryException("simulated shutdown failure");
+      final AtomicBoolean failNext = new AtomicBoolean(true);
+      final AtomicInteger seeds = new AtomicInteger();
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (datasetId, graphStore) -> {
+            if (seeds.incrementAndGet() == 1) {
+              throw seedFailure;
+            }
+            graphStore.add(GRAPH, singleTriple());
+          }) {
+        @Override
+        void shutDownRepository(final Repository repository) {
+          super.shutDownRepository(repository); // real teardown succeeds — lock released
+          if (failNext.compareAndSet(true, false)) {
+            throw teardownFailure;
+          }
+        }
+      };
+      lifecycle = lc;
+
+      assertThatThrownBy(() -> lc.acquire(id)).isSameAs(seedFailure)
+          .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(teardownFailure));
+
+      // the storage was still removed: the retry is a genuine creation that runs onCreate again
+      assertThat(lc.list()).doesNotContain(id);
+      try (DatasetHandle ds = lc.acquire(id)) {
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
+      assertThat(seeds).hasValue(2);
     }
 
     @Test
