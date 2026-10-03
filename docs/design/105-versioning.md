@@ -30,7 +30,7 @@ would not hold.
 | **History** | One entry per publish of a proxy IRI — sequence number, CID and the metadata of D8 — plus tombstones (D12). | history | proxy IRI |
 | **Publish** | Turning the draft's current content into a version and appending an entry to the proxy IRI's history. | | |
 | **Sequence number** | Position of a publish in one proxy IRI's history; starts at 1, gapless. | | |
-| **CID** | `urn:cid:` derived by `rdf-cid` from a resource's content, with the resource's own IRI (and its `#fragment` IRIs) replaced by a placeholder (ADR-0016). | | |
+| **CID** | The RFC 6920 name `ni:///sha3-256;…` derived by `rdf-cid` from a resource's content, with the resource's own IRI (and its `#fragment` IRIs) replaced by a placeholder (ADR-0016, ADR-0019). | | |
 | **Tag** | A named, immutable mapping proxy IRI → CID over many proxy IRIs: which version each of them meant at the time of the tag. | tag store | tag IRI |
 | **Draft view, published view, content store, history, tag store** | The five kinds of named graph in D4. | | |
 
@@ -130,16 +130,16 @@ ex:baum  skos:prefLabel  "Baum"@de ;
          skos:definition "…" .
 
 # content store: every published content once, under its CID
-<urn:cid:…4kq>  skos:prefLabel  "Baum"@de .
-<urn:cid:…p2m>  skos:prefLabel  "Baum"@de ;
-                skos:definition "…" .
+<ni:///sha3-256;…4kq>  skos:prefLabel  "Baum"@de .
+<ni:///sha3-256;…p2m>  skos:prefLabel  "Baum"@de ;
+                       skos:definition "…" .
 
 # history: one entry per publish; the highest sequence number is the current version
-ex:baum  kv:entry  [ kv:seq 1 ; kv:cid <urn:cid:…4kq> ; kv:at "…" ] ,
-                   [ kv:seq 2 ; kv:cid <urn:cid:…p2m> ; kv:at "…" ] .
+ex:baum  kv:entry  [ kv:seq 1 ; kv:cid <ni:///sha3-256;…4kq> ; kv:at "…" ] ,
+                   [ kv:seq 2 ; kv:cid <ni:///sha3-256;…p2m> ; kv:at "…" ] .
 
 # tag store: which version each proxy IRI meant when the tag was set
-<tag:2026-Q4>  kv:entry  [ kv:proxy ex:baum ; kv:cid <urn:cid:…p2m> ] .
+ex:tag-2026-Q4  kv:entry  [ kv:proxy ex:baum ; kv:cid <ni:///sha3-256;…p2m> ] .
 ```
 
 `ex:baum` is the subject in three graphs and means something different in
@@ -234,6 +234,13 @@ unrelated IRIs that happen to contain the string, and changes the content. The
 library offers `rebase(version, newBaseIri)` for this, so applications do not
 write their own string replacement.
 
+The library defines no resolution of a CID (ADR-0019): the `ni:` name names no
+host, and the read by CID (D6) works on the local content store only. An
+application that serves versions under RFC 6920's `/.well-known/ni/` serves the
+hashed bytes there, or promises no verifiability. For ActivityPub, the rebased
+HTTPS IRI is the object's `id`; the CID can travel alongside in `alsoKnownAs`,
+as w3c/activitypub#573 documents for alternative identifiers.
+
 ### D12 — Deletion
 
 Personal data must be erasable; immutability and deduplication must not prevent
@@ -241,8 +248,15 @@ it.
 
 - **Forgetting a version:** its content is removed from the content store and,
   if it is current, from the published view. The history entry stays with its
-  CID and an *erased* marker — a CID reveals nothing about the content. Tags
-  keep their entries and resolve them as *erased*.
+  CID and an *erased* marker. Tags keep their entries and resolve them as
+  *erased*. The CID does not show the content, but it confirms a guess: whoever
+  can enumerate the candidates (a birth date, a yes/no answer) derives the CID
+  of each and compares.
+- **Erasure ends at the dataset (ADR-0019).** Forgetting removes the content
+  from this dataset, not from copies elsewhere. Anyone holding a copy can show,
+  after the erasure, that it is exactly the content a still-circulating CID
+  names; a hash binds no author, but it binds the content. Applications must
+  not promise data subjects more than removal from their own store.
 - A version shared by several proxy IRIs (D7) is erased for all of them. Personal
   data has to go everywhere; this is intended, not reference-counted.
 - **Deleting a proxy IRI:** its draft slice is removed and the history records a
@@ -280,14 +294,18 @@ one set of library graphs per content graph.
   in the API docs. Any resolution of references (following IRIs into other
   resources) runs against one fixed view.
   A reference may still name one version on purpose, by its CID
-  (`ex:refersTo <urn:cid:…>`). The library stores it unchanged (D5). It enters
+  (`ex:refersTo <ni:///sha3-256;…>`). The library stores it unchanged (D5). It enters
   the referring resource's CID in full, since only the base IRI becomes a
   placeholder (ADR-0016), and it cascades nothing: it changes only when its
   author points it at another version. It means the same in every view, needs
   no tag to stay time-consistent and resolves through the read by CID (D6).
   Once that version is forgotten (D12), the reference finds no content; the
-  history entry shows the CID as *erased*. Whether the library checks such
-  references on write is Q10.
+  history entry shows the CID as *erased*. The library does not check on write
+  that such a CID occurs in the content store (Q10): it stores the IRIs it is
+  given (D5); a CID may name a version held by another server of a federation,
+  so its absence here is no error; `ni:` is a general scheme that names any
+  bytes, so the scheme shows a hash, not that a version is meant; and a check
+  would not survive D12, which can erase a referenced version later.
 - **P2 — Drift between views.** Invariant: the published view equals the
   current version's content with the CID replaced by the proxy IRI. Pin it with
   a test.
@@ -327,14 +345,10 @@ one set of library graphs per content graph.
   whether the timestamp comes from the caller or the library.
 - **Q8 — Migration:** turning an unversioned dataset into a versioned one (an
   initial bulk publish?), and data from the origin stack, whose identifiers are
-  not compatible with `urn:cid:` and have to be re-derived.
+  not compatible with the `ni:` names of ADR-0019 and have to be re-derived.
 - **Q9 — Sub-resources with identity of their own** (child IRIs under a
   resource): parked; returns once stable child identifiers are needed.
-- **Q10 — CID references on write:** does the library check that a CID named
-  in a draft's content (P1) occurs in the content store? Proposal: no. The
-  library stores the IRIs it is given (D5), cannot tell which IRIs in the
-  content are meant as version references, and a check would not survive D12
-  anyway.
+- **Q10 — CID references on write:** answered: not checked, see P1.
 
 Out of scope: SHACL validation before publish is the application's business.
 
@@ -374,10 +388,28 @@ From the review of the tutorial built on this note:
   proxy IRI; P1 states that content may reference a version by CID on
   purpose, and Q10 asks whether such references are checked.
 
+Following ADR-0019 (the CID becomes an RFC 6920 `ni:` name):
+
+- **CID format:** `urn:cid:` → `ni:///sha3-256;…` in the glossary, the D4
+  example, P1 and Q8; the D4 example's tag IRI no longer uses the `tag:` scheme.
+- **Resolution:** D11 states that the library defines none and how
+  `/.well-known/ni/` and ActivityPub relate to it.
+- **D12** corrects "a CID reveals nothing about the content" — it confirms a
+  guess — and states that erasure ends at the dataset: copies stay provable.
+- **Q10** answered: CID references are not checked on write (P1).
+- **Prior art** gains pukkamustard's content-addressable RDF and ERIS.
+
 ## Prior art
 
 - Trusty URIs — self-reference placeholder before hashing, the same mechanism as
   our CID: https://arxiv.org/pdf/1401.5775
+- pukkamustard, "Content-addressable RDF" (openEngiadina, 2020) — the fragment
+  graph of a base IRI hashed as canonical S-expressions without the base, the
+  closest predecessor of our CID; ADR-0019 lists where we differ:
+  https://openengiadina.net/papers/content-addressable-rdf.html
+- ERIS — encrypted, content-addressed block storage for byte streams under
+  `urn:eris:`; a different layer, a possible store beneath our CIDs, not an
+  alternative: https://eris.codeberg.page/spec/
 - R43ples — full current state under the original graph IRI plus revisions and
   history in a separate graph, structurally close to D4:
   https://ceur-ws.org/Vol-1215/paper-03.pdf
