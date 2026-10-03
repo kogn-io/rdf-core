@@ -28,7 +28,6 @@ would not hold.
 | **Version** | An *immutable* resource. It has no history of its own. | content store | CID |
 | **Current version** | The version named by the proxy IRI's latest history entry (the highest sequence number). There is no separate pointer; "current" is read off the history. Its content is additionally copied into the published view. | content store; copy in the published view | CID; proxy IRI for the copy |
 | **History** | One entry per publish of a proxy IRI — sequence number, CID and the metadata of D8 — plus tombstones (D12). | history | proxy IRI |
-| **Proxy** | Shorthand for everything recorded under one proxy IRI, its draft and its history, used in phrases like "per proxy". Not a resource and not a graph. | draft view, history | proxy IRI |
 | **Publish** | Turning the draft's current content into a version and appending an entry to the proxy IRI's history. | | |
 | **Sequence number** | Position of a publish in one proxy IRI's history; starts at 1, gapless. | | |
 | **CID** | `urn:cid:` derived by `rdf-cid` from a resource's content, with the resource's own IRI (and its `#fragment` IRIs) replaced by a placeholder (ADR-0016). | | |
@@ -41,7 +40,7 @@ matter (D4).
 
 ## Decisions
 
-### D1 — Draft/publish per proxy; the library owns the slice
+### D1 — Draft/publish per proxy IRI; the library owns the slice
 
 A normal write changes the draft only; an explicit publish turns it into a
 version. The unit is a **subject-bounded slice** of a shared named graph — the
@@ -58,7 +57,7 @@ rely on the library having seen every write.
 ### D2 — Everything runs in the caller's transaction
 
 Publish, tag and the slice writes take an open `DatasetTx` (ADR-0011) and never
-open one of their own, so several proxies can be published atomically and an
+open one of their own, so several proxy IRIs can be published atomically and an
 aborted transaction leaves nothing behind. Every read-then-write guard (next
 sequence number, unique tag name, concurrency token) reads through the same
 `DatasetTx` (ADR-0008); a conflict is reported, and retrying is the caller's
@@ -82,8 +81,8 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
 
 | Graph | Subject | Content | Changes |
 |---|---|---|---|
-| **Draft view** (the caller's content graph) | proxy IRI | working state of every proxy | on every write |
-| **Published view** | proxy IRI | copy of the content of each proxy's current version | slice replaced on publish |
+| **Draft view** (the caller's content graph) | proxy IRI | working state of every proxy IRI | on every write |
+| **Published view** | proxy IRI | copy of the content of each proxy IRI's current version | slice replaced on publish |
 | **Content store** | CID | every published content once, by CID, all in one graph; a version is its CID's slice | appended; erased only by D12 |
 | **History** | proxy IRI | one entry per publish (D8); tombstones (D12) | appended |
 | **Tag store** | tag IRI | tags (D9) | appended |
@@ -167,7 +166,7 @@ promise more and should be clarified there.)
 ### D6 — Read semantics belong to the application
 
 The library offers the states separately: read the draft; read the published
-state; read a version by CID; read version *n* of a proxy (the join over the
+state; read a version by CID; read version *n* of a proxy IRI (the join over the
 history, so no consumer has to write it); read the history; and read the
 **publish state** of a draft (added 2026-10-03) with three outcomes — never
 published, published without unpublished changes, published with unpublished
@@ -181,16 +180,16 @@ like "a GET on the proxy IRI returns the draft if present, else the current
 version" (as the origin stack implemented for ActivityPub) is an application
 rule built on these reads.
 
-### D7 — A CID identifies content, not a proxy
+### D7 — A CID identifies content, not a proxy IRI
 
-Two proxies with identical content share one version — that is the
+Two proxy IRIs published with identical content share one version — that is the
 deduplication. Resolving a CID back to "its" proxy IRI is therefore not a
 function; the direction that matters is proxy IRI → current CID. The library
 offers no single-valued reverse lookup.
 
 ### D8 — History records publishes only
 
-Per proxy: CID, sequence number, timestamp, optional creator, optional comment.
+Per history entry: CID, sequence number, timestamp, optional creator, optional comment.
 Draft writes are **not** history entries; an application that needs a write
 audit keeps it itself. (Recording draft writes as switchable history entries was
 proposed and rejected.)
@@ -198,15 +197,15 @@ proposed and rejected.)
 ### D9 — Tags
 
 A tag is a named, immutable mapping proxy IRI → CID — a consistent state across
-many proxies, comparable to a VCS tag. Release semantics, approval, naming
+many proxy IRIs, comparable to a VCS tag. Release semantics, approval, naming
 schemes and content diffs stay with the application.
 
 - Two operations, deliberately not one with an optional argument:
   - `tag(name, Map<proxyIri, cid>)` — exactly these versions; older states can
-    be tagged. Each CID must occur in that proxy's history.
-  - `tagPublished(name)` — every proxy's current version, read in the same
+    be tagged. Each CID must occur in that proxy IRI's history.
+  - `tagPublished(name)` — every proxy IRI's current version, read in the same
     transaction.
-- `tagPublished` **reports the proxies it passed over** — never published, or
+- `tagPublished` **reports the proxy IRIs it passed over** — never published, or
   with unpublished draft changes — instead of leaving them out silently.
 - One proxy IRI at most once per tag.
 - Immutable; name unique per dataset; tags cannot be deleted (but see D12).
@@ -218,7 +217,8 @@ schemes and content diffs stay with the application.
 ### D10 — Optimistic concurrency token
 
 The library checks a compare-and-set token on draft writes (D1) and on publish.
-The token describes the proxy's state as the writer read it. Shape open (Q3).
+The token describes the state of the draft and history under the proxy IRI
+as the writer read it. Shape open (Q3).
 
 ### D11 — Versions are delivered with their CID as subject; rebasing is a term operation
 
@@ -243,11 +243,11 @@ it.
   if it is current, from the published view. The history entry stays with its
   CID and an *erased* marker — a CID reveals nothing about the content. Tags
   keep their entries and resolve them as *erased*.
-- A version shared by several proxies (D7) is erased for all of them. Personal
+- A version shared by several proxy IRIs (D7) is erased for all of them. Personal
   data has to go everywhere; this is intended, not reference-counted.
-- **Deleting a proxy:** its draft slice is removed and the history records a
+- **Deleting a proxy IRI:** its draft slice is removed and the history records a
   tombstone; history and versions stay unless forgotten explicitly.
-- Forgetting a version is a separate operation from deleting a draft or a proxy;
+- Forgetting a version is a separate operation from deleting a draft or a proxy IRI;
   neither implies the other. An empty draft is not a deletion.
 - Operations that clear whole graphs must not destroy versions as a side effect.
 
@@ -264,14 +264,14 @@ its only implementation share the module, as in `rdf-cid` and `rdf-shacl`.
 Versioning is switched on **per dataset**, and a versioned dataset has
 **exactly one content graph**. There is one set of the library's graphs per
 dataset; tag names are unique per dataset and `tagPublished` covers every proxy
-in it — the same unit as D2's transaction. Rejected: switching it on per content
+IRI in it — the same unit as D2's transaction. Rejected: switching it on per content
 graph, which would scope tags and deduplication to part of a dataset and need
 one set of library graphs per content graph.
 
 ## Pitfalls to address in the implementation
 
 - **P1 — Time consistency of references.** A version containing
-  `ex:usesTerm <proxy-iri>` refers to the proxy, not to a version of the target;
+  `ex:usesTerm <proxy-iri>` refers to the proxy IRI, not to a version of the target;
   read later, it meets the target's *current* state. Only a tag gives a
   time-consistent picture: inside a tag, proxy IRIs resolve through the tag's
   mapping. References by hash (as in Trusty URIs) would force cascading
@@ -300,7 +300,7 @@ one set of library graphs per content graph.
 ## Open questions
 
 - **Q2 — Blank nodes in the content store:** stored as is, or skolemized?
-- **Q3 — Concurrency token shape:** a counter on the proxy, the draft's CID, or
+- **Q3 — Concurrency token shape:** a counter per proxy IRI, the draft's CID, or
   something else?
 - **Q4 — Graph IRIs** of the published view, content store, history and tag
   store. Settled: one set per dataset (D13) and one graph for all versions (D4).
@@ -327,12 +327,12 @@ Out of scope: SHACL validation before publish is the application's business.
 
 - **Draft after publish:** the comment says it is deleted; replaced by D3 — it
   stays.
-- **Wording:** the comment says "resource" where this note says proxy IRI or
-  proxy, including "Draft/publish per resource", "gapless per resource" and
+- **Wording:** the comment says "resource" where this note says proxy IRI,
+  including "Draft/publish per resource", "gapless per resource" and
   "resource → CID" for tags. The glossary above is authoritative.
 - **Tag signature:** the comment's `tag(name, cids)` becomes
   `tag(name, Map<proxyIri, cid>)`, because a CID does not determine its proxy
-  (D7). "Two CIDs of the same resource" becomes "one proxy IRI at most once".
+  IRI (D7). "Two CIDs of the same resource" becomes "one proxy IRI at most once".
 - **Concurrency token:** the comment reasoned that "the draft disappears on
   publish"; with D3 it does not, and D10 is phrased accordingly.
 - New since the comment: the prerequisite, D1 (slice operations), D4–D7,
@@ -350,8 +350,9 @@ From the review of the tutorial built on this note:
 - **No current pointer:** the current version is the latest history entry (D4,
   glossary). The earlier "pointer to the current CID; pointer replaced" is gone.
 - **Glossary** gains the graph each term lives in and the subject it has there,
-  and the entry *history*; *proxy IRI* and *proxy* are spelled out so that
-  neither reads as a thing that points or holds state by itself.
+  and the entry *history*; *proxy IRI* is spelled out so that it does not
+  read as a thing that points or holds state by itself, and *proxy* is
+  dropped — the text says proxy IRI, draft or history.
 - **D4** gains a worked example of the five graphs for one resource.
 - **D6** gains the publish-state read.
 
