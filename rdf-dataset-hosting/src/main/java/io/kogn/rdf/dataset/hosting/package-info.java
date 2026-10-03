@@ -22,6 +22,13 @@
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetCloseOutcome} — what
  *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#close} did: shut the dataset down,
  *       found it still leased, or found it not open at all</li>
+ *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetMaintenance} — find and clear the remains a
+ *       failed {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#delete} left behind, creating
+ *       nothing in their place; a port of its own, implemented alongside
+ *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle} (see ADR-0018)</li>
+ *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome} — what
+ *       {@link io.kogn.rdf.dataset.hosting.DatasetMaintenance#clearUnfinishedDelete} did: cleared
+ *       the remains, or found nothing to clear</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetStoreConfig} — the backend-neutral store knobs
  *       (persistence, full-text-search requirement)</li>
  * </ul>

@@ -121,7 +121,8 @@ public interface DatasetLifecycle {
    * left out here. Whether {@link #acquire(DatasetId)} goes on to accept that
    * identifier once it has cleaned the remains up itself is not something this
    * listing decides — only that it is not reported as usable while the remains
-   * stand.</p>
+   * stand. An implementation that can leave such remains behind names them through
+   * {@link DatasetMaintenance#listUnfinishedDeletes()} instead.</p>
    *
    * @return the identifiers this implementation currently reports as usable;
    *     never {@code null}

@@ -39,10 +39,12 @@ import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetCloseOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
 import io.kogn.rdf.dataset.hosting.DatasetId;
 import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
+import io.kogn.rdf.dataset.hosting.DatasetMaintenance;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
 import io.kogn.rdf.rdf4j.dataset.DatasetExportRdf4j;
@@ -56,7 +58,8 @@ import io.kogn.rdf.terms.ReadableGraph;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * RDF4J-backed {@link DatasetLifecycle}.
+ * RDF4J-backed {@link DatasetLifecycle}, and the {@link DatasetMaintenance} for the remains a failed
+ * delete leaves behind in it.
  *
  * <p>Builds the backing store from a {@link DatasetStoreConfig}
  * ({@link MemoryStore} for {@code IN_MEMORY}, {@link NativeStore} for
@@ -130,13 +133,13 @@ import lombok.extern.slf4j.Slf4j;
  * even though its directory still exists: the listing reports what this
  * implementation can rule out, not a promise that {@link #acquire(DatasetId)}
  * would open everything it does not rule out — a marked id whose cleanup would in
- * fact now succeed is left out just the same. Iterating the listing used to be
- * enough to meet such an id and so trigger the cleanup retry through a plain
- * {@code acquire}; now only an {@code acquire} for an already-known id does, so
- * remains behind a cause that has since cleared can sit unnoticed (tracked as
- * #115). An operator who has to clear them away in the meantime works on the
- * storage directory, guided by the {@code ERROR} logged when the delete
- * failed.</p>
+ * fact now succeed is left out just the same.</p>
+ *
+ * <p>The marked ids are named instead by {@link #listUnfinishedDeletes()}, and
+ * {@link #clearUnfinishedDelete(DatasetId)} retries the cleanup without creating
+ * anything in place of the remains — the way to clear them away when no caller
+ * wants the dataset back. It refuses an id with a directory but no mark, which is an
+ * intact dataset, and an id held open by this instance.</p>
  *
  * <h2>Path safety</h2>
  *
@@ -149,7 +152,7 @@ import lombok.extern.slf4j.Slf4j;
  * an acceptable trade for correctness.</p>
  */
 @Slf4j
-public class DatasetLifecycleRdf4j implements DatasetLifecycle {
+public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenance {
 
   /** Default RDF4J NativeStore triple-index specification. */
   public static final String DEFAULT_INDEX_SPEC = "spoc,posc,cosp";
@@ -194,10 +197,10 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
    *     next {@link #acquire(DatasetId)} runs the hook again for the same id. It runs
    *     under the per-key map lock, so it must only seed its own
    *     {@code GraphStore} and must not call back into this
-   *     lifecycle ({@code acquire}/{@code close}/{@code delete}/{@code list}). If it
-   *     throws, creation is rolled back (store shut down, a newly created persistent
-   *     store removed) and the exception propagates from {@code acquire}. May be
-   *     {@code null}
+   *     lifecycle ({@code acquire}/{@code close}/{@code delete}/{@code list}, nor the
+   *     maintenance calls). If it throws, creation is rolled back (store shut down,
+   *     a newly created persistent store removed) and the exception propagates from
+   *     {@code acquire}. May be {@code null}
    * @throws UnsupportedOperationException if {@code config.fullTextSearch()} is
    *     {@code true}
    */
@@ -347,6 +350,68 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
   }
 
   /**
+   * {@inheritDoc}
+   *
+   * <p>The identifiers come from every directory under the {@code storageRoot} that carries the
+   * {@value #DELETION_MARKER_FILE_NAME} marker, plus the in-process fallback for a marker that could
+   * not be written — see the class documentation. An {@code IN_MEMORY} lifecycle has no storage and
+   * never reports any.</p>
+   */
+  @Override
+  public Set<DatasetId> listUnfinishedDeletes() {
+    if (config.persistence() == Persistence.IN_MEMORY) {
+      return Set.of();
+    }
+    final Set<DatasetId> result = new HashSet<>(deletionUnfinished);
+    if (Files.isDirectory(storageRoot)) {
+      try (Stream<Path> entries = Files.list(storageRoot)) {
+        entries.filter(Files::isDirectory)
+            .filter(DatasetLifecycleRdf4j::carriesDeletionMarker)
+            .map(p -> decodeSegment(p.getFileName().toString()))
+            .filter(Objects::nonNull)
+            .forEach(result::add);
+      } catch (final IOException e) {
+        throw new UncheckedIOException("failed to list unfinished deletes under " + storageRoot, e);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Runs under the same per-key lock as {@link #acquire(DatasetId)} and {@link #delete(DatasetId)},
+   * so it cannot race either for the same id. A failure of the cleanup is logged at {@code ERROR}
+   * and rethrown, exactly as for a failed {@link #delete(DatasetId)}, and the mark stays.</p>
+   *
+   * @throws IllegalStateException if this instance holds the dataset open, or its directory exists
+   *     without the unfinished-delete mark
+   */
+  @Override
+  public DatasetCleanupOutcome clearUnfinishedDelete(final DatasetId id) {
+    Objects.requireNonNull(id, "id");
+    final DatasetCleanupOutcome[] outcome = new DatasetCleanupOutcome[1];
+    datasets.compute(id, (key, md) -> {
+      if (md != null) {
+        throw new IllegalStateException(
+            "dataset '" + key.value() + "' is open; it is an intact dataset, which only delete() removes");
+      }
+      if (hasRemainsOfFailedDelete(key)) {
+        deleteStorageOrMarkPartial(key);
+        log.info("Cleared the remains of the failed delete of dataset {}", key.value());
+        outcome[0] = DatasetCleanupOutcome.CLEARED;
+      } else if (config.persistence() != Persistence.IN_MEMORY && Files.exists(resolveDir(key).toPath())) {
+        throw new IllegalStateException("dataset '" + key.value() + "' is an intact dataset, not the remains of"
+            + " a failed delete; only delete() removes it");
+      } else {
+        outcome[0] = DatasetCleanupOutcome.NOTHING_TO_CLEAR;
+      }
+      return null;
+    });
+    return outcome[0];
+  }
+
+  /**
    * Shuts every open dataset down without deleting any storage. Intended for
    * orderly shutdown (e.g. {@code @PreDestroy} / test tear-down).
    *
@@ -438,11 +503,10 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       deleteStorageOnDisk(id);
     } catch (final RuntimeException e) {
       deletionUnfinished.add(id);
-      log.error(
-          "Deleting the storage of dataset {} failed; the identifier is marked as having an unfinished"
-              + " delete, regardless of how far the on-disk teardown got. It cannot be acquired until the remains"
-              + " are gone — the next acquire() retries the cleanup and fails if it cannot complete it.",
-          id.value(), e);
+      log.error("Deleting the storage of dataset {} failed; the identifier is marked as having an unfinished"
+          + " delete, regardless of how far the on-disk teardown got. It cannot be acquired until the remains"
+          + " are gone — the next acquire() or clearUnfinishedDelete() retries the cleanup and fails if it"
+          + " cannot complete it.", id.value(), e);
       throw e;
     }
     deletionUnfinished.remove(id);
@@ -505,6 +569,23 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle {
       return true;
     }
     return Files.exists(resolveDir(id).toPath().resolve(DELETION_MARKER_FILE_NAME));
+  }
+
+  /**
+   * Whether the dataset directory {@code dir} carries the {@value #DELETION_MARKER_FILE_NAME}
+   * marker. Unlike a bare {@link Files#exists}, which answers {@code false} when it cannot tell,
+   * this fails if the marker's presence cannot be determined — {@link #listUnfinishedDeletes()}
+   * must not drop an id it could not check.
+   */
+  private static boolean carriesDeletionMarker(final Path dir) {
+    final Path marker = dir.resolve(DELETION_MARKER_FILE_NAME);
+    if (Files.exists(marker)) {
+      return true;
+    }
+    if (Files.notExists(marker)) {
+      return false;
+    }
+    throw new UncheckedIOException(new IOException("cannot tell whether " + marker + " exists"));
   }
 
   private static boolean isNewStore(final File dir) {

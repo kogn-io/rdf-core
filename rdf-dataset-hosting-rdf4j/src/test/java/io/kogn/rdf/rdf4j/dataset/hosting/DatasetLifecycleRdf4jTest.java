@@ -6,6 +6,7 @@ package io.kogn.rdf.rdf4j.dataset.hosting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -13,8 +14,11 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -38,6 +42,7 @@ import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
+import io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetCloseOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
 import io.kogn.rdf.dataset.hosting.DatasetId;
@@ -831,6 +836,190 @@ class DatasetLifecycleRdf4jTest {
       try (Stream<Path> children = Files.list(root)) {
         assertThat(children).hasSize(1).allMatch(p -> p.startsWith(root));
       }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("maintenance of failed deletes")
+  class Maintenance {
+
+    @TempDir
+    Path tmp;
+
+    /**
+     * A persistent lifecycle whose on-disk teardown of {@code id} fails for as long as
+     * {@code failing} is set — the OS refusing to remove the storage, until the cause clears.
+     */
+    private DatasetLifecycleRdf4j failingFor(final Path root, final DatasetId id, final AtomicBoolean failing,
+        final AtomicInteger seeds) {
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> seeds.incrementAndGet()) {
+        @Override
+        void deleteStorageOnDisk(final DatasetId toDelete) {
+          if (toDelete.equals(id) && failing.get()) {
+            throw new UncheckedIOException(new IOException("simulated disk failure"));
+          }
+          super.deleteStorageOnDisk(toDelete);
+        }
+      };
+      return lifecycle;
+    }
+
+    @Test
+    @DisplayName("the remains of a failed delete are enumerated, and only they")
+    void listUnfinishedDeletes_namesTheRemains_butNotAnIntactDataset() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId broken = new DatasetId("half-deleted");
+      final DatasetId intact = new DatasetId("still-there");
+      final DatasetLifecycleRdf4j lc = failingFor(root, broken, new AtomicBoolean(true), new AtomicInteger());
+      lc.acquire(broken).close();
+      lc.acquire(intact).close();
+      assertThat(lc.listUnfinishedDeletes()).isEmpty(); // precondition: nothing has failed yet
+
+      assertThatThrownBy(() -> lc.delete(broken)).isInstanceOf(UncheckedIOException.class);
+
+      assertThat(lc.listUnfinishedDeletes()).containsExactly(broken);
+      assertThat(lc.list()).containsExactly(intact); // the two listings do not overlap
+    }
+
+    @Test
+    @DisplayName("the remains are still enumerated after a restart — the on-disk marker is what names them")
+    void listUnfinishedDeletes_secondInstanceOverSameRoot_findsTheRemains() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("restart-listed");
+      final DatasetLifecycleRdf4j first = failingFor(root, id, new AtomicBoolean(true), new AtomicInteger());
+      first.acquire(id).close();
+      assertThatThrownBy(() -> first.delete(id)).isInstanceOf(UncheckedIOException.class);
+      first.shutDownAll(); // the process goes down with the remains still there
+
+      final DatasetLifecycleRdf4j second = persistent(root);
+
+      assertThat(second.listUnfinishedDeletes()).containsExactly(id);
+    }
+
+    @Test
+    @DisplayName("clearing the remains creates nothing in their place, and the identifier is free again")
+    void clearUnfinishedDelete_removesTheRemains_withoutCreatingADataset() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("to-clear");
+      final AtomicBoolean failing = new AtomicBoolean(true);
+      final AtomicInteger seeds = new AtomicInteger();
+      final DatasetLifecycleRdf4j lc = failingFor(root, id, failing, seeds);
+      lc.acquire(id).close();
+      assertThatThrownBy(() -> lc.delete(id)).isInstanceOf(UncheckedIOException.class);
+      failing.set(false); // the cause — a locked file, a permission problem — has since cleared
+
+      assertThat(lc.clearUnfinishedDelete(id)).isEqualTo(DatasetCleanupOutcome.CLEARED);
+
+      // nothing was created in place of the remains: no directory, no seeding, in neither listing
+      try (Stream<Path> children = Files.list(root)) {
+        assertThat(children).isEmpty();
+      }
+      assertThat(seeds).hasValue(1); // only the original creation
+      assertThat(lc.listUnfinishedDeletes()).isEmpty();
+      assertThat(lc.list()).doesNotContain(id);
+      // and the identifier is an ordinary unknown one again: acquire creates and seeds it afresh
+      lc.acquire(id).close();
+      assertThat(seeds).hasValue(2);
+    }
+
+    @Test
+    @DisplayName("a cleanup that fails again reports the failure and leaves the identifier barred")
+    void clearUnfinishedDelete_failsAgain_reportsTheFailureAndKeepsTheIdBarred() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("still-undeletable");
+      final DatasetLifecycleRdf4j lc = failingFor(root, id, new AtomicBoolean(true), new AtomicInteger());
+      lc.acquire(id).close();
+      assertThatThrownBy(() -> lc.delete(id)).isInstanceOf(UncheckedIOException.class);
+
+      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(UncheckedIOException.class)
+          .hasMessageContaining("simulated disk failure");
+
+      assertThat(lc.listUnfinishedDeletes()).containsExactly(id);
+      assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("unfinished delete");
+    }
+
+    @Test
+    @DisplayName("clearing refuses an intact persisted dataset — getting rid of one is delete()")
+    void clearUnfinishedDelete_intactPersistedDataset_isRefusedAndLeftAlone() {
+      final Path root = tmp.resolve("stores");
+      final DatasetLifecycleRdf4j lc = persistent(root);
+      final DatasetId id = new DatasetId("intact");
+      try (DatasetHandle ds = lc.acquire(id)) {
+        ds.graphStore().add(GRAPH, singleTriple());
+      }
+      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED); // on disk only, not held open
+
+      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("intact");
+
+      try (DatasetHandle ds = lc.acquire(id)) {
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // untouched
+      }
+    }
+
+    @Test
+    @DisplayName("clearing refuses a dataset that is open, leased or not")
+    void clearUnfinishedDelete_openDataset_isRefused() {
+      final DatasetLifecycleRdf4j lc = persistent(tmp.resolve("stores"));
+      final DatasetId id = new DatasetId("open");
+
+      try (DatasetHandle ds = lc.acquire(id)) {
+        ds.graphStore().add(GRAPH, singleTriple());
+        assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class);
+      }
+      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class);
+
+      try (DatasetHandle ds = lc.acquire(id)) {
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
+    }
+
+    @Test
+    @DisplayName("an identifier with neither a dataset nor remains reports that there was nothing to clear")
+    void clearUnfinishedDelete_unknownId_reportsNothingToClear() {
+      final DatasetLifecycleRdf4j lc = persistent(tmp.resolve("stores"));
+
+      assertThat(lc.clearUnfinishedDelete(new DatasetId("never-seen")))
+          .isEqualTo(DatasetCleanupOutcome.NOTHING_TO_CLEAR);
+    }
+
+    @Test
+    @DisplayName("an in-memory lifecycle never has remains: nothing to list, nothing to clear, an open dataset refused")
+    void inMemory_hasNoRemains() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final DatasetId id = new DatasetId("in-memory");
+      lc.acquire(id).close();
+
+      assertThat(lc.listUnfinishedDeletes()).isEmpty();
+      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class);
+      lc.delete(id);
+      assertThat(lc.clearUnfinishedDelete(id)).isEqualTo(DatasetCleanupOutcome.NOTHING_TO_CLEAR);
+    }
+
+    @Test
+    @DisplayName("enumeration fails as a whole when the storage location cannot be read")
+    void listUnfinishedDeletes_unreadableStorageRoot_fails() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final DatasetLifecycleRdf4j lc = persistent(root);
+      lc.acquire(new DatasetId("any")).close();
+      final Set<PosixFilePermission> original = Files.getPosixFilePermissions(root);
+      Files.setPosixFilePermissions(root, PosixFilePermissions.fromString("-wx------"));
+      try {
+        assumeFalse(Files.isReadable(root), "running with privileges that ignore directory permissions");
+
+        assertThatThrownBy(lc::listUnfinishedDeletes).isInstanceOf(UncheckedIOException.class);
+      } finally {
+        Files.setPosixFilePermissions(root, original);
+      }
+    }
+
+    private DatasetLifecycleRdf4j persistent(final Path storageRoot) {
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), storageRoot);
+      return lifecycle;
     }
   }
 
