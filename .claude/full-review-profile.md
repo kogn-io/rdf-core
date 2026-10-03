@@ -21,15 +21,17 @@ At ~6k LOC the whole tree fits in one pass. Do not sample.
 
 | Modul | Pfad | Priorität | Letzter Review-Commit | Datum |
 |---|---|---|---|---|
-| rdf-dataset | `rdf-dataset` | 1 | `357a557` | 2026-08-06 |
-| rdf-dataset-rdf4j | `rdf-dataset-rdf4j` | 1 | `357a557` | 2026-08-06 |
-| rdf-dataset-hosting | `rdf-dataset-hosting` | 1 | `357a557` | 2026-08-06 |
-| rdf-dataset-hosting-rdf4j | `rdf-dataset-hosting-rdf4j` | 1 | `357a557` | 2026-08-06 |
-| rdf-shacl | `rdf-shacl` | 2 | `45aee87` | 2026-07-26 |
-| rdf-shacl-rdf4j | `rdf-shacl-rdf4j` | 2 | `45aee87` | 2026-07-26 |
-| rdf-terms | `rdf-terms` | 3 | `45aee87` | 2026-07-26 |
+| rdf-dataset | `rdf-dataset` | 1 | `2853056` | 2026-10-03 |
+| rdf-dataset-rdf4j | `rdf-dataset-rdf4j` | 1 | `2853056` | 2026-10-03 |
+| rdf-dataset-hosting | `rdf-dataset-hosting` | 1 | `2853056` | 2026-10-03 |
+| rdf-dataset-hosting-rdf4j | `rdf-dataset-hosting-rdf4j` | 1 | `2853056` | 2026-10-03 |
+| rdf-shacl | `rdf-shacl` | 2 | `2853056` | 2026-10-03 |
+| rdf-shacl-rdf4j | `rdf-shacl-rdf4j` | 2 | `2853056` | 2026-10-03 |
+| rdf-terms | `rdf-terms` | 3 | `2853056` | 2026-10-03 |
 
-The 2026-08-06 stamp covers the delta since `45aee87` in the four dataset modules (the
+The 2026-10-03 stamp (round 4) is a from-scratch audit of all modules except `rdf-cid`
+(excluded; it follows the #142 state and has no row yet) plus an independent re-check of the
+earlier fixes. Before that, the 2026-08-06 stamp covered the delta since `45aee87` in the four dataset modules (the
 DatasetExport vertical plus the round-2 fix commits) and an independent re-derivation of the
 #64/#68/#73 fixes — not a from-scratch re-audit of the unchanged remainder.
 
@@ -86,6 +88,59 @@ fixes. All three prior fixes held. New findings, per sweep:
 Verification lesson that paid off: reading the RDF4J *source jars* (not just javap) settled
 `includeInferred`, the `endRDF()` flush chain, and the exception hierarchy in one pass —
 `./mvnw dependency:sources` first, then `unzip -p` on `~/.m2/.../*-sources.jar`.
+
+## Calibration — round 4 (2026-10-03, commit `2853056`)
+
+From-scratch audit of every module except `rdf-cid`, one reviewer per module pair, each
+finding list re-verified by a fresh adversarial verifier with its own repro. 27 findings
+(4 P1, 8 P2, 15 P3; 23 confirmed, 4 plausible, 0 refuted), collected in issue #147. Re-check of
+the earlier fixes: all hold on their original path, but six fix families recurred on a
+sibling site (#112, #68, #72, #98, #67, #85 -> R2-1, R2-2, R2-6, R1-3, R3-2/R3-6, R4-1).
+
+| Sweep | Found |
+|---|---|
+| Phase 3 — a fixed invariant (#112 "never hand out or delete an intact dataset") attacked through a *different* code path than the one fixed (create rollback instead of delete) | **R2-1** — `File.list() == null` read as "new", then rollback/marker/next `acquire` deletes an intact dataset. |
+| Phase 1/3 — the #68 lesson ("catch clause vs. `Error`") applied to the sister site | **R2-2** — `createAndSeed` catches only `RuntimeException`. |
+| Phase 3/1.4 — ask a *returned* object (`ReadableGraph`, `BindingSet`) with the methods of its own interface | **R1-1** — an exported graph does not find its own triples. Earlier rounds only read port methods against their Javadoc. |
+| Phase 1.2 — isolation promise with an *overlapping* instead of disjoint scenario | **R1-2** — same triple written concurrently double-counts the delta (1000 runs without barrier: 95-99 % deviation). |
+| Phase 1.4/6 — a fixed Javadoc paragraph checked for symmetry against the neighbouring case (insert fixed, delete not) | **R1-3** — #98 documented `INSERT`, not `DELETE`/`count()`. |
+| Phase 4 — what does the backend accept that the port model cannot represent | **R1-4** — RDF 1.2 triple terms. |
+| Phase 4 — builder fields *and* short-circuits in the backend (`readShapes`, `validateInternal`), not only the flag the last issue named | **R3-2** (`sh:shapesGraph`), **R3-3** (1000-result limit), **R3-6** (DASH). |
+| Malformed-input sweep (new) — feed deliberately broken structures to ports that interpret foreign graph content (non-list, open list, cycle) | **R3-1** — heap exhaustion in `ShaclAstLists.toList`. Only found this way. |
+| Value-rendering sweep (new) — every `Value::stringValue` at a port boundary against blank-node and literal cases | **R3-4**, **R3-5**. |
+| Phase 4 — "second implementation against the same contract": ~50 single calls across both factories, input -> result/exception per backend side by side (one build run) | **R4-1**, **R4-3**; also surfaced **R4-2** (`ntriplesString`, "reads as verified"). |
+| Phase 1.1 — `@throws` re-checked on the *newest* code | **R2-6** — `clearUnfinishedDelete` again without NPE documentation (#72 pattern). |
+| Phase 5 — "does a documented sentence have a failing test" | **R4-4**, **R3-9**, plus the missing overlapping-triple test behind R1-2. |
+
+Empty or thin: Phase 1.1 for the SPARQL paths (#31/#73/6e2bb67 clean); Phase 2 commit path of
+the transactor (conflicts only in prepare/commit, verified in source); Phase 2 isolation for
+the hosting modules (they open no transactions of their own); nesting/ThreadLocal;
+`rdf-terms` in isolation (nothing grave — its value lay in the counterparts).
+
+New traps and rules:
+
+- **Existence/empty checks that precede a destructive branch** (`File.list() == null`,
+  `Files.exists() == false` also mean "cannot be determined"): hold each against the I/O error
+  case (repro: `chmod -wx` on the dataset directory, as non-root).
+- **Fix-family recurrence:** after every fixed finding, look for the same error class at the
+  sister sites (#67 -> other backend flags, #68 -> other `catch` clauses, #72 -> new methods,
+  #85 -> private converter copies, #98 -> the opposite operation).
+- **Surefire output with `-q` goes to `target/surefire-reports/*.txt|xml`**, not to stdout;
+  grep there. Probe output with line breaks is cut up by grep — escape in the probe.
+- **SHACL/malformed-list repros: run with `-DargLine=-Xmx256m` and a hard timeout**
+  (`assertTimeoutPreemptively`, `-Dsurefire.timeout`). RDF4J loops endlessly until the heap is
+  gone; without a limit the surefire JVM took 14 GB RSS and >7 min.
+- **Build without install:** `./mvnw -o -pl <module> -am test -Dtest=X -Dsurefire.failIfNoSpecifiedTests=false`
+  builds in the reactor; never `mvn install` in parallel work.
+- **Deterministic races instead of `@RepeatedTest`:** a blocking hook (`onCreate`) plus a
+  thread-state check (`BLOCKED`) proves a race without sleeps (R2-3); a barrier in the input
+  graph's `stream()` makes an overlap deterministic.
+- **Javadoc measures against 6.0.0, the POM is on 6.1.0** (`DatasetTransactorRdf4j`): the
+  #23/#52 rates were not re-measured in round 4.
+- **RDF4J source jars** (`~/.m2/.../6.1.0/*-sources.jar`, `unzip -p`) settled `SailUpdateExecutor`,
+  `MemorySailStore`, `ShaclAstLists`, `readShapes` in one pass each.
+- **Verifier lesson:** reviewer claims about "changes every run" or "silently wrong value"
+  need their own repro — R3-4 and R4-3/A1 were each partly refuted that way.
 
 ## Project-specific traps
 
