@@ -3,181 +3,100 @@
 
 package io.kogn.rdf.cid.sexpr;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.HashMap;
+import java.util.Map;
 
-import com.apicatalog.rdf.Rdf;
-import com.apicatalog.rdf.RdfDataset;
-import com.apicatalog.rdf.RdfResource;
-import com.apicatalog.rdf.RdfTriple;
+import com.apicatalog.rdf.canon.RdfCanon;
 
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.cid.ContentAddressingException;
-import io.kogn.rdf.terms.BlankNode;
-import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
-import io.kogn.rdf.terms.RDF;
-import io.kogn.rdf.terms.RDFTerm;
-import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
-import io.setl.rdf.normalization.MaxResourceExceeded;
-import io.setl.rdf.normalization.RdfNormalize;
 
 /**
- * Canonicalizes RDF datasets using URDNA2015 algorithm.
+ * Labels the blank nodes of a graph with RDF Dataset Canonicalization (RDFC-1.0, W3C
+ * Recommendation), as ni-rdf/1 §4.3 and §4.4 prescribe.
  *
- * <p>Based on io.setl:rdf-urdna library which implements the W3C RDF Dataset
- * Canonicalization specification (URDNA2015).</p>
+ * <p>Before RDFC-1.0 runs, the graph is checked against the resource limit of ni-rdf/1 §4.3:
+ * a graph whose <em>core</em> — the blank nodes RDFC-1.0 can only tell apart by trying every
+ * order of several mutually indistinguishable neighbours — holds more than
+ * {@value #MAX_CORE_SIZE} blank nodes is rejected without being canonicalized. The criterion
+ * depends on the graph alone, so every conforming implementation accepts and rejects the same
+ * graphs; RDFC-1.0 itself then runs without any time or permutation limit. The implementation
+ * is {@code com.apicatalog:titanium-rdfc}, with SHA-256 as hash algorithm and every triple in
+ * the default graph.</p>
  *
- * <p>This class converts our RDF API types to Titanium JSON-LD format,
- * applies canonicalization, and converts back.</p>
+ * @see <a href="https://www.w3.org/TR/rdf-canon/">RDF Dataset Canonicalization (RDFC-1.0)</a>
  */
 public class RdfDatasetCanonicalizer {
 
-  private final RDF rdf;
+  /** The largest core (ni-rdf/1 §4.3) a graph may have and still be canonicalized. */
+  public static final int MAX_CORE_SIZE = 6;
 
-  /** Creates a canonicalizer using {@link SimpleRdf} to rebuild terms from the canonical form. */
+  private static final String HASH_ALGORITHM = "SHA-256";
+
+  /** Creates a canonicalizer. */
   public RdfDatasetCanonicalizer() {
-    this(new SimpleRdf());
+    // stateless; every call canonicalizes from scratch
   }
 
   /**
-   * Creates a canonicalizer.
+   * Returns the canonical issued identifier of every blank node in the given graph.
    *
-   * @param rdf the term factory used to rebuild terms from the canonical form
-   */
-  public RdfDatasetCanonicalizer(RDF rdf) {
-    this.rdf = Objects.requireNonNull(rdf, "rdf must not be null");
-  }
-
-  /**
-   * Canonicalizes a collection of RDF triples.
+   * <p>Blank nodes are told apart by {@link io.kogn.rdf.terms.BlankNode#uniqueReference()}. The
+   * graph is taken as it is: mapping the base IRI out and lower-casing language tags (ni-rdf/1
+   * §4.1, §4.2) is the caller's job, because both change the labels issued here.</p>
    *
-   * <p>Ensures that blank nodes are consistently labeled, so identical
-   * RDF graphs produce identical canonical forms regardless of how blank
-   * nodes were originally named.</p>
-   *
-   * @param triples the triples to canonicalize
-   * @return canonicalized triples with deterministic blank node labels
-   * @throws CanonicalizationResourceLimitExceededException if the graph's blank node
-   *         structure is too symmetric for this canonicalizer's permutation limit — see
-   *         its javadoc
+   * @param triples the graph to canonicalize
+   * @return each blank node's {@code uniqueReference()} mapped to its canonical issued
+   *         identifier — {@code c14n0}, {@code c14n1}, … — without the {@code _:} prefix; empty
+   *         for a graph without blank nodes
+   * @throws CanonicalizationResourceLimitExceededException if the core of the graph holds more
+   *         than {@value #MAX_CORE_SIZE} blank nodes; the message starts with
+   *         {@code [RESOURCE_LIMIT]}
    * @throws ContentAddressingException if canonicalization otherwise fails; the underlying
    *         failure is kept as cause
    */
-  public Collection<Triple> canonicalize(Collection<Triple> triples) {
-    try {
-      // 1. Convert our RDF API to Titanium RdfDataset
-      RdfDataset dataset = toTitaniumDataset(triples);
-
-      // 2. Apply URDNA2015 canonicalization
-      RdfDataset normalized = RdfNormalize.normalize(dataset);
-
-      // 3. Convert back to our RDF API
-      return fromTitaniumDataset(normalized);
-    } catch (MaxResourceExceeded e) {
+  public Map<String, String> canonicalIdentifiers(Collection<Triple> triples) {
+    int core = BlankNodeCore.size(triples);
+    if (core > MAX_CORE_SIZE) {
       throw new CanonicalizationResourceLimitExceededException(
-          "canonicalization exceeded the implementation's resource limit for structurally "
-              + "symmetric blank node graphs (io.setl:rdf-urdna's permutation cap in the "
-              + "hash-n-degree-quads step); a different URDNA2015 implementation may address " + "this graph",
-          e);
+          "[RESOURCE_LIMIT] The graph's core holds " + core + " blank nodes, more than the " + MAX_CORE_SIZE
+              + " ni-rdf/1 admits: canonicalizing it would mean trying every order of too many "
+              + "mutually indistinguishable blank nodes",
+          null);
+    }
+    try {
+      return canonicalize(triples);
     } catch (RuntimeException e) {
-      throw new ContentAddressingException("RDF canonicalization failed", e);
+      throw new ContentAddressingException("RDFC-1.0 canonicalization failed", e);
     }
   }
 
-  private RdfDataset toTitaniumDataset(Collection<Triple> triples) {
-    RdfDataset dataset = Rdf.createDataset();
-
+  private Map<String, String> canonicalize(Collection<Triple> triples) {
+    RdfCanon canon = RdfCanon.create(HASH_ALGORITHM);
     for (Triple triple : triples) {
-      RdfResource subject = toTitaniumResource(triple.getSubject());
-      RdfResource predicate = Rdf.createIRI(triple.getPredicate().getIRIString());
-      com.apicatalog.rdf.RdfValue object = toTitaniumValue(triple.getObject());
-
-      RdfTriple rdfTriple = Rdf.createTriple(subject, predicate, object);
-      dataset.add(rdfTriple);
-    }
-
-    return dataset;
-  }
-
-  private Collection<Triple> fromTitaniumDataset(RdfDataset dataset) {
-    List<Triple> result = new ArrayList<>();
-
-    for (RdfTriple rdfTriple : dataset.toList()) {
-      result.add(fromTitaniumTriple(rdfTriple));
-    }
-
-    return result;
-  }
-
-  private RdfResource toTitaniumResource(BlankNodeOrIRI resource) {
-    if (resource instanceof IRI iri) {
-      return Rdf.createIRI(iri.getIRIString());
-    } else if (resource instanceof BlankNode bn) {
-      return Rdf.createBlankNode(bn.uniqueReference());
-    }
-    throw new IllegalArgumentException("Unknown resource type: " + resource.getClass());
-  }
-
-  private com.apicatalog.rdf.RdfValue toTitaniumValue(RDFTerm term) {
-    if (term instanceof IRI iri) {
-      return Rdf.createIRI(iri.getIRIString());
-    } else if (term instanceof Literal lit) {
-      String lexical = lit.getLexicalForm();
-      if (lit.getLanguageTag().isPresent()) {
-        return Rdf.createLangString(lexical, lit.getLanguageTag().get());
+      String subject = Terms.resource(triple.getSubject());
+      String predicate = triple.getPredicate().getIRIString();
+      switch (triple.getObject()) {
+      case Literal literal -> canon.quad(subject, predicate, literal.getLexicalForm(), Terms.datatypeOf(literal),
+          literal.getLanguageTag().orElse(null), null, null);
+      case IRI iri -> canon.quad(subject, predicate, iri.getIRIString(), null, null, null, null);
+      default -> canon.quad(subject, predicate, Terms.resource(triple.getObject()), null, null, null, null);
       }
-      IRI datatype = lit.getDatatype();
-      if (datatype != null) {
-        return Rdf.createTypedString(lexical, datatype.getIRIString());
-      }
-      return Rdf.createValue(lexical);
-    } else if (term instanceof BlankNode bn) {
-      return Rdf.createBlankNode(bn.uniqueReference());
     }
-    throw new IllegalArgumentException("Unknown term type: " + term.getClass());
+    // provide(...) runs the canonicalization; only the issued identifiers are of interest here.
+    canon.provide(line -> {
+    });
+
+    Map<String, String> identifiers = new HashMap<>();
+    canon.mapping().forEach((input, canonical) -> identifiers.put(withoutPrefix(input), withoutPrefix(canonical)));
+    return identifiers;
   }
 
-  private Triple fromTitaniumTriple(RdfTriple rdfTriple) {
-    BlankNodeOrIRI subject = fromTitaniumResource(rdfTriple.getSubject());
-    IRI predicate = rdf.createIRI(rdfTriple.getPredicate().getValue());
-    RDFTerm object = fromTitaniumTerm(rdfTriple.getObject());
-
-    return rdf.createTriple(subject, predicate, object);
-  }
-
-  private BlankNodeOrIRI fromTitaniumResource(RdfResource resource) {
-    if (resource.isIRI()) {
-      return rdf.createIRI(resource.getValue());
-    } else if (resource.isBlankNode()) {
-      return rdf.createBlankNode(resource.getValue());
-    }
-    throw new IllegalArgumentException("Unknown resource type");
-  }
-
-  private RDFTerm fromTitaniumTerm(com.apicatalog.rdf.RdfValue value) {
-    if (value.isIRI()) {
-      return rdf.createIRI(value.getValue());
-    } else if (value.isLiteral()) {
-      com.apicatalog.rdf.RdfLiteral literal = value.asLiteral();
-      String lexical = literal.getValue();
-
-      if (literal.getLanguage().isPresent()) {
-        return rdf.createLiteral(lexical, literal.getLanguage().get());
-      }
-
-      if (literal.getDatatype() != null) {
-        return rdf.createLiteral(lexical, rdf.createIRI(literal.getDatatype()));
-      }
-
-      return rdf.createLiteral(lexical);
-    } else if (value.isBlankNode()) {
-      return rdf.createBlankNode(value.getValue());
-    }
-    throw new IllegalArgumentException("Unknown value type");
+  private static String withoutPrefix(String blankNodeId) {
+    return blankNodeId.substring(Terms.BLANK_NODE_PREFIX.length());
   }
 }

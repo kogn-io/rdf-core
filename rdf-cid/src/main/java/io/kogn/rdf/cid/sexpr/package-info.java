@@ -4,9 +4,11 @@
  * <p>This package provides the low-level utilities that turn an RDF graph into the
  * deterministic byte form the content identifier is hashed from:</p>
  * <ul>
- *   <li>{@link io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer} - serializes RDF into a
- *       sorted, length-prefixed S-expression form and derives the {@code urn:cid:} URN</li>
- *   <li>{@link io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer} - canonicalizes RDF datasets for consistent hashing</li>
+ *   <li>{@link io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer} - checks the
+ *       preconditions of ni-rdf/1, serializes RDF into a sorted, length-prefixed S-expression
+ *       form and derives the {@code ni:///sha3-256;} name</li>
+ *   <li>{@link io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer} - checks the deterministic
+ *       resource limit and labels blank nodes with RDFC-1.0</li>
  * </ul>
  *
  * <p>These utilities ensure that semantically equivalent RDF graphs produce

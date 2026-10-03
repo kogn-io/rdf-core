@@ -60,15 +60,9 @@
 		<slf4j.version>2.0.20</slf4j.version>
 		<lombok.version>1.18.48</lombok.version>
 		<jmolecules.version>2.0.1</jmolecules.version>
-		<!-- rdf-cid only: URDNA2015 canonicalization and the helpers around it.
-		     The content hash itself (SHA3-256) is a JDK-native MessageDigest, no
-		     extra dependency. titanium-json-ld is pinned to 1.4.1, the version
-		     io.setl:rdf-urdna was compiled against (its own titanium-json-ld-jre8
-		     dependency is excluded in rdf-cid) — raising it here alone risks binary
-		     incompatibility with rdf-urdna. -->
-		<rdf-urdna.version>1.4</rdf-urdna.version>
-		<titanium-json-ld.version>1.7.0</titanium-json-ld.version>
-		<commons-codec.version>1.22.1</commons-codec.version>
+		<!-- rdf-cid only: RDFC-1.0 canonicalization (ni-rdf/1). The content hash
+		     (SHA3-256) and its base64url encoding are JDK-native, no extra dependency. -->
+		<titanium-rdfc.version>3.0.0</titanium-rdfc.version>
 		<maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
 		<spotless-maven-plugin.version>3.10.3</spotless-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
@@ -95,6 +89,7 @@
 		     from, so they are pinned here to current stable versions. -->
 		<junit.version>6.1.3</junit.version>
 		<assertj.version>3.27.7</assertj.version>
+		<jackson.version>3.2.3</jackson.version>
 	</properties>
 
 	<dependencyManagement>
@@ -193,6 +188,11 @@
 				<version>${assertj.version}</version>
 			</dependency>
 			<dependency>
+				<groupId>tools.jackson.core</groupId>
+				<artifactId>jackson-databind</artifactId>
+				<version>${jackson.version}</version>
+			</dependency>
+			<dependency>
 				<groupId>org.slf4j</groupId>
 				<artifactId>slf4j-api</artifactId>
 				<version>${slf4j.version}</version>
@@ -208,19 +208,9 @@
 				<version>${jmolecules.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>io.setl</groupId>
-				<artifactId>rdf-urdna</artifactId>
-				<version>${rdf-urdna.version}</version>
-			</dependency>
-			<dependency>
 				<groupId>com.apicatalog</groupId>
-				<artifactId>titanium-json-ld</artifactId>
-				<version>${titanium-json-ld.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>commons-codec</groupId>
-				<artifactId>commons-codec</artifactId>
-				<version>${commons-codec.version}</version>
+				<artifactId>titanium-rdfc</artifactId>
+				<version>${titanium-rdfc.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>io.kogn.rdf</groupId>
