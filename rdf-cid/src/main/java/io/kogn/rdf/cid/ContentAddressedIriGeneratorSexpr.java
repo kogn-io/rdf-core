@@ -58,7 +58,7 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
   }
 
   @Override
-  public IRI generateIri(ReadableGraph graph) {
+  public IRI generateIri(IRI base, ReadableGraph graph) {
     if (graph == null || graph.isEmpty()) {
       throw new IllegalArgumentException("Graph cannot be null or empty");
     }
@@ -67,7 +67,7 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
 
     ContentAddressableResult result;
     try {
-      result = contentAddressableRdfSerializer.serializeWithUrn(triples);
+      result = contentAddressableRdfSerializer.serializeWithUrn(base, triples);
     } catch (IllegalArgumentException | ContentAddressingException e) {
       throw e;
     } catch (RuntimeException e) {

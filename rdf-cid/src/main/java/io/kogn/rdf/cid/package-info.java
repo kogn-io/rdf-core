@@ -27,7 +27,8 @@
  * {@code "100"^^xsd:integer} and {@code "100"^^xsd:decimal} are different content, as are
  * {@code "Bank"@en} and {@code "Bank"@de}.</p>
  *
- * <p>One IRI is the exception: the <em>base IRI</em> of the described resource. It goes into
+ * <p>One IRI is the exception: the <em>base IRI</em> of the described resource, which the
+ * caller passes in rather than having it inferred from the triples. It goes into
  * the digest as a fixed self placeholder in every position — subject, predicate, object and a
  * literal's datatype — and its fragment IRIs ({@code <base#part>}) by their fragment alone, the
  * part after the first {@code #}. Two graphs describing the same thing under

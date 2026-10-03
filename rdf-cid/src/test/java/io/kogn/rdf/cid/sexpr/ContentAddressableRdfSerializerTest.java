@@ -65,7 +65,7 @@ class ContentAddressableRdfSerializerTest {
     triples.add(rdf.createTriple(y, v, rdf.createLiteral("1")));
 
     // When: serialize and inspect the bytes that were hashed
-    ContentAddressableRdfSerializer.ContentAddressableResult result = serializer.serializeWithUrn(triples);
+    ContentAddressableRdfSerializer.ContentAddressableResult result = serializer.serializeWithUrn(resource, triples);
     String sexpr = new String(result.sexprBytes(), StandardCharsets.ISO_8859_1);
 
     // Then: the two BlankNodes were serialized under two distinct skolem names, not merged
@@ -93,7 +93,7 @@ class ContentAddressableRdfSerializerTest {
     triples.add(rdf.createTriple(self, rdf.createIRI("http://example.org/hasPart"), part));
     triples.add(rdf.createTriple(part, rdf.createIRI(base + "#relation"), self));
 
-    String sexpr = new String(serializer.serializeWithUrn(triples).sexprBytes(), StandardCharsets.UTF_8);
+    String sexpr = new String(serializer.serializeWithUrn(self, triples).sexprBytes(), StandardCharsets.UTF_8);
 
     assertThat(sexpr).doesNotContain(base).contains("1:S").contains("1:F4:part").contains("1:F8:relation");
   }
@@ -106,16 +106,16 @@ class ContentAddressableRdfSerializerTest {
     IRI p = rdf.createIRI("http://example.org/p");
     String lookalike = ContentAddressableRdfSerializer.CANONICALIZATION_SELF_PREFIX + suffix;
 
-    ContentAddressableRdfSerializer.ContentAddressableResult foreign = serializer
-        .serializeWithUrn(List.of(rdf.createTriple(self, p, rdf.createIRI(lookalike))));
+    ContentAddressableRdfSerializer.ContentAddressableResult foreign = serializer.serializeWithUrn(self,
+        List.of(rdf.createTriple(self, p, rdf.createIRI(lookalike))));
 
     assertThat(new String(foreign.sexprBytes(), StandardCharsets.UTF_8)).as("the foreign IRI goes in as written")
         .contains("1:I" + lookalike.length() + ":" + lookalike);
     assertThat(foreign.urn()).as("not the resource itself")
-        .isNotEqualTo(serializer.serializeWithUrn(List.of(rdf.createTriple(self, p, self))).urn());
+        .isNotEqualTo(serializer.serializeWithUrn(self, List.of(rdf.createTriple(self, p, self))).urn());
     assertThat(foreign.urn()).as("not a fragment of the resource")
         .isNotEqualTo(serializer
-            .serializeWithUrn(List.of(rdf.createTriple(self, p, rdf.createIRI("http://example.org/doc#part"))))
+            .serializeWithUrn(self, List.of(rdf.createTriple(self, p, rdf.createIRI("http://example.org/doc#part"))))
             .urn());
   }
 
@@ -128,7 +128,7 @@ class ContentAddressableRdfSerializerTest {
 
     List<Triple> triples = List.of(rdf.createTriple(self, p, self),
         rdf.createTriple(self, p, rdf.createIRI(namespace + "x")));
-    String sexpr = new String(serializer.serializeWithUrn(triples).sexprBytes(), StandardCharsets.UTF_8);
+    String sexpr = new String(serializer.serializeWithUrn(self, triples).sexprBytes(), StandardCharsets.UTF_8);
 
     assertThat(sexpr).as("the base goes in as the placeholder").contains("1:S").doesNotContain(namespace + "e:x");
     assertThat(sexpr).as("its foreign neighbour as written")
@@ -144,7 +144,7 @@ class ContentAddressableRdfSerializerTest {
 
     List<Triple> triples = List.of(rdf.createTriple(self, p, rdf.createLiteral("1", rdf.createIRI(base + "#unit"))),
         rdf.createTriple(self, p, rdf.createLiteral("2", self)));
-    String sexpr = new String(serializer.serializeWithUrn(triples).sexprBytes(), StandardCharsets.UTF_8);
+    String sexpr = new String(serializer.serializeWithUrn(self, triples).sexprBytes(), StandardCharsets.UTF_8);
 
     assertThat(sexpr).doesNotContain(base).contains("1:L1:11:F4:unit").contains("1:L1:21:S");
   }

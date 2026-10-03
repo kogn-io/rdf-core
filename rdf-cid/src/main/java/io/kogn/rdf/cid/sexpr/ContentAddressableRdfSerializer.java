@@ -34,10 +34,10 @@ import io.kogn.rdf.terms.Triple;
  * Derives a content-addressed {@code urn:cid:} for the one resource a collection of triples
  * describes.
  *
- * <p>The resource is named by a single <em>base IRI</em>: an IRI without a fragment. Every IRI
- * subject of the triples is either that base or a fragment IRI of it ({@code <base#part>});
- * the base is the IRI string before the first {@code #}, compared as a plain string with no
- * further normalization. Per RFC 3986 the fragment starts at the first {@code #}; an IRI
+ * <p>The resource is named by a single <em>base IRI</em>: an IRI without a fragment, passed in
+ * by the caller rather than inferred from the triples. Every IRI subject of the triples is
+ * either that base or a fragment IRI of it ({@code <base#part>}): an IRI whose string before the
+ * first {@code #} equals the base, compared as a plain string with no further normalization. Per RFC 3986 the fragment starts at the first {@code #}; an IRI
  * holding further {@code #} characters is not rejected, everything after the first one is its
  * fragment. The triples of those subjects, together with the blank node triples reachable from
  * them, are the sub-graph the identifier is derived from.</p>
@@ -141,39 +141,60 @@ public class ContentAddressableRdfSerializer {
   /**
    * Serializes RDF triples and generates a content-addressed URN.
    *
-   * @param triples the triples to serialize; their IRI subjects must all share one base IRI
-   *        (the base itself and/or fragment IRIs of it), and every other triple must be a blank
-   *        node triple reachable from one of those subjects
+   * @param base the base IRI of the resource the triples describe; must carry no fragment
+   * @param triples the triples to serialize; every IRI subject must be {@code base} itself or a
+   *        fragment IRI of it, and every other triple must be a blank node triple reachable from
+   *        one of those subjects
    * @return the URN together with the serialized content it was derived from
-   * @throws IllegalArgumentException if the triples hold no IRI subject, IRI subjects of more
-   *         than one base IRI, or a triple not reachable from an IRI subject, because such a
-   *         triple would silently drop out of the identifier derived here
+   * @throws IllegalArgumentException if {@code base} is null or carries a fragment, if an IRI
+   *         subject is neither {@code base} nor a fragment IRI of it, if no subject is, or if a
+   *         triple is reachable from none of them, because such a triple would silently drop out
+   *         of the identifier derived here
    */
-  public ContentAddressableResult serializeWithUrn(Collection<Triple> triples) {
-    String base = singleBase(triples);
-    return serializeWithUrnInternal(triplesOfTheResource(triples), base);
+  public ContentAddressableResult serializeWithUrn(IRI base, Collection<Triple> triples) {
+    String baseIri = validBase(base);
+    rejectForeignSubjects(triples, baseIri);
+    return serializeWithUrnInternal(triplesOfTheResource(triples, baseIri), baseIri);
   }
 
   /**
-   * Returns the one base IRI all IRI subjects share.
+   * Returns the IRI string of a base IRI.
    *
-   * @throws IllegalArgumentException if there is no IRI subject, or IRI subjects of several bases
+   * @throws IllegalArgumentException if the base is null or carries a fragment
    */
-  private String singleBase(Collection<Triple> triples) {
-    List<String> bases = triples.stream()
+  private static String validBase(IRI base) {
+    if (base == null) {
+      throw new IllegalArgumentException("Base IRI cannot be null");
+    }
+    String value = base.getIRIString();
+    if (value.indexOf(FRAGMENT_SEPARATOR) >= 0) {
+      throw new IllegalArgumentException(
+          "A base IRI names the resource as a whole and carries no #fragment, but got <" + value + ">");
+    }
+    return value;
+  }
+
+  /**
+   * Rejects IRI subjects that are neither the base nor a fragment IRI of it: their triples
+   * describe another resource, and hashing them under this base would mix two resources into
+   * one identifier.
+   *
+   * @throws IllegalArgumentException if such a subject exists
+   */
+  private void rejectForeignSubjects(Collection<Triple> triples, String base) {
+    List<String> foreign = triples.stream()
         .map(Triple::getSubject)
         .filter(IRI.class::isInstance)
-        .map(subject -> baseOf(((IRI) subject).getIRIString()))
+        .map(subject -> ((IRI) subject).getIRIString())
+        .filter(subject -> !baseOf(subject).equals(base))
         .distinct()
         .sorted()
         .toList();
 
-    if (bases.size() != 1) {
-      throw new IllegalArgumentException(
-          "Content addressing describes exactly one resource, so the IRI subjects must share exactly "
-              + "one base IRI (the IRI without its #fragment), but they have " + bases.size() + ": " + bases);
+    if (!foreign.isEmpty()) {
+      throw new IllegalArgumentException("Content addressing describes exactly one resource, so every IRI subject "
+          + "must be the base <" + base + "> or a fragment IRI of it, but " + foreign.size() + " are not: " + foreign);
     }
-    return bases.getFirst();
   }
 
   /** The IRI string before the first {@code #}; per RFC 3986 the fragment starts there. */
@@ -184,13 +205,16 @@ public class ContentAddressableRdfSerializer {
 
   /**
    * Returns the triples of all IRI subjects, including all transitively reachable BlankNode
-   * triples. The caller has already checked that the IRI subjects share one base.
+   * triples. The caller has already checked that every IRI subject is the base or a fragment
+   * IRI of it.
    *
    * @param triples the triples to validate and collect from
+   * @param base the base IRI, named in the message when no subject is the base or a fragment of it
    * @return the resource's triples (including BlankNode triples)
-   * @throws IllegalArgumentException if a triple is reachable from no IRI subject
+   * @throws IllegalArgumentException if there is no IRI subject, or a triple is reachable from
+   *         no IRI subject
    */
-  private Collection<Triple> triplesOfTheResource(Collection<Triple> triples) {
+  private Collection<Triple> triplesOfTheResource(Collection<Triple> triples, String base) {
     Map<BlankNodeOrIRI, List<Triple>> bySubject = triples.stream().collect(Collectors.groupingBy(Triple::getSubject));
 
     List<BlankNodeOrIRI> iriSubjects = triples.stream()
@@ -198,6 +222,10 @@ public class ContentAddressableRdfSerializer {
         .filter(IRI.class::isInstance)
         .distinct()
         .toList();
+    if (iriSubjects.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Graph holds no subject that is the base <" + base + "> or a fragment IRI of it");
+    }
 
     Collection<Triple> resourceTriples = collectTriplesForResource(bySubject, iriSubjects);
     rejectUnreachable(triples, new HashSet<>(resourceTriples));
