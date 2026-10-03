@@ -6,6 +6,7 @@ package io.kogn.rdf.rdf4j.dataset;
 import java.util.Map;
 
 import org.eclipse.rdf4j.query.QueryLanguage;
+import org.eclipse.rdf4j.query.Update;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 
@@ -40,8 +41,9 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
   @Override
   public void update(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      SparqlErrors.bound(SparqlErrors.preparing(() -> conn.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings)
-          .execute();
+      final Update operation = SparqlErrors
+          .bound(SparqlErrors.translating(() -> conn.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings);
+      SparqlErrors.executing(operation::execute);
     }
   }
 }

@@ -25,6 +25,8 @@ import java.util.stream.Stream;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.query.MalformedQueryException;
+import org.eclipse.rdf4j.query.QueryEvaluationException;
+import org.eclipse.rdf4j.query.UpdateExecutionException;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryException;
@@ -52,6 +54,7 @@ import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.MalformedSparqlException;
 import io.kogn.rdf.dataset.RdfExportException;
 import io.kogn.rdf.dataset.RdfFormat;
+import io.kogn.rdf.dataset.SparqlEvaluationException;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -98,6 +101,20 @@ class DatasetRdf4jTest {
     graph.add(rdf.createTriple(SUBJECT, PREDICATE, OBJECT));
     return graph;
   }
+
+  /**
+   * A well-formed query whose evaluation always fails, without touching the network: the
+   * {@code SERVICE} target has no host, so RDF4J's federated-service client gives up before it
+   * opens a connection and reports a {@link QueryEvaluationException}.
+   */
+  private static final String UNREACHABLE_SERVICE_PATTERN = "SERVICE <urn:kognio:no-such-endpoint> { ?s ?p ?o }";
+
+  /**
+   * A well-formed update whose execution fails as soon as {@link #GRAPH_1} holds a triple: without
+   * {@code SILENT}, {@code CREATE GRAPH} for an existing graph is an error, which RDF4J reports as
+   * an {@link UpdateExecutionException}.
+   */
+  private static final String CREATE_EXISTING_GRAPH = "CREATE GRAPH <" + GRAPH_1.getIRIString() + ">";
 
   private Graph valueTriple(final String value) {
     final Graph graph = rdf.createGraph();
@@ -440,6 +457,33 @@ class DatasetRdf4jTest {
           .isNotInstanceOf(IllegalArgumentException.class)
           .hasCauseInstanceOf(MalformedQueryException.class);
     }
+
+    @Test
+    @DisplayName("update — a failure while executing well-formed SPARQL surfaces as the neutral"
+        + " SparqlEvaluationException, not UpdateExecutionException")
+    void update_executionFails_throwsNeutralEvaluationException() {
+      // given — the update parses; it is the execution that fails (issue #86)
+      sparqlUpdate.update("INSERT DATA { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
+          + PREDICATE.getIRIString() + "> <" + OBJECT.getIRIString() + "> } }");
+
+      // when / then
+      assertThatThrownBy(() -> sparqlUpdate.update(CREATE_EXISTING_GRAPH)).isInstanceOf(SparqlEvaluationException.class)
+          .isNotInstanceOf(MalformedSparqlException.class)
+          .hasCauseInstanceOf(UpdateExecutionException.class);
+    }
+
+    @Test
+    @DisplayName("update with bindings — a failure while executing surfaces as the neutral SparqlEvaluationException")
+    void update_withBindingsExecutionFails_throwsNeutralEvaluationException() {
+      // given
+      sparqlUpdate.update("INSERT DATA { GRAPH <" + GRAPH_1.getIRIString() + "> { <" + SUBJECT.getIRIString() + "> <"
+          + PREDICATE.getIRIString() + "> <" + OBJECT.getIRIString() + "> } }");
+
+      // when / then
+      assertThatThrownBy(() -> sparqlUpdate.update(CREATE_EXISTING_GRAPH, Map.of("s", SUBJECT)))
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasCauseInstanceOf(UpdateExecutionException.class);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -613,6 +657,70 @@ class DatasetRdf4jTest {
       // when / then
       assertThat(sparqlQuery.ask("ASK { GRAPH <" + GRAPH_1.getIRIString() + "> { ?s ?p ?o } }",
           Map.of("s", RDF4JIRI.of("https://example.org/unrelated")))).isFalse();
+    }
+
+    @Test
+    @DisplayName("select — a failure while evaluating well-formed SPARQL surfaces as the neutral"
+        + " SparqlEvaluationException, not QueryEvaluationException")
+    void select_evaluationFails_throwsNeutralEvaluationException() {
+      // given — the query parses; it is the evaluation that fails (issue #86)
+      assertThatThrownBy(() -> sparqlQuery.select("SELECT * WHERE { " + UNREACHABLE_SERVICE_PATTERN + " }").toList())
+          .isInstanceOf(SparqlEvaluationException.class)
+          .isNotInstanceOf(MalformedSparqlException.class)
+          .hasCauseInstanceOf(QueryEvaluationException.class);
+    }
+
+    @Test
+    @DisplayName("select — a foreign RuntimeException from the backend surfaces as the neutral"
+        + " SparqlEvaluationException, not the backend type")
+    void select_whenAForeignRuntimeExceptionEscapesTheBackend_throwsNeutralEvaluationException() {
+      // given — a sail (e.g. an inferencer or federation) that signals via a plain RuntimeException
+      // rather than an RDF4JException; SailRepositoryConnection passes such a type on unwrapped, so
+      // catching RDF4JException alone would let it through (the gap #99 found in DatasetExportRdf4j)
+      final Repository foreignFailure = new RepositoryWrapper(repository) {
+        @Override
+        public RepositoryConnection getConnection() {
+          return new RepositoryConnectionWrapper(this, super.getConnection()) {
+            @Override
+            public org.eclipse.rdf4j.query.TupleQuery prepareTupleQuery(final org.eclipse.rdf4j.query.QueryLanguage ql,
+                final String query) {
+              throw new RuntimeException("unwrapped sail failure");
+            }
+          };
+        }
+      };
+
+      // when / then
+      assertThatThrownBy(() -> new SparqlQueryRdf4j(foreignFailure).select("SELECT * WHERE { ?s ?p ?o }"))
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasRootCauseMessage("unwrapped sail failure");
+    }
+
+    @Test
+    @DisplayName("select with bindings — a failure while evaluating surfaces as the neutral SparqlEvaluationException")
+    void select_withBindingsEvaluationFails_throwsNeutralEvaluationException() {
+      assertThatThrownBy(
+          () -> sparqlQuery.select("SELECT * WHERE { " + UNREACHABLE_SERVICE_PATTERN + " }", Map.of("p", PREDICATE))
+              .toList())
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasCauseInstanceOf(QueryEvaluationException.class);
+    }
+
+    @Test
+    @DisplayName("construct — a failure while evaluating surfaces as the neutral SparqlEvaluationException")
+    void construct_evaluationFails_throwsNeutralEvaluationException() {
+      assertThatThrownBy(
+          () -> sparqlQuery.construct("CONSTRUCT { ?s ?p ?o } WHERE { " + UNREACHABLE_SERVICE_PATTERN + " }"))
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasCauseInstanceOf(QueryEvaluationException.class);
+    }
+
+    @Test
+    @DisplayName("ask — a failure while evaluating surfaces as the neutral SparqlEvaluationException")
+    void ask_evaluationFails_throwsNeutralEvaluationException() {
+      assertThatThrownBy(() -> sparqlQuery.ask("ASK { " + UNREACHABLE_SERVICE_PATTERN + " }"))
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasCauseInstanceOf(QueryEvaluationException.class);
     }
 
     @Test
@@ -1419,6 +1527,48 @@ class DatasetRdf4jTest {
           .isInstanceOf(MalformedSparqlException.class)
           .isNotInstanceOf(IllegalArgumentException.class)
           .hasCauseInstanceOf(MalformedQueryException.class);
+    }
+
+    @Test
+    @DisplayName("tx.update — a failure while executing surfaces as the neutral SparqlEvaluationException"
+        + " and rolls the transaction back")
+    void inTransaction_updateExecutionFails_throwsNeutralEvaluationExceptionAndRollsBack() {
+      // given — the add and the failing update share one unit of work, so neither may survive
+      new GraphStoreRdf4j(repository).add(GRAPH_1, singleTripleGraph());
+
+      // when / then
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> {
+        tx.add(GRAPH_2, singleTripleGraph());
+        tx.update(CREATE_EXISTING_GRAPH);
+        return null;
+      })).isInstanceOf(SparqlEvaluationException.class).hasCauseInstanceOf(UpdateExecutionException.class);
+      assertThat(new GraphStoreRdf4j(repository).count(GRAPH_2)).isZero();
+    }
+
+    @Test
+    @DisplayName("tx.select — a failure while evaluating surfaces as the neutral SparqlEvaluationException")
+    void inTransaction_selectEvaluationFails_throwsNeutralEvaluationException() {
+      assertThatThrownBy(() -> transactor
+          .inTransaction(tx -> tx.select("SELECT * WHERE { " + UNREACHABLE_SERVICE_PATTERN + " }").toList()))
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasCauseInstanceOf(QueryEvaluationException.class);
+    }
+
+    @Test
+    @DisplayName("tx.ask — a failure while evaluating surfaces as the neutral SparqlEvaluationException")
+    void inTransaction_askEvaluationFails_throwsNeutralEvaluationException() {
+      assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.ask("ASK { " + UNREACHABLE_SERVICE_PATTERN + " }")))
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasCauseInstanceOf(QueryEvaluationException.class);
+    }
+
+    @Test
+    @DisplayName("tx.construct — a failure while evaluating surfaces as the neutral SparqlEvaluationException")
+    void inTransaction_constructEvaluationFails_throwsNeutralEvaluationException() {
+      assertThatThrownBy(() -> transactor
+          .inTransaction(tx -> tx.construct("CONSTRUCT { ?s ?p ?o } WHERE { " + UNREACHABLE_SERVICE_PATTERN + " }")))
+          .isInstanceOf(SparqlEvaluationException.class)
+          .hasCauseInstanceOf(QueryEvaluationException.class);
     }
 
     @Test
