@@ -32,7 +32,7 @@ would not hold.
 | **Sequence number** | Position of a publish in one proxy IRI's history; starts at 1, gapless. | | |
 | **CID** | The RFC 6920 name `ni:///sha3-256;…` derived by `rdf-cid` from a resource's content, with the resource's own IRI (and its `#fragment` IRIs) replaced by a placeholder (ADR-0016, ADR-0019). | | |
 | **Tag** | A named, immutable mapping proxy IRI → CID over many proxy IRIs: which version each of them meant at the time of the tag. | tag store | tag IRI |
-| **Draft view, published view, content store, history, tag store** | The five kinds of named graph in D4. | | |
+| **Draft view, published view, content store, history, tag store, config graph** | The six kinds of named graph in D4. | | |
 
 Interface and storage are separate concerns: callers address a draft and its
 history through the proxy IRI, and one exact version through its CID; how
@@ -86,6 +86,7 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
 | **Content store** | CID | every published content once, by CID, all in one graph; a version is its CID's slice | appended; erased only by D12 |
 | **History** | proxy IRI | one entry per publish (D8); tombstones (D12) | appended |
 | **Tag store** | tag IRI | tags (D9) | appended |
+| **Config graph** | a fixed IRI of the library | settings of the versioned dataset: the recorded content graph | written on first use |
 
 - A query chooses the state it wants by choosing the graph (`FROM` / `GRAPH`):
   draft view for the working state, published view for the published state.
@@ -96,6 +97,15 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
   own and fill the dataset's graph list with them.
 - A versioned dataset has exactly one content graph, and so one draft view
   (D13).
+- **Graph IRIs (Q4):** the five graphs of the library have fixed IRIs in a
+  namespace of the library, so a caller cannot pass different names after a
+  restart and scatter the data. The caller names only the content graph. The
+  library records it in the config graph on first use, in the caller's
+  transaction (D2), checks it on every later use and rejects a different IRI.
+  The record has a graph of its own because every other graph holds one kind
+  of subject (proxy IRI, CID or tag IRI); a settings triple in one of them
+  would be a subject of the wrong kind to anyone reading that graph, such as
+  `tagPublished` collecting every proxy IRI from the history.
 - The current version is the **latest history entry**, the one with the highest
   sequence number. The library keeps no separate "current" pointer: a pointer
   would have to be kept in step with the history on every publish and every
@@ -105,7 +115,7 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
   view its published state.
 - Because the draft stays (D3), the draft view is always complete; the library
   has no mixed "draft, else published" view.
-- All five live in the **same dataset**, because D2's atomicity is per dataset.
+- All six live in the **same dataset**, because D2's atomicity is per dataset.
   **Consequence:** a query without `FROM`/`GRAPH` runs over the union of all
   named graphs and sees duplicates (draft and published view) plus CID subjects.
   The existing content graph stays physically unchanged, but context-less reads
@@ -337,12 +347,8 @@ one set of library graphs per content graph.
 - **Q2 — Blank nodes in the content store:** stored as is, or skolemized?
 - **Q3 — Concurrency token shape:** a counter per proxy IRI, the draft's CID, or
   something else?
-- **Q4 — Graph IRIs** of the published view, content store, history and tag
-  store. Settled: one set per dataset (D13) and one graph for all versions (D4).
-  Open: who names them. Proposal: fixed IRIs in a namespace of the library, so
-  a caller cannot pass different names after a restart and scatter the data;
-  the caller names only the content graph, which the library records on first
-  use and checks on every later one, rejecting a different IRI.
+- **Q4 — Graph IRIs** of the library's graphs: answered by D4 — fixed IRIs of
+  the library; the content graph is recorded in a config graph and checked.
 - **Q5 — Export/import:** all graph kinds must travel with a dataset export, or
   history is lost on re-import. There is no import port yet, and
   `DatasetExport` is not transactional (ADR-0013), so a multi-graph export is
@@ -405,6 +411,11 @@ Following ADR-0019 (the CID becomes an RFC 6920 `ni:` name):
   guess — and states that erasure ends at the dataset: copies stay provable.
 - **Q10** answered: CID references are not checked on write (P1).
 - **Prior art** gains pukkamustard's content-addressable RDF and ERIS.
+
+Q4 answered:
+
+- **D4** fixes the IRIs of the library's graphs and gains a sixth graph, the
+  config graph, which records the content graph; the glossary follows.
 
 ## Prior art
 
