@@ -62,7 +62,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `NamedGraph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetExport` (with `RdfFormat`), `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository`. RDF4J types never appear in public signatures. |
-| `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
+| `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`; `DatasetMaintenance` for the remains of a failed delete. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
@@ -278,13 +278,22 @@ Settled semantics worth knowing before consuming it:
   as long as the remains are there. `list` leaves the identifier out meanwhile,
   even though its directory still exists — the listing reports what an
   implementation can rule out, not a promise that every remaining identifier is
-  one `acquire` would open at that moment. The price is that the remains are
-  invisible through the port until they are cleared away: iterating `list` used to
-  be enough to meet such an id and trigger the cleanup retry through a plain
-  `acquire`, but now only an `acquire` for an already-known id does, so remains
-  behind a cause that has since cleared can sit unnoticed (tracked as #115); an
-  operator works on the storage directory, guided by the `ERROR` logged when the
-  delete failed.
+  one `acquire` would open at that moment.
+- **The remains of a failed delete are maintained through a port of their own**,
+  `DatasetMaintenance`, which `DatasetLifecycleRdf4j` implements alongside
+  `DatasetLifecycle` ([ADR-0018](docs/adr/0018-dataset-maintenance-port.md)).
+  `listUnfinishedDeletes` names exactly the identifiers `list` leaves out for
+  their remains — read from the on-disk markers, so it finds them after a
+  restart too — and fails as a whole rather than return a partial set if the
+  storage root cannot be read. `clearUnfinishedDelete` retries the cleanup
+  *without* creating anything in place of the remains, which is what a
+  maintenance run wants and `acquire` cannot give it; it refuses an intact
+  dataset, open or merely persisted, because removing one is `delete`, the only
+  path that guards against open leases. An identifier carrying neither is
+  reported as `NOTHING_TO_CLEAR`, not as an error, and a cleanup that fails again
+  rethrows and leaves the identifier barred. It is a separate port rather than
+  more methods on `DatasetLifecycle` so that no implementation outside this
+  repository breaks, and a consumer that never runs maintenance never sees it.
 - **The opaque `DatasetId` is Base64url-encoded into a single directory
   segment**, so values like `"../etc"` cannot escape the storage root.
 
