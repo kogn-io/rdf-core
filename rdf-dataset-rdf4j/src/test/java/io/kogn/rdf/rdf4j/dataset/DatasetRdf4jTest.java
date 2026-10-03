@@ -10,7 +10,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +24,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import org.eclipse.rdf4j.common.iteration.CloseableIteration;
+import org.eclipse.rdf4j.common.iteration.CloseableIteratorIteration;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Resource;
+import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.query.MalformedQueryException;
 import org.eclipse.rdf4j.query.QueryEvaluationException;
 import org.eclipse.rdf4j.query.UpdateExecutionException;
@@ -38,16 +45,22 @@ import org.eclipse.rdf4j.rio.RDFHandlerException;
 import org.eclipse.rdf4j.rio.Rio;
 import org.eclipse.rdf4j.rio.UnsupportedRDFormatException;
 import org.eclipse.rdf4j.sail.SailConflictException;
+import org.eclipse.rdf4j.sail.SailConnection;
+import org.eclipse.rdf4j.sail.helpers.SailConnectionWrapper;
+import org.eclipse.rdf4j.sail.helpers.SailWrapper;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
@@ -904,14 +917,118 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("a Turtle dump carries the repository's namespace declarations as prefix lines")
+    void exportDataset_asTurtle_carriesNamespaceDeclarations() {
+      // given
+      try (RepositoryConnection conn = repository.getConnection()) {
+        conn.setNamespace("ex", "http://example.org/ns#");
+      }
+      store.add(GRAPH_1, singleTripleGraph());
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TURTLE, GRAPH_1);
+
+      // then — checked on the raw bytes: parsing back would normalize the prefixes away
+      assertThat(out.toString(StandardCharsets.UTF_8)).contains("@prefix ex: <http://example.org/ns#>");
+    }
+
+    @Test
+    @DisplayName("namespace declarations travel along even when the export contains no statement")
+    void exportDataset_asTriGWhenEmpty_stillCarriesNamespaceDeclarations() {
+      // given
+      try (RepositoryConnection conn = repository.getConnection()) {
+        conn.setNamespace("ex", "http://example.org/ns#");
+      }
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.TRIG);
+
+      // then
+      assertThat(out.toString(StandardCharsets.UTF_8)).contains("@prefix ex: <http://example.org/ns#>");
+    }
+
+    @Test
+    @DisplayName("single named graph in N-Quads keeps the graph name")
+    void exportNamedGraph_asNQuads_keepsTheGraphName() throws IOException {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      store.add(GRAPH_2, valueTriple("value-2"));
+      final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      // when
+      export.export(out, RdfFormat.NQUADS, GRAPH_1);
+
+      // then — the dump round-trips back into the same named graph, and only that one
+      final Model parsed = parse(out, RDFFormat.NQUADS);
+      assertThat(parsed).hasSize(1);
+      assertThat(parsed.contexts()).extracting(Resource::stringValue).containsExactly(GRAPH_1.getIRIString());
+    }
+
+    @Test
+    @DisplayName("an export reads asserted statements only: a reasoning sail's derived statements stay out")
+    void export_readsAssertedStatementsOnly() throws IOException {
+      // given — a sail that, like an inferencer, adds a derived statement to every read that asks
+      // for inferred ones; modelled by hand because an inferencer would be a new test dependency
+      final SailRepository reasoning = new SailRepository(new SailWrapper(new MemoryStore()) {
+        @Override
+        public SailConnection getConnection() {
+          return new SailConnectionWrapper(super.getConnection()) {
+            @Override
+            public CloseableIteration<? extends Statement> getStatements(final Resource subj,
+                final org.eclipse.rdf4j.model.IRI pred, final Value obj, final boolean includeInferred,
+                final Resource... contexts) {
+              final CloseableIteration<? extends Statement> asserted = super.getStatements(subj, pred, obj,
+                  includeInferred, contexts);
+              if (!includeInferred) {
+                return asserted;
+              }
+              final List<Statement> all = new ArrayList<>();
+              try (asserted) {
+                while (asserted.hasNext()) {
+                  all.add(asserted.next());
+                }
+              }
+              all.add(SimpleValueFactory.getInstance()
+                  .createStatement(SimpleValueFactory.getInstance().createIRI("urn:derived:s"),
+                      SimpleValueFactory.getInstance().createIRI("urn:derived:p"),
+                      SimpleValueFactory.getInstance().createIRI("urn:derived:o")));
+              return new CloseableIteratorIteration<>(all.iterator());
+            }
+          };
+        }
+      });
+      reasoning.init();
+      try {
+        new GraphStoreRdf4j(reasoning).add(GRAPH_1, singleTripleGraph());
+        try (RepositoryConnection conn = reasoning.getConnection()) {
+          // the double does derive when asked, so the assertion below is not vacuous
+          assertThat(conn.getStatements(null, null, null, true).stream().count()).isEqualTo(2L);
+        }
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        // when
+        new DatasetExportRdf4j(reasoning).export(out, RdfFormat.TRIG);
+
+        // then
+        assertThat(parse(out, RDFFormat.TRIG)).hasSize(1)
+            .noneMatch(statement -> statement.getSubject().stringValue().startsWith("urn:derived:"));
+      } finally {
+        reasoning.shutDown();
+      }
+    }
+
+    @ParameterizedTest
+    @MethodSource("bothOverloads")
     @DisplayName("the caller's stream is flushed but not closed")
-    void export_leavesTheCallersStreamOpen() {
+    void export_leavesTheCallersStreamOpen(final ExportCall call) {
       // given
       store.add(GRAPH_1, singleTripleGraph());
       final CloseTrackingOutputStream out = new CloseTrackingOutputStream();
 
       // when
-      export.export(out, RdfFormat.TRIG);
+      call.run(export, out);
 
       // then — everything the writer produced has reached the stream (no explicit flush by the
       // test), and closing it is left to whoever opened it
@@ -919,22 +1036,23 @@ class DatasetRdf4jTest {
       assertThat(out.closed).isFalse();
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("bothOverloads")
     @DisplayName("a failing sink surfaces as the neutral RdfExportException, not an RDF4J type")
-    void export_whenTheStreamFails_throwsNeutralExportException() {
+    void export_whenTheStreamFails_throwsNeutralExportException(final ExportCall call) {
       // given
       store.add(GRAPH_1, singleTripleGraph());
 
       // when / then
-      assertThatThrownBy(() -> export.export(new FailingOutputStream(), RdfFormat.TRIG))
-          .isInstanceOf(RdfExportException.class)
+      assertThatThrownBy(() -> call.run(export, new FailingOutputStream())).isInstanceOf(RdfExportException.class)
           .hasCauseInstanceOf(RDFHandlerException.class)
           .hasRootCauseInstanceOf(IOException.class);
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("bothOverloads")
     @DisplayName("a connection failure while reading surfaces as the neutral RdfExportException, not RepositoryException")
-    void export_whenTheConnectionFails_throwsNeutralExportException() {
+    void export_whenTheConnectionFails_throwsNeutralExportException(final ExportCall call) {
       // given — the read side of the connection, not the sink, fails this time
       final Repository failingExport = new RepositoryWrapper(repository) {
         @Override
@@ -949,17 +1067,17 @@ class DatasetRdf4jTest {
       };
 
       // when / then
-      assertThatThrownBy(
-          () -> new DatasetExportRdf4j(failingExport).export(new ByteArrayOutputStream(), RdfFormat.TRIG))
+      assertThatThrownBy(() -> call.run(new DatasetExportRdf4j(failingExport), new ByteArrayOutputStream()))
           .isInstanceOf(RdfExportException.class)
           .hasCauseInstanceOf(RepositoryException.class)
           .hasRootCauseMessage("connection failed mid-read");
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("bothOverloads")
     @DisplayName("no writer registered for the format surfaces as the neutral RdfExportException,"
         + " not UnsupportedRDFormatException")
-    void export_whenNoWriterIsRegisteredForTheFormat_throwsNeutralExportException() {
+    void export_whenNoWriterIsRegisteredForTheFormat_throwsNeutralExportException(final ExportCall call) {
       // given — simulates a consumer excluding a Rio writer factory (e.g. rdf4j-rio-trig), which
       // makes Rio.createWriter throw UnsupportedRDFormatException; that type extends
       // RuntimeException directly, not RDF4JException, so it used to slip past the old
@@ -977,17 +1095,17 @@ class DatasetRdf4jTest {
       };
 
       // when / then
-      assertThatThrownBy(
-          () -> new DatasetExportRdf4j(noWriterForFormat).export(new ByteArrayOutputStream(), RdfFormat.TRIG))
+      assertThatThrownBy(() -> call.run(new DatasetExportRdf4j(noWriterForFormat), new ByteArrayOutputStream()))
           .isInstanceOf(RdfExportException.class)
           .hasCauseInstanceOf(UnsupportedRDFormatException.class)
           .hasRootCauseMessage("no factory for TRIG");
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("bothOverloads")
     @DisplayName("a foreign RuntimeException from the sail iteration surfaces as the neutral"
         + " RdfExportException, not the backend type")
-    void export_whenAForeignRuntimeExceptionEscapesTheSail_throwsNeutralExportException() {
+    void export_whenAForeignRuntimeExceptionEscapesTheSail_throwsNeutralExportException(final ExportCall call) {
       // given — a sail (e.g. an inferencer or federation) that signals via a plain
       // RuntimeException rather than SailException; SailRepositoryConnection only wraps
       // SailException into RepositoryException, so anything else used to reach the caller
@@ -1005,24 +1123,57 @@ class DatasetRdf4jTest {
       };
 
       // when / then
-      assertThatThrownBy(
-          () -> new DatasetExportRdf4j(foreignFailure).export(new ByteArrayOutputStream(), RdfFormat.TRIG))
+      assertThatThrownBy(() -> call.run(new DatasetExportRdf4j(foreignFailure), new ByteArrayOutputStream()))
           .isInstanceOf(RdfExportException.class)
           .hasCauseInstanceOf(RuntimeException.class)
           .hasRootCauseMessage("unwrapped sail failure");
     }
 
-    @Test
-    @DisplayName("null arguments fail with a NullPointerException naming the violated precondition")
-    void export_withNullArguments_throwsNullPointerException() {
+    @ParameterizedTest
+    @MethodSource("nullableArguments")
+    @DisplayName("null out or format fails with a NullPointerException naming the violated precondition,"
+        + " on both overloads")
+    void export_withNullStreamOrFormat_throwsNullPointerException(final NullCall call) {
       final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-      assertThatThrownBy(() -> export.export(null, RdfFormat.TRIG)).isInstanceOf(NullPointerException.class)
+      assertThatThrownBy(() -> call.run(export, null, RdfFormat.TRIG)).isInstanceOf(NullPointerException.class)
           .hasMessage("out must not be null");
-      assertThatThrownBy(() -> export.export(out, null)).isInstanceOf(NullPointerException.class)
+      assertThatThrownBy(() -> call.run(export, out, null)).isInstanceOf(NullPointerException.class)
           .hasMessage("format must not be null");
-      assertThatThrownBy(() -> export.export(out, RdfFormat.TURTLE, null)).isInstanceOf(NullPointerException.class)
+    }
+
+    @Test
+    @DisplayName("null named graph fails with a NullPointerException naming the violated precondition")
+    void export_withNullNamedGraph_throwsNullPointerException() {
+      assertThatThrownBy(() -> export.export(new ByteArrayOutputStream(), RdfFormat.TURTLE, null))
+          .isInstanceOf(NullPointerException.class)
           .hasMessage("iri must not be null");
+    }
+
+    /** One call shape of the port, against a fixed format; the graph is {@code GRAPH_1} where one is taken. */
+    @FunctionalInterface
+    private interface ExportCall {
+      void run(DatasetExportRdf4j export, OutputStream out);
+    }
+
+    /** One call shape of the port with the format left to the caller of the lambda. */
+    @FunctionalInterface
+    private interface NullCall {
+      void run(DatasetExportRdf4j export, OutputStream out, RdfFormat format);
+    }
+
+    static Stream<Arguments> bothOverloads() {
+      return Stream.of(
+          Arguments.of(Named.of("export(out, format)", (ExportCall) (e, out) -> e.export(out, RdfFormat.TRIG))),
+          Arguments.of(Named.of("export(out, format, namedGraph)",
+              (ExportCall) (e, out) -> e.export(out, RdfFormat.TRIG, GRAPH_1))));
+    }
+
+    static Stream<Arguments> nullableArguments() {
+      return Stream.of(
+          Arguments.of(Named.of("export(out, format)", (NullCall) (e, out, format) -> e.export(out, format))),
+          Arguments.of(Named.of("export(out, format, namedGraph)",
+              (NullCall) (e, out, format) -> e.export(out, format, GRAPH_1))));
     }
   }
 
