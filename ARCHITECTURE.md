@@ -66,7 +66,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
-| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(base, graph)` over `ReadableGraph`, returning a deterministic `urn:cid:` derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. No dependency on the dataset ports. |
+| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(base, graph)` over `ReadableGraph`, returning a deterministic RFC 6920 name `ni:///sha3-256;<digest>` (procedure ni-rdf/1) derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. No dependency on the dataset ports. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
@@ -343,15 +343,19 @@ only — never on the dataset modules — so validation and storage stay separab
 ## Content-addressed identifiers (`rdf-cid`)
 
 `ContentAddressedIriGenerator.generateIri(base, graph)` derives a deterministic
-`urn:cid:` from the triples describing the resource `base`, so the same content always mints the same
-identifier and re-importing a dataset is detectable without keeping a ledger of
-what was imported before
-([ADR-0014](docs/adr/0014-content-addressed-iri-module.md)). The derivation
-replaces the graph's own name with a placeholder, canonicalizes the graph with
-URDNA2015, serializes the result into a sorted, length-prefixed S-expression —
-blank nodes under their own kind tag with a deterministic skolem name keyed off
-the canonical label URDNA2015 already assigns them — and hashes it with
-SHA3-256.
+RFC 6920 name `ni:///sha3-256;<digest>` from the triples describing the resource
+`base`, so the same content always mints the same identifier and re-importing a
+dataset is detectable without keeping a ledger of what was imported before
+([ADR-0014](docs/adr/0014-content-addressed-iri-module.md),
+[ADR-0019](docs/adr/0019-content-addressed-iri-as-ni-name.md)). The derivation is
+the procedure **ni-rdf/1**, specified byte for byte in
+[`docs/spec/ni-rdf/v1.md`](docs/spec/ni-rdf/v1.md) with test vectors in
+[`vectors/v1.json`](docs/spec/ni-rdf/vectors/v1.json); the specification is
+normative and this module is one implementation of it. It replaces the graph's
+own name with a placeholder, checks a cost bound, canonicalizes the graph with
+RDFC-1.0 (SHA-256), serializes the result into a sorted, length-prefixed
+S-expression tagged `ni-rdf/1` — blank nodes under their own kind tag with the
+canonical label RDFC-1.0 assigns them — and hashes it with SHA3-256.
 
 Two things callers need to know before persisting the result anywhere:
 
@@ -362,18 +366,19 @@ Two things callers need to know before persisting the result anywhere:
   the IRI string before the first `#`); a base with a fragment, an IRI subject
   of another resource, no subject of the base at all, or a triple reachable from
   none of them raise `IllegalArgumentException` rather than silently addressing a
-  partial graph — a wrong answer is worse than no answer here, because
-  deduplication and integrity checks both read "same identifier" as "same
+  partial graph (so do the other preconditions of spec §3; the message starts
+  with the spec's failure code) — a wrong answer is worse than no answer here,
+  because deduplication and integrity checks both read "same identifier" as "same
   content".
 - **The graph's own name is not content; everything else is.** While hashing,
   the base IRI is replaced in every position (subject, predicate, object, a
   literal's datatype) by a self placeholder under kind tag `S`, and a fragment
   IRI of the base by kind tag `F` plus the fragment string. Every other term
   goes in in full — an IRI by its IRI string, a literal by lexical form,
-  datatype IRI *and* language tag. The replacement runs *before* URDNA2015
-  canonicalization, through an internal `urn:x-cid-self:` namespace, so the
-  blank node label order cannot depend on the base either. A resource can
-  therefore carry its own `urn:cid:` as its subject and be recomputed against
+  datatype IRI *and* language tag (lower-cased). The replacement runs *before*
+  RDFC-1.0 canonicalization, through a reserved `urn:uuid:` IRI the spec fixes,
+  so the blank node label order cannot depend on the base either. A resource can
+  therefore carry its own `ni:` name as its subject and be recomputed against
   it, whereas a foreign IRI in object position still changes the identifier
   ([ADR-0016](docs/adr/0016-content-addressed-iri-self-placeholder.md)).
 
@@ -383,11 +388,14 @@ swap, because the algorithm is arithmetic over `rdf-terms` values rather than a
 call into a store. It depends on `rdf-terms` alone among our modules and on no
 RDF4J artifact (`CidPortHasNoBackendDependencyTest` pins that the same way
 `rdf-shacl` does). It is the only backend-free module in this repository with a
-third-party dependency footprint of any size — the RDF4J adapter modules pull
-considerably more: `io.setl:rdf-urdna` for URDNA2015, Commons Codec for Base32,
-and Titanium JSON-LD, a direct dependency used by `RdfDatasetCanonicalizer` as
-`rdf-urdna`'s input/output model. SHA3-256, the digest, is a JDK-native
-`MessageDigest` algorithm and adds no dependency of its own.
+third-party dependency: `com.apicatalog:titanium-rdfc` for RDFC-1.0, which brings
+`titanium-rdf-api` and `titanium-rdf-n-quads` along and nothing else; the RDF4J
+adapter modules pull considerably more. SHA3-256,
+the digest, and base64url are JDK-native and add no dependency of their own.
+titanium-rdfc sorts by UTF-16 code unit where RDFC-1.0 requires code point
+order (filip26/titanium-rdf-canon#65), so the vector `code-point-order` is
+skipped in the Java test until that is fixed; the expected value in the vectors
+follows the specification, not the library.
 
 ## Build & release
 
