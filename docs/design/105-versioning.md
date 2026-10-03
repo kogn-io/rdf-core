@@ -1,6 +1,6 @@
 # Design note: versioning (#105)
 
-Status: agreed basis, open questions below | Date: 2026-10-02 | Issue: #105
+Status: agreed basis, open questions below | Date: 2026-10-03 (first version 2026-10-02) | Issue: #105
 
 This note is the agreed basis for implementing #105. It collects the decisions,
 the reasoning behind them and what is still open. It is not an ADR: once the
@@ -20,22 +20,23 @@ would not hold.
 
 ## Glossary
 
-| Term | Meaning |
-|---|---|
-| **Resource** | Content identified by a subject IRI. Two kinds: draft and version. |
-| **Draft** | A *mutable* resource. Its subject is the proxy IRI. |
-| **Version** | An *immutable* resource. Its subject is its CID. It has no history of its own. |
-| **Proxy IRI** | The stable IRI callers use. Subject of the draft; points to the current version's CID. |
-| **Proxy** | The draft plus the version history, addressed by one proxy IRI. |
-| **Publish** | Turning the draft's current content into a version and recording it in the proxy's history. |
-| **Current version** | The version the proxy's pointer names; the latest publish. |
-| **Sequence number** | Position of a publish in one proxy's history; starts at 1, gapless. |
-| **CID** | `urn:cid:` derived by `rdf-cid` from a resource's content, with the resource's own IRI (and its `#fragment` IRIs) replaced by a placeholder (ADR-0016). |
-| **Tag** | A named, immutable mapping proxy IRI → CID over many proxies. |
-| **Draft view, published view, version store, proxy graph, tag store** | The kinds of named graph in D4. |
+| Term | Meaning | Lives in (D4) | Subject there |
+|---|---|---|---|
+| **Resource** | Content identified by a subject IRI. Two kinds: draft and version. | | |
+| **Proxy IRI** | The stable IRI callers use. A name only: it carries no content of its own and points at nothing by itself. Everything known about it is a triple with it as subject, spread over three graphs. | draft view, published view, history | — |
+| **Draft** | A *mutable* resource: the working state. | draft view | proxy IRI |
+| **Version** | An *immutable* resource. It has no history of its own. | content store | CID |
+| **Current version** | The version named by the proxy IRI's latest history entry (the highest sequence number). There is no separate pointer; "current" is read off the history. Its content is additionally copied into the published view. | content store; copy in the published view | CID; proxy IRI for the copy |
+| **History** | One entry per publish of a proxy IRI — sequence number, CID and the metadata of D8 — plus tombstones (D12). | history | proxy IRI |
+| **Proxy** | Shorthand for everything recorded under one proxy IRI, its draft and its history, used in phrases like "per proxy". Not a resource and not a graph. | draft view, history | proxy IRI |
+| **Publish** | Turning the draft's current content into a version and appending an entry to the proxy IRI's history. | | |
+| **Sequence number** | Position of a publish in one proxy IRI's history; starts at 1, gapless. | | |
+| **CID** | `urn:cid:` derived by `rdf-cid` from a resource's content, with the resource's own IRI (and its `#fragment` IRIs) replaced by a placeholder (ADR-0016). | | |
+| **Tag** | A named, immutable mapping proxy IRI → CID over many proxy IRIs: which version each of them meant at the time of the tag. | tag store | tag IRI |
+| **Draft view, published view, content store, history, tag store** | The five kinds of named graph in D4. | | |
 
 Interface and storage are separate concerns: callers address everything through
-the proxy IRI; how drafts, versions and proxy data are kept apart is a storage
+the proxy IRI; how drafts, versions and history are kept apart is a storage
 matter (D4).
 
 ## Decisions
@@ -67,7 +68,8 @@ decision.
 
 After a successful publish the draft remains as the working state; at that
 moment its content equals the new version. Whether a draft holds unpublished
-changes is decided by deriving its CID and comparing it with the current CID.
+changes is decided by deriving its CID and comparing it with the CID of the
+latest history entry (D6 offers this as one read).
 
 - Publishing an unchanged draft creates **no** history entry and returns the
   current version.
@@ -81,20 +83,24 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
 | Graph | Subject | Content | Changes |
 |---|---|---|---|
 | **Draft view** (the caller's content graph) | proxy IRI | working state of every proxy | on every write |
-| **Published view** | proxy IRI | content of each proxy's current version | slice replaced on publish |
-| **Version store** | CID | every version, stored once per CID, all in one graph | appended; erased only by D12 |
-| **Proxy graph** | proxy IRI | pointer to the current CID; history | pointer replaced, history appended |
+| **Published view** | proxy IRI | copy of the content of each proxy's current version | slice replaced on publish |
+| **Content store** | CID | every published content once, by CID, all in one graph; a version is its CID's slice | appended; erased only by D12 |
+| **History** | proxy IRI | one entry per publish (D8); tombstones (D12) | appended |
 | **Tag store** | tag IRI | tags (D9) | appended |
 
 - A query chooses the state it wants by choosing the graph (`FROM` / `GRAPH`):
   draft view for the working state, published view for the published state.
-  One exact version is addressed by its CID as subject in the version store.
-- The version store is **one** named graph, not one graph per CID: a version is
+  One exact version is addressed by its CID as subject in the content store.
+- The content store is **one** named graph, not one graph per CID: a version is
   its CID's slice there (D1's slice operations, blank-node closure included).
   A graph per version would make every version a named graph of its
   own and fill the dataset's graph list with them.
 - A versioned dataset has exactly one content graph, and so one draft view
   (D13).
+- The current version is the **latest history entry**, the one with the highest
+  sequence number. The library keeps no separate "current" pointer: a pointer
+  would have to be kept in step with the history on every publish and every
+  forget, and it tells a reader nothing the entry does not.
 - References between proxy IRIs (`ex:usesTerm <proxy-iri>`) need no
   translation: in the draft view they meet the target's draft, in the published
   view its published state.
@@ -106,10 +112,41 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
   The existing content graph stays physically unchanged, but context-less reads
   of a versioned dataset are no longer meaningful; consumers name their graphs.
 - Rejected alternative: materialize no published view and rebuild it from the
-  version store on every read (the origin stack's approach). It has no drift
+  content store on every read (the origin stack's approach). It has no drift
   problem (P2) but makes the published state unreachable for plain SPARQL.
-- The published view duplicates the current state already held in the version
+- The published view duplicates the current state already held in the content
   store. Accepted for read simplicity.
+
+What the store holds, by example — a SKOS concept `ex:baum` after two
+publishes and one tag. Any resource works the same; `kv:` stands in for the
+history vocabulary (Q7), prefixes are omitted and CIDs shortened:
+
+```turtle
+# draft view (the caller's content graph): the working state
+ex:baum  skos:prefLabel  "Baum"@de ;
+         skos:definition "…" .
+
+# published view: a copy of the current version's content, under the proxy IRI
+ex:baum  skos:prefLabel  "Baum"@de ;
+         skos:definition "…" .
+
+# content store: every published content once, under its CID
+<urn:cid:…4kq>  skos:prefLabel  "Baum"@de .
+<urn:cid:…p2m>  skos:prefLabel  "Baum"@de ;
+                skos:definition "…" .
+
+# history: one entry per publish; the highest sequence number is the current version
+ex:baum  kv:entry  [ kv:seq 1 ; kv:cid <urn:cid:…4kq> ; kv:at "…" ] ,
+                   [ kv:seq 2 ; kv:cid <urn:cid:…p2m> ; kv:at "…" ] .
+
+# tag store: which version each proxy IRI meant when the tag was set
+<tag:2026-Q4>  kv:entry  [ kv:proxy ex:baum ; kv:cid <urn:cid:…p2m> ] .
+```
+
+`ex:baum` is the subject in three graphs and means something different in
+each: content in the draft view, a copy of the current version's content in the
+published view, bookkeeping in the history. The content store and the tag store
+never carry a proxy IRI as subject.
 
 ### D5 — No IRI translation, no host normalization
 
@@ -131,10 +168,18 @@ promise more and should be clarified there.)
 
 The library offers the states separately: read the draft; read the published
 state; read a version by CID; read version *n* of a proxy (the join over the
-proxy graph, so no consumer has to write it); read the history. It does not
-decide what a reader "really" wants. A rule like "a GET on the proxy IRI returns
-the draft if present, else the current version" (as the origin stack
-implemented for ActivityPub) is an application rule built on these reads.
+history, so no consumer has to write it); read the history; and read the
+**publish state** of a draft (added 2026-10-03) with three outcomes — never
+published, published without unpublished changes, published with unpublished
+changes. The last is D3's comparison of the draft's CID with the latest history
+entry's CID, offered as one read so that no consumer has to call `rdf-cid` and
+walk the history itself; a triple-level comparison of draft view and published
+view would be wrong, because blank-node labels may differ (P4). An empty draft
+falls under P6; a forgotten latest version (D12) keeps its CID in its entry and
+compares as usual. It does not decide what a reader "really" wants. A rule
+like "a GET on the proxy IRI returns the draft if present, else the current
+version" (as the origin stack implemented for ActivityPub) is an application
+rule built on these reads.
 
 ### D7 — A CID identifies content, not a proxy
 
@@ -194,13 +239,13 @@ write their own string replacement.
 Personal data must be erasable; immutability and deduplication must not prevent
 it.
 
-- **Forgetting a version:** its content is removed from the version store and,
+- **Forgetting a version:** its content is removed from the content store and,
   if it is current, from the published view. The history entry stays with its
   CID and an *erased* marker — a CID reveals nothing about the content. Tags
   keep their entries and resolve them as *erased*.
 - A version shared by several proxies (D7) is erased for all of them. Personal
   data has to go everywhere; this is intended, not reference-counted.
-- **Deleting a proxy:** its draft slice is removed and the proxy graph records a
+- **Deleting a proxy:** its draft slice is removed and the history records a
   tombstone; history and versions stay unless forgotten explicitly.
 - Forgetting a version is a separate operation from deleting a draft or a proxy;
   neither implies the other. An empty draft is not a deletion.
@@ -237,7 +282,7 @@ one set of library graphs per content graph.
   current version's content with the CID replaced by the proxy IRI. Pin it with
   a test.
 - **P3 — Atomicity across graphs.** One publish touches the published view, the
-  version store and the proxy graph; a tag touches the tag store. Pin with a test
+  content store and the history; a tag touches the tag store. Pin with a test
   that an aborted `DatasetTx` leaves all of them unchanged.
 - **P4 — Blank nodes and deduplication.** The CID canonicalizes blank nodes, the
   store keeps whatever labels it is given; "store once per CID" therefore needs a
@@ -254,10 +299,10 @@ one set of library graphs per content graph.
 
 ## Open questions
 
-- **Q2 — Blank nodes in the version store:** stored as is, or skolemized?
+- **Q2 — Blank nodes in the content store:** stored as is, or skolemized?
 - **Q3 — Concurrency token shape:** a counter on the proxy, the draft's CID, or
   something else?
-- **Q4 — Naming** of the published view, version store, proxy graph and tag
+- **Q4 — Graph IRIs** of the published view, content store, history and tag
   store. Settled: one set per dataset (D13) and one graph for all versions (D4).
   Open: who names them. Proposal: fixed IRIs in a namespace of the library, so
   a caller cannot pass different names after a restart and scatter the data;
@@ -292,6 +337,23 @@ Out of scope: SHACL validation before publish is the application's business.
   publish"; with D3 it does not, and D10 is phrased accordingly.
 - New since the comment: the prerequisite, D1 (slice operations), D4–D7,
   D11–D13, P1–P6, Q2–Q9.
+
+## Changes on 2026-10-03
+
+From the review of the tutorial built on this note:
+
+- **Graph names:** *version store* → **content store**, *proxy graph* →
+  **history**. The old names pointed the wrong way: the graph called "version
+  store" holds content addressed by CID and no list of versions, while the list
+  of a proxy IRI's versions sat in the graph called "proxy graph". In VCS terms
+  the content store is the object store and the history is refs plus log.
+- **No current pointer:** the current version is the latest history entry (D4,
+  glossary). The earlier "pointer to the current CID; pointer replaced" is gone.
+- **Glossary** gains the graph each term lives in and the subject it has there,
+  and the entry *history*; *proxy IRI* and *proxy* are spelled out so that
+  neither reads as a thing that points or holds state by itself.
+- **D4** gains a worked example of the five graphs for one resource.
+- **D6** gains the publish-state read.
 
 ## Prior art
 
