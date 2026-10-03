@@ -1,0 +1,198 @@
+{
+  "specification": "ni-rdf/1",
+  "license": "CC-BY-4.0",
+  "vectors": [
+    {
+      "id": "example",
+      "description": "The worked example of section 4.6: a language-tagged literal and a fragment IRI.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://purl.org/dc/terms/title> \"Hello\"@EN .\n<http://example.org/a> <http://example.org/vocab#part> <http://example.org/a#p1> .\n"
+    },
+    {
+      "id": "language-tag-case",
+      "description": "Same content as \"example\" with the language tag already lower-case; expects the same name.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://purl.org/dc/terms/title> \"Hello\"@en .\n<http://example.org/a> <http://example.org/vocab#part> <http://example.org/a#p1> .\n"
+    },
+    {
+      "id": "simple-literal",
+      "description": "A simple literal; its datatype is xsd:string.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://purl.org/dc/terms/title> \"Hello\" .\n"
+    },
+    {
+      "id": "explicit-xsd-string",
+      "description": "Same content as \"simple-literal\" with xsd:string written out; expects the same name.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://purl.org/dc/terms/title> \"Hello\"^^<http://www.w3.org/2001/XMLSchema#string> .\n"
+    },
+    {
+      "id": "integer-01",
+      "description": "The lexical form \"01\" is not normalized; differs from \"integer-1\".",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#count> \"01\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n"
+    },
+    {
+      "id": "integer-1",
+      "description": "The lexical form \"1\"; differs from \"integer-01\".",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#count> \"1\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n"
+    },
+    {
+      "id": "self-reference-every-position",
+      "description": "The base as predicate, as object and as datatype IRI, and a fragment as datatype IRI.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/a> <http://example.org/a> .\n<http://example.org/a> <http://example.org/vocab#weight> \"3\"^^<http://example.org/a#unit> .\n<http://example.org/a#unit> <http://example.org/vocab#basis> \"x\"^^<http://example.org/a> .\n"
+    },
+    {
+      "id": "fragment-edge-cases",
+      "description": "Only fragment subjects: the empty fragment, a fragment holding \"#\", and the base itself only as object.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a#> <http://example.org/vocab#p> \"empty fragment\" .\n<http://example.org/a#a#b> <http://example.org/vocab#p> \"fragment a#b\" .\n<http://example.org/a#a#b> <http://example.org/vocab#of> <http://example.org/a> .\n"
+    },
+    {
+      "id": "prefix-is-not-fragment",
+      "description": "IRIs that start with the base without a \"#\" directly after it are foreign IRIs, written in full.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#see> <http://example.org/ax> .\n<http://example.org/a> <http://example.org/vocab#see> <http://example.org/a/sub> .\n<http://example.org/a> <http://example.org/vocab#see> <http://example.org/a?q=1> .\n"
+    },
+    {
+      "id": "nested-blank-nodes",
+      "description": "Nested anonymous structures hanging off the base.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#address> _:addr .\n_:addr <http://example.org/vocab#street> \"Main Street 1\" .\n_:addr <http://example.org/vocab#geo> _:geo .\n_:geo <http://example.org/vocab#lat> \"52.5\"^^<http://www.w3.org/2001/XMLSchema#decimal> .\n_:geo <http://example.org/vocab#long> \"13.4\"^^<http://www.w3.org/2001/XMLSchema#decimal> .\n"
+    },
+    {
+      "id": "nested-blank-nodes-relabelled",
+      "description": "Same content as \"nested-blank-nodes\" with other blank node labels and triple order; expects the same name.",
+      "base": "http://example.org/a",
+      "input": "_:b0 <http://example.org/vocab#long> \"13.4\"^^<http://www.w3.org/2001/XMLSchema#decimal> .\n_:b0 <http://example.org/vocab#lat> \"52.5\"^^<http://www.w3.org/2001/XMLSchema#decimal> .\n_:x9 <http://example.org/vocab#geo> _:b0 .\n_:x9 <http://example.org/vocab#street> \"Main Street 1\" .\n<http://example.org/a> <http://example.org/vocab#address> _:x9 .\n"
+    },
+    {
+      "id": "nested-blank-nodes-other-base",
+      "description": "Same content as \"nested-blank-nodes\" described under another base IRI; expects the same name.",
+      "base": "https://other.example/thing/42",
+      "input": "<https://other.example/thing/42> <http://example.org/vocab#address> _:addr .\n_:addr <http://example.org/vocab#street> \"Main Street 1\" .\n_:addr <http://example.org/vocab#geo> _:geo .\n_:geo <http://example.org/vocab#lat> \"52.5\"^^<http://www.w3.org/2001/XMLSchema#decimal> .\n_:geo <http://example.org/vocab#long> \"13.4\"^^<http://www.w3.org/2001/XMLSchema#decimal> .\n"
+    },
+    {
+      "id": "list-of-equal-values",
+      "description": "An RDF list of 15 equal literals: many indistinguishable blank nodes, empty core.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#ratings> _:l0 .\n_:l0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l1 .\n_:l1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l2 .\n_:l2 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l2 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l3 .\n_:l3 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l3 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l4 .\n_:l4 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l4 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l5 .\n_:l5 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l5 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l6 .\n_:l6 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l6 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l7 .\n_:l7 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l7 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l8 .\n_:l8 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l8 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l9 .\n_:l9 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l9 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l10 .\n_:l10 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l10 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l11 .\n_:l11 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l11 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l12 .\n_:l12 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l12 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l13 .\n_:l13 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l13 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l14 .\n_:l14 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> \"5\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n_:l14 <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> <http://www.w3.org/1999/02/22-rdf-syntax-ns#nil> .\n"
+    },
+    {
+      "id": "repeated-anonymous-nodes",
+      "description": "Twelve identical anonymous nodes: one class of 12, empty core.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#offer> _:o0 .\n_:o0 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o1 .\n_:o1 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o2 .\n_:o2 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o3 .\n_:o3 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o4 .\n_:o4 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o5 .\n_:o5 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o6 .\n_:o6 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o7 .\n_:o7 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o8 .\n_:o8 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o9 .\n_:o9 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o10 .\n_:o10 <http://example.org/vocab#price> \"1\" .\n<http://example.org/a> <http://example.org/vocab#offer> _:o11 .\n_:o11 <http://example.org/vocab#price> \"1\" .\n"
+    },
+    {
+      "id": "control-characters",
+      "description": "Blank nodes told apart only by literals with control characters; RDFC-1.0 escaping decides the labels.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> _:tab .\n_:tab <http://example.org/vocab#q> \"x\\t\" .\n<http://example.org/a> <http://example.org/vocab#p> _:plain .\n_:plain <http://example.org/vocab#q> \"x\" .\n<http://example.org/a> <http://example.org/vocab#p> _:bell .\n_:bell <http://example.org/vocab#q> \"x\\u0007\" .\n"
+    },
+    {
+      "id": "non-ascii",
+      "description": "Non-ASCII characters in a literal, an IRI and a fragment: lengths count UTF-8 bytes.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#greeting> \"Grüße 🌍\"@de-CH .\n<http://example.org/a> <http://example.org/vocab#see> <http://example.org/straße> .\n<http://example.org/a#ü> <http://example.org/vocab#p> \"x\" .\n"
+    },
+    {
+      "id": "limit-clique-6",
+      "description": "Six blank nodes all linked to each other by one predicate: core 6, accepted.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#member> _:n0 .\n<http://example.org/a> <http://example.org/vocab#member> _:n1 .\n<http://example.org/a> <http://example.org/vocab#member> _:n2 .\n<http://example.org/a> <http://example.org/vocab#member> _:n3 .\n<http://example.org/a> <http://example.org/vocab#member> _:n4 .\n<http://example.org/a> <http://example.org/vocab#member> _:n5 .\n_:n0 <http://example.org/vocab#knows> _:n1 .\n_:n0 <http://example.org/vocab#knows> _:n2 .\n_:n0 <http://example.org/vocab#knows> _:n3 .\n_:n0 <http://example.org/vocab#knows> _:n4 .\n_:n0 <http://example.org/vocab#knows> _:n5 .\n_:n1 <http://example.org/vocab#knows> _:n0 .\n_:n1 <http://example.org/vocab#knows> _:n2 .\n_:n1 <http://example.org/vocab#knows> _:n3 .\n_:n1 <http://example.org/vocab#knows> _:n4 .\n_:n1 <http://example.org/vocab#knows> _:n5 .\n_:n2 <http://example.org/vocab#knows> _:n0 .\n_:n2 <http://example.org/vocab#knows> _:n1 .\n_:n2 <http://example.org/vocab#knows> _:n3 .\n_:n2 <http://example.org/vocab#knows> _:n4 .\n_:n2 <http://example.org/vocab#knows> _:n5 .\n_:n3 <http://example.org/vocab#knows> _:n0 .\n_:n3 <http://example.org/vocab#knows> _:n1 .\n_:n3 <http://example.org/vocab#knows> _:n2 .\n_:n3 <http://example.org/vocab#knows> _:n4 .\n_:n3 <http://example.org/vocab#knows> _:n5 .\n_:n4 <http://example.org/vocab#knows> _:n0 .\n_:n4 <http://example.org/vocab#knows> _:n1 .\n_:n4 <http://example.org/vocab#knows> _:n2 .\n_:n4 <http://example.org/vocab#knows> _:n3 .\n_:n4 <http://example.org/vocab#knows> _:n5 .\n_:n5 <http://example.org/vocab#knows> _:n0 .\n_:n5 <http://example.org/vocab#knows> _:n1 .\n_:n5 <http://example.org/vocab#knows> _:n2 .\n_:n5 <http://example.org/vocab#knows> _:n3 .\n_:n5 <http://example.org/vocab#knows> _:n4 .\n"
+    },
+    {
+      "id": "limit-clique-7",
+      "description": "Seven blank nodes all linked to each other by one predicate: core 7, rejected.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#member> _:n0 .\n<http://example.org/a> <http://example.org/vocab#member> _:n1 .\n<http://example.org/a> <http://example.org/vocab#member> _:n2 .\n<http://example.org/a> <http://example.org/vocab#member> _:n3 .\n<http://example.org/a> <http://example.org/vocab#member> _:n4 .\n<http://example.org/a> <http://example.org/vocab#member> _:n5 .\n<http://example.org/a> <http://example.org/vocab#member> _:n6 .\n_:n0 <http://example.org/vocab#knows> _:n1 .\n_:n0 <http://example.org/vocab#knows> _:n2 .\n_:n0 <http://example.org/vocab#knows> _:n3 .\n_:n0 <http://example.org/vocab#knows> _:n4 .\n_:n0 <http://example.org/vocab#knows> _:n5 .\n_:n0 <http://example.org/vocab#knows> _:n6 .\n_:n1 <http://example.org/vocab#knows> _:n0 .\n_:n1 <http://example.org/vocab#knows> _:n2 .\n_:n1 <http://example.org/vocab#knows> _:n3 .\n_:n1 <http://example.org/vocab#knows> _:n4 .\n_:n1 <http://example.org/vocab#knows> _:n5 .\n_:n1 <http://example.org/vocab#knows> _:n6 .\n_:n2 <http://example.org/vocab#knows> _:n0 .\n_:n2 <http://example.org/vocab#knows> _:n1 .\n_:n2 <http://example.org/vocab#knows> _:n3 .\n_:n2 <http://example.org/vocab#knows> _:n4 .\n_:n2 <http://example.org/vocab#knows> _:n5 .\n_:n2 <http://example.org/vocab#knows> _:n6 .\n_:n3 <http://example.org/vocab#knows> _:n0 .\n_:n3 <http://example.org/vocab#knows> _:n1 .\n_:n3 <http://example.org/vocab#knows> _:n2 .\n_:n3 <http://example.org/vocab#knows> _:n4 .\n_:n3 <http://example.org/vocab#knows> _:n5 .\n_:n3 <http://example.org/vocab#knows> _:n6 .\n_:n4 <http://example.org/vocab#knows> _:n0 .\n_:n4 <http://example.org/vocab#knows> _:n1 .\n_:n4 <http://example.org/vocab#knows> _:n2 .\n_:n4 <http://example.org/vocab#knows> _:n3 .\n_:n4 <http://example.org/vocab#knows> _:n5 .\n_:n4 <http://example.org/vocab#knows> _:n6 .\n_:n5 <http://example.org/vocab#knows> _:n0 .\n_:n5 <http://example.org/vocab#knows> _:n1 .\n_:n5 <http://example.org/vocab#knows> _:n2 .\n_:n5 <http://example.org/vocab#knows> _:n3 .\n_:n5 <http://example.org/vocab#knows> _:n4 .\n_:n5 <http://example.org/vocab#knows> _:n6 .\n_:n6 <http://example.org/vocab#knows> _:n0 .\n_:n6 <http://example.org/vocab#knows> _:n1 .\n_:n6 <http://example.org/vocab#knows> _:n2 .\n_:n6 <http://example.org/vocab#knows> _:n3 .\n_:n6 <http://example.org/vocab#knows> _:n4 .\n_:n6 <http://example.org/vocab#knows> _:n5 .\n",
+      "failure": "RESOURCE_LIMIT"
+    },
+    {
+      "id": "limit-directed-cycle-8",
+      "description": "A directed cycle of eight indistinguishable blank nodes: every group holds one node, core 0.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#member> _:c0 .\n<http://example.org/a> <http://example.org/vocab#member> _:c1 .\n<http://example.org/a> <http://example.org/vocab#member> _:c2 .\n<http://example.org/a> <http://example.org/vocab#member> _:c3 .\n<http://example.org/a> <http://example.org/vocab#member> _:c4 .\n<http://example.org/a> <http://example.org/vocab#member> _:c5 .\n<http://example.org/a> <http://example.org/vocab#member> _:c6 .\n<http://example.org/a> <http://example.org/vocab#member> _:c7 .\n_:c0 <http://example.org/vocab#next> _:c1 .\n_:c1 <http://example.org/vocab#next> _:c2 .\n_:c2 <http://example.org/vocab#next> _:c3 .\n_:c3 <http://example.org/vocab#next> _:c4 .\n_:c4 <http://example.org/vocab#next> _:c5 .\n_:c5 <http://example.org/vocab#next> _:c6 .\n_:c6 <http://example.org/vocab#next> _:c7 .\n_:c7 <http://example.org/vocab#next> _:c0 .\n"
+    },
+    {
+      "id": "limit-undirected-cycle-8",
+      "description": "A cycle of eight blank nodes linked in both directions by one predicate: core 8, rejected.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#member> _:c0 .\n<http://example.org/a> <http://example.org/vocab#member> _:c1 .\n<http://example.org/a> <http://example.org/vocab#member> _:c2 .\n<http://example.org/a> <http://example.org/vocab#member> _:c3 .\n<http://example.org/a> <http://example.org/vocab#member> _:c4 .\n<http://example.org/a> <http://example.org/vocab#member> _:c5 .\n<http://example.org/a> <http://example.org/vocab#member> _:c6 .\n<http://example.org/a> <http://example.org/vocab#member> _:c7 .\n_:c0 <http://example.org/vocab#adjacent> _:c1 .\n_:c0 <http://example.org/vocab#adjacent> _:c7 .\n_:c1 <http://example.org/vocab#adjacent> _:c2 .\n_:c1 <http://example.org/vocab#adjacent> _:c0 .\n_:c2 <http://example.org/vocab#adjacent> _:c3 .\n_:c2 <http://example.org/vocab#adjacent> _:c1 .\n_:c3 <http://example.org/vocab#adjacent> _:c4 .\n_:c3 <http://example.org/vocab#adjacent> _:c2 .\n_:c4 <http://example.org/vocab#adjacent> _:c5 .\n_:c4 <http://example.org/vocab#adjacent> _:c3 .\n_:c5 <http://example.org/vocab#adjacent> _:c6 .\n_:c5 <http://example.org/vocab#adjacent> _:c4 .\n_:c6 <http://example.org/vocab#adjacent> _:c7 .\n_:c6 <http://example.org/vocab#adjacent> _:c5 .\n_:c7 <http://example.org/vocab#adjacent> _:c0 .\n_:c7 <http://example.org/vocab#adjacent> _:c6 .\n",
+      "failure": "RESOURCE_LIMIT"
+    },
+    {
+      "id": "base-with-fragment",
+      "description": "The base IRI carries a fragment.",
+      "base": "http://example.org/a#x",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> \"x\" .\n",
+      "failure": "INVALID_BASE"
+    },
+    {
+      "id": "base-is-reserved",
+      "description": "The base IRI is the reserved IRI.",
+      "base": "urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1",
+      "input": "<urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1> <http://example.org/vocab#p> \"x\" .\n",
+      "failure": "RESERVED_IRI"
+    },
+    {
+      "id": "reserved-fragment-as-object",
+      "description": "A fragment IRI of the reserved IRI occurs as object.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> <urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1#x> .\n",
+      "failure": "RESERVED_IRI"
+    },
+    {
+      "id": "reserved-as-datatype",
+      "description": "The reserved IRI occurs as datatype IRI.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> \"x\"^^<urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1> .\n",
+      "failure": "RESERVED_IRI"
+    },
+    {
+      "id": "empty-graph",
+      "description": "The graph holds no triple.",
+      "base": "http://example.org/a",
+      "input": "",
+      "failure": "EMPTY_GRAPH"
+    },
+    {
+      "id": "foreign-subject",
+      "description": "An IRI subject of another resource.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> \"x\" .\n<http://example.org/b> <http://example.org/vocab#p> \"y\" .\n",
+      "failure": "FOREIGN_SUBJECT"
+    },
+    {
+      "id": "prefix-subject",
+      "description": "An IRI subject that starts with the base without \"#\" is foreign.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> \"x\" .\n<http://example.org/ax> <http://example.org/vocab#p> \"y\" .\n",
+      "failure": "FOREIGN_SUBJECT"
+    },
+    {
+      "id": "no-iri-subject",
+      "description": "Only blank node subjects.",
+      "base": "http://example.org/a",
+      "input": "_:x <http://example.org/vocab#about> <http://example.org/a> .\n",
+      "failure": "NO_ROOT"
+    },
+    {
+      "id": "unreachable-component",
+      "description": "A blank node component no IRI subject reaches.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> \"x\" .\n_:y <http://example.org/vocab#q> \"z\" .\n",
+      "failure": "UNREACHABLE"
+    },
+    {
+      "id": "pointing-at-the-base",
+      "description": "A blank node that only points at the resource is not reachable.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> \"x\" .\n_:y <http://example.org/vocab#about> <http://example.org/a> .\n",
+      "failure": "UNREACHABLE"
+    }
+  ]
+}
