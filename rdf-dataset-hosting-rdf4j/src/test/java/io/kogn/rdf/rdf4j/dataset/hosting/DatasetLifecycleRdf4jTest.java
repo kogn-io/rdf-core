@@ -49,6 +49,7 @@ import io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetCloseOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
 import io.kogn.rdf.dataset.hosting.DatasetId;
+import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
@@ -370,6 +371,21 @@ class DatasetLifecycleRdf4jTest {
 
       assertThat(lc.list()).doesNotContain(id);
       ds.close(); // releasing the lease afterwards must not throw either
+    }
+
+    @Test
+    @DisplayName("shutDownAll is callable through the DatasetLifecycle port type and is a no-op when repeated")
+    void shutDownAll_throughPortType_isRepeatable() {
+      final DatasetLifecycle port = inMemory();
+      final DatasetId id = new DatasetId("via-port");
+      port.acquire(id).close();
+
+      assertThatCode(() -> {
+        port.shutDownAll();
+        port.shutDownAll();
+      }).doesNotThrowAnyException();
+
+      assertThat(port.list()).doesNotContain(id);
     }
   }
 

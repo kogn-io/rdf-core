@@ -20,6 +20,14 @@ import java.util.Set;
  * The on-create seeding hook is a construction concern of the backend
  * implementation, not a method of this port — the port carries no mutable
  * registration state.</p>
+ *
+ * <p><strong>Scope.</strong> "Backend-neutral" means neutral across the stores this
+ * library <em>hosts itself</em> — embedded, in-process stores the implementation
+ * builds and owns. Wrapping a foreign, already-running store (a remote endpoint, a
+ * managed server, someone else's repository) is outside this port, as
+ * <a href="https://github.com/kogn-io/rdf-core/blob/main/docs/adr/0009-dataset-hosting-module-split.md">ADR-0009</a>
+ * records; a consumer in that position uses the content ports of {@code rdf-dataset}
+ * directly and does without hosting.</p>
  */
 public interface DatasetLifecycle {
 
@@ -131,4 +139,28 @@ public interface DatasetLifecycle {
    *     never {@code null}
    */
   Set<DatasetId> list();
+
+  /**
+   * Shuts every open dataset down without deleting any storage, for the end of the
+   * process (a {@code @PreDestroy} hook, a test tear-down).
+   *
+   * <p>This belongs on the lifecycle port, not on a port of its own like
+   * {@link DatasetMaintenance}: shutting down is the closing end of the lifecycle
+   * that {@link #acquire(DatasetId)} opens, the same act as {@link #close(DatasetId)}
+   * applied to everything at once. It is not maintenance, which concerns the remains
+   * of something that went wrong.</p>
+   *
+   * <p><strong>Last resort — does not honour open leases.</strong> Unlike
+   * {@link #close(DatasetId)} and {@link #delete(DatasetId)}, this call tears every
+   * store down unconditionally, including ones with an open {@link DatasetHandle};
+   * such a handle fails with whatever the backend raises for a shut-down store. Call
+   * it only when the process is going down anyway, never as a substitute for
+   * releasing leases in the normal course of business. Persisted storage stays
+   * untouched; the contents of an {@code IN_MEMORY} dataset are lost, as with
+   * {@link #close(DatasetId)}. Calling it when nothing is open is a no-op.</p>
+   *
+   * @throws RuntimeException if tearing a backing store down fails; the datasets not
+   *     yet shut down at that point are not guaranteed to have been
+   */
+  void shutDownAll();
 }
