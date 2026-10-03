@@ -63,9 +63,10 @@ Formats weighed:
    table maintained by the IPFS project; the multihash Internet-Draft has
    expired. It needs a registration of ours and rests on no IETF or W3C standard.
 3. **`tag:` (RFC 4151).** Only the holder of the domain may mint under it
-   (§2.2), so every federated server would mint under one project's domain, a
-   delegation the RFC does not provide for. A neutral domain such as `w3id.org`
-   is not ours to mint under.
+   (§2.2). The holder may delegate parts of its namespace, but even then every
+   identifier carries one project's domain and every federated server mints by
+   that holder's leave. A neutral domain such as `w3id.org` is not ours to mint
+   under.
 4. **An HTTPS IRI under w3id.org.** It is valid and dereferenceable, but the
    identity depends on a third-party operator and an approved path, and the
    redirect can target one fixed host only, so resolution would be centralised.
@@ -158,7 +159,7 @@ resolution, and option 5 is not host-independent.
   canonicalizer changes. Nothing is released or persisted yet, so nothing
   migrates. Snapshots of `main` already carry `urn:cid:`; they are not a
   compatibility promise. The origin copy ADR-0014 mentions keeps its own
-  identifiers, which have differed from this module's since ADR-0016 anyway.
+  identifiers, which have differed from this module's since ADR-0014 anyway.
 - **The specification blocks the release that first ships `rdf-cid`.** Once
   `ni:` names are published, version 1 of the procedure is frozen. Any later
   change is a new version tag, never an edit.
