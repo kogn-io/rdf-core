@@ -251,7 +251,9 @@ it.
   CID and an *erased* marker. Tags keep their entries and resolve them as
   *erased*. The CID does not show the content, but it confirms a guess: whoever
   can enumerate the candidates (a birth date, a yes/no answer) derives the CID
-  of each and compares.
+  of each and compares. For guessable content, the CID left in the history and
+  the tags is itself a remnant of the erased data, inside this dataset: what
+  forgetting promises is "content removed, CID kept".
 - **Erasure ends at the dataset (ADR-0019).** Forgetting removes the content
   from this dataset, not from copies elsewhere. Anyone holding a copy can show,
   after the erasure, that it is exactly the content a still-circulating CID
@@ -294,11 +296,16 @@ one set of library graphs per content graph.
   in the API docs. Any resolution of references (following IRIs into other
   resources) runs against one fixed view.
   A reference may still name one version on purpose, by its CID
-  (`ex:refersTo <ni:///sha3-256;…>`). The library stores it unchanged (D5). It enters
+  (`ex:refersTo <ni:///sha3-256;…>`). The library stores it unchanged (D5) and
+  does not normalize it: another spelling of the same name
+  (`ni://host/sha3-256;…`, a `?ct=` parameter) is the caller's to bring into
+  the canonical form before writing, as ADR-0019 requires of a consumer; the
+  read by CID (D6) takes the canonical form only. It enters
   the referring resource's CID in full, since only the base IRI becomes a
   placeholder (ADR-0016), and it cascades nothing: it changes only when its
   author points it at another version. It means the same in every view, needs
-  no tag to stay time-consistent and resolves through the read by CID (D6).
+  no tag to stay time-consistent and resolves through the read by CID (D6) when
+  the version is held locally; otherwise resolution is the application's (D11).
   Once that version is forgotten (D12), the reference finds no content; the
   history entry shows the CID as *erased*. The library does not check on write
   that such a CID occurs in the content store (Q10): it stores the IRIs it is
