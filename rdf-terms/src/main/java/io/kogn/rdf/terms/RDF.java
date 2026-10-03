@@ -88,12 +88,15 @@ public interface RDF extends IRIFactory {
   /**
    * Creates an RDF list (collection) from a list of RDF terms.
    *
-   * <p>The resulting RDF list uses standard RDF list vocabulary
-   * (rdf:first, rdf:rest, rdf:nil) to represent the ordered collection.
-   * Per RDF 1.1, list items may be any RDF term (IRIs, literals, or blank nodes).</p>
+   * <p>The graph of the result holds exactly the {@code rdf:first}/{@code rdf:rest} chain, one
+   * fresh blank node per item, the last {@code rdf:rest} pointing to {@code rdf:nil}: two triples
+   * per item. No {@code rdf:type rdf:List} triple is added, so every implementation yields the
+   * same triple set up to the identity of the blank nodes. List items may be any RDF term
+   * (IRIs, literals, or blank nodes).</p>
    *
    * @param items the RDF terms to include in the list
-   * @return an RDF list with head blank node and graph containing list triples
+   * @return an RDF list whose head is the first chain node and whose graph holds the chain
+   *     triples; {@link RDFList#empty()} if {@code items} is {@code null} or empty
    */
   RDFList createRDFList(List<RDFTerm> items);
 }
