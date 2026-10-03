@@ -393,9 +393,11 @@ third-party dependency: `com.apicatalog:titanium-rdfc` for RDFC-1.0, which bring
 adapter modules pull considerably more. SHA3-256,
 the digest, and base64url are JDK-native and add no dependency of their own.
 titanium-rdfc sorts by UTF-16 code unit where RDFC-1.0 requires code point
-order (filip26/titanium-rdf-canon#65), so the vector `code-point-order` is
-skipped in the Java test until that is fixed; the expected value in the vectors
-follows the specification, not the library.
+order (filip26/titanium-rdf-canon#65), so a graph with blank nodes that mixes
+code points from U+10000 up with ones from U+E000..U+FFFF is rejected
+(`ContentAddressingException`) until that is fixed, rather than named wrongly;
+the expected value of the vector `code-point-order` follows the specification,
+not the library.
 
 ## Build & release
 

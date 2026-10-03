@@ -4,14 +4,17 @@
 package io.kogn.rdf.cid.sexpr;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.apicatalog.rdf.canon.RdfCanon;
 
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.cid.ContentAddressingException;
+import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.Triple;
@@ -36,6 +39,8 @@ public class RdfDatasetCanonicalizer {
   /** The largest cost bound (ni-rdf/1 §4.3) a graph may have and still be canonicalized. */
   public static final long MAX_COST = 10_000_000L;
 
+  private static final int UPPER_BMP_START = 0xE000;
+
   private static final String HASH_ALGORITHM = "SHA-256";
 
   /** Creates a canonicalizer. */
@@ -57,7 +62,10 @@ public class RdfDatasetCanonicalizer {
    * @throws CanonicalizationResourceLimitExceededException if the cost bound of the graph exceeds
    *         {@value #MAX_COST}; the message starts with
    *         {@code [RESOURCE_LIMIT]}
-   * @throws ContentAddressingException if canonicalization otherwise fails; the underlying
+   * @throws ContentAddressingException if the graph has blank nodes and its terms mix a code point
+   *         from U+10000 up with one from U+E000 to U+FFFF — titanium-rdfc would label them out of
+   *         code point order (titanium-rdf-canon#65), so the name cannot yet be derived
+   *         conformantly; or if canonicalization otherwise fails; the underlying
    *         failure is kept as cause
    */
   public Map<String, String> canonicalIdentifiers(Collection<Triple> triples) {
@@ -67,11 +75,59 @@ public class RdfDatasetCanonicalizer {
           + ", more than the " + MAX_COST + " ni-rdf/1 admits: canonicalizing it would mean trying too many orders of "
           + "mutually indistinguishable blank nodes", null);
     }
+    rejectWhereTitanium65Bites(triples);
     try {
       return canonicalize(triples);
     } catch (RuntimeException e) {
       throw new ContentAddressingException("RDFC-1.0 canonicalization failed", e);
     }
+  }
+
+  /**
+   * TEMPORARY, remove together with the titanium-rdfc upgrade: titanium-rdfc 3.0.0 sorts by UTF-16
+   * code unit where RDFC-1.0 requires code point order (filip26/titanium-rdf-canon#65). The two
+   * orders differ only when a supplementary code point (a surrogate pair) meets one in
+   * U+E000..U+FFFF, and only blank node labels depend on the sort. Rather than mint a
+   * non-conforming name, such a graph is rejected.
+   */
+  private static void rejectWhereTitanium65Bites(Collection<Triple> triples) {
+    boolean hasBlankNode = false;
+    boolean supplementary = false;
+    boolean upperBmp = false;
+    for (Triple triple : triples) {
+      hasBlankNode |= triple.getSubject() instanceof BlankNode || triple.getObject() instanceof BlankNode;
+      for (String text : textsOf(triple)) {
+        for (int i = 0; i < text.length(); i += Character.charCount(text.codePointAt(i))) {
+          int codePoint = text.codePointAt(i);
+          supplementary |= codePoint >= Character.MIN_SUPPLEMENTARY_CODE_POINT;
+          upperBmp |= codePoint >= UPPER_BMP_START && codePoint <= Character.MAX_VALUE;
+        }
+      }
+    }
+    if (hasBlankNode && supplementary && upperBmp) {
+      throw new ContentAddressingException("The graph has blank nodes and mixes code points from U+10000 up with "
+          + "code points from U+E000 to U+FFFF; the pinned titanium-rdfc sorts them out of code point order "
+          + "(titanium-rdf-canon#65), so the name cannot yet be derived conformantly", null);
+    }
+  }
+
+  private static List<String> textsOf(Triple triple) {
+    List<String> texts = new ArrayList<>();
+    if (triple.getSubject() instanceof IRI subject) {
+      texts.add(subject.getIRIString());
+    }
+    texts.add(triple.getPredicate().getIRIString());
+    switch (triple.getObject()) {
+    case Literal literal -> {
+      texts.add(literal.getLexicalForm());
+      texts.add(literal.getDatatype().getIRIString());
+      literal.getLanguageTag().ifPresent(texts::add);
+    }
+    case IRI iri -> texts.add(iri.getIRIString());
+    default -> {
+    }
+    }
+    return texts;
   }
 
   private Map<String, String> canonicalize(Collection<Triple> triples) {
