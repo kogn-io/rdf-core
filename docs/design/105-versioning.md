@@ -34,9 +34,9 @@ would not hold.
 | **Tag** | A named, immutable mapping proxy IRI → CID over many proxy IRIs: which version each of them meant at the time of the tag. | tag store | tag IRI |
 | **Draft view, published view, content store, history, tag store** | The five kinds of named graph in D4. | | |
 
-Interface and storage are separate concerns: callers address everything through
-the proxy IRI; how drafts, versions and history are kept apart is a storage
-matter (D4).
+Interface and storage are separate concerns: callers address a draft and its
+history through the proxy IRI, and one exact version through its CID; how
+drafts, versions and history are kept apart is a storage matter (D4).
 
 ## Decisions
 
@@ -275,9 +275,19 @@ one set of library graphs per content graph.
   read later, it meets the target's *current* state. Only a tag gives a
   time-consistent picture: inside a tag, proxy IRIs resolve through the tag's
   mapping. References by hash (as in Trusty URIs) would force cascading
-  re-hashing on every change. Decision: references stay proxy IRIs; time
-  consistency is a tag property. State it in the API docs. Any resolution of
-  references (following IRIs into other resources) runs against one fixed view.
+  re-hashing on every change. Decision: the library never turns a proxy IRI
+  reference into a CID reference; time consistency is a tag property. State it
+  in the API docs. Any resolution of references (following IRIs into other
+  resources) runs against one fixed view.
+  A reference may still name one version on purpose, by its CID
+  (`ex:refersTo <urn:cid:…>`). The library stores it unchanged (D5). It enters
+  the referring resource's CID in full, since only the base IRI becomes a
+  placeholder (ADR-0016), and it cascades nothing: it changes only when its
+  author points it at another version. It means the same in every view, needs
+  no tag to stay time-consistent and resolves through the read by CID (D6).
+  Once that version is forgotten (D12), the reference finds no content; the
+  history entry shows the CID as *erased*. Whether the library checks such
+  references on write is Q10.
 - **P2 — Drift between views.** Invariant: the published view equals the
   current version's content with the CID replaced by the proxy IRI. Pin it with
   a test.
@@ -320,6 +330,11 @@ one set of library graphs per content graph.
   not compatible with `urn:cid:` and have to be re-derived.
 - **Q9 — Sub-resources with identity of their own** (child IRIs under a
   resource): parked; returns once stable child identifiers are needed.
+- **Q10 — CID references on write:** does the library check that a CID named
+  in a draft's content (P1) occurs in the content store? Proposal: no. The
+  library stores the IRIs it is given (D5), cannot tell which IRIs in the
+  content are meant as version references, and a check would not survive D12
+  anyway.
 
 Out of scope: SHACL validation before publish is the application's business.
 
@@ -355,6 +370,9 @@ From the review of the tutorial built on this note:
   dropped — the text says proxy IRI, draft or history.
 - **D4** gains a worked example of the five graphs for one resource.
 - **D6** gains the publish-state read.
+- **Addressing:** a version is addressed by its CID, not only through the
+  proxy IRI; P1 states that content may reference a version by CID on
+  purpose, and Q10 asks whether such references are checked.
 
 ## Prior art
 
