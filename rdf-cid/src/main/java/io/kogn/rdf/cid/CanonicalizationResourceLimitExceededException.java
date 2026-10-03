@@ -11,10 +11,10 @@ package io.kogn.rdf.cid;
  *
  * <p>RDFC-1.0 runs in factorial time on blank nodes it cannot tell apart by their own triples
  * and that have several mutually indistinguishable neighbours: it tries every order of those
- * neighbours, recursively. The specification counts exactly those blank nodes — the
- * <em>core</em> — before canonicalizing, and rejects a graph whose core holds more than 6 of
- * them, for instance 7 blank nodes all linked to each other by one predicate. The criterion
- * depends on the graph alone, so every conforming implementation rejects the same graphs,
+ * neighbours, recursively. The specification estimates that work as a cost bound before
+ * canonicalizing, and rejects a graph whose bound exceeds 10 000 000, for instance 7 blank
+ * nodes all linked to each other by one predicate, or two blank nodes with 8 identical
+ * blank-node children each. The criterion depends on the graph alone, so every conforming implementation rejects the same graphs,
  * whatever its speed; the message starts with {@code [RESOURCE_LIMIT]}.</p>
  *
  * <p>This is distinct from every other {@link ContentAddressingException}: those signal a

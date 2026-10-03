@@ -77,14 +77,14 @@ class RdfDatasetCanonicalizerTest {
   }
 
   @Test
-  @DisplayName("a core of 6 is canonicalized")
-  void coreOfSixIsCanonicalized() {
-    assertThat(canonicalizer.canonicalIdentifiers(clique(6))).hasSize(6);
+  @DisplayName("a complete graph of 3 blank nodes is canonicalized")
+  void cliqueOfThreeIsCanonicalized() {
+    assertThat(canonicalizer.canonicalIdentifiers(clique(3))).hasSize(3);
   }
 
   @Test
-  @DisplayName("a core of 7 is rejected before RDFC-1.0 runs")
-  void coreOfSevenIsRejected() {
+  @DisplayName("a complete graph of 7 blank nodes is rejected before RDFC-1.0 runs")
+  void cliqueOfSevenIsRejected() {
     assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
         .isThrownBy(() -> canonicalizer.canonicalIdentifiers(clique(7)))
         .withMessageStartingWith("[RESOURCE_LIMIT]")
