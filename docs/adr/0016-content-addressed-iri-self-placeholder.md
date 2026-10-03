@@ -2,7 +2,11 @@
 
 Status: Accepted (2026-10-02) — supersedes the subject-IRI section of
 [ADR-0014](0014-content-addressed-iri-module.md); the inferred base is superseded
-by [ADR-0017](0017-content-addressed-iri-takes-the-base.md): the caller passes it
+by [ADR-0017](0017-content-addressed-iri-takes-the-base.md): the caller passes it;
+the identifier format (`urn:cid:`), the canonicalizer (URDNA2015) and the name of
+the internal namespace `urn:x-cid-self:` are superseded by
+[ADR-0019](0019-content-addressed-iri-as-ni-name.md): an RFC 6920 `ni:` name over
+an input whose every byte-level choice an independent specification owns
 
 ## Context
 

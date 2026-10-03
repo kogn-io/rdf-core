@@ -27,3 +27,4 @@ not a historical log of every change that led here.
 | [0016](0016-content-addressed-iri-self-placeholder.md) | The content-addressed IRI replaces the graph's own name with a placeholder |
 | [0017](0017-content-addressed-iri-takes-the-base.md) | `generateIri` takes the base IRI as an argument |
 | [0018](0018-dataset-maintenance-port.md) | Clearing up after a failed delete is a port of its own |
+| [0019](0019-content-addressed-iri-as-ni-name.md) | The content-addressed IRI is an RFC 6920 `ni:` name over a specified input |

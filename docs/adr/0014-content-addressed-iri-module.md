@@ -4,7 +4,10 @@ Status: Accepted — the subject-IRI section is superseded by
 [ADR-0016](0016-content-addressed-iri-self-placeholder.md): the graph's own name
 no longer goes into the digest; the port signature is superseded by
 [ADR-0017](0017-content-addressed-iri-takes-the-base.md): `generateIri` takes the
-base IRI as an argument.
+base IRI as an argument; the identifier format (`urn:cid:`) and the canonicalizer
+(URDNA2015) are superseded by
+[ADR-0019](0019-content-addressed-iri-as-ni-name.md): an RFC 6920 `ni:` name over
+an input fixed by an independent specification, canonicalized with RDFC-1.0.
 
 ## Context
 
