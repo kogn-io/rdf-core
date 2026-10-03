@@ -46,6 +46,8 @@ public interface SparqlQuery {
    * @param sparql the SPARQL SELECT query string; must not be {@code null} or empty
    * @return a stream of binding sets; never {@code null}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   Stream<BindingSet> select(String sparql);
 
@@ -64,6 +66,8 @@ public interface SparqlQuery {
    *     {@link #select(String)}
    * @return a stream of binding sets; never {@code null}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   Stream<BindingSet> select(String sparql, Map<String, RDFTerm> bindings);
 
@@ -76,6 +80,8 @@ public interface SparqlQuery {
    * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null} or empty
    * @return the constructed graph; never {@code null}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   ReadableGraph construct(String sparql);
 
@@ -94,6 +100,8 @@ public interface SparqlQuery {
    *     {@link #construct(String)}
    * @return the constructed graph; never {@code null}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   ReadableGraph construct(String sparql, Map<String, RDFTerm> bindings);
 
@@ -106,6 +114,8 @@ public interface SparqlQuery {
    * @param sparql the SPARQL ASK query string; must not be {@code null} or empty
    * @return {@code true} if the pattern has at least one match
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   boolean ask(String sparql);
 
@@ -124,6 +134,8 @@ public interface SparqlQuery {
    *     {@link #ask(String)}
    * @return {@code true} if the pattern has at least one match
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   boolean ask(String sparql, Map<String, RDFTerm> bindings);
 }

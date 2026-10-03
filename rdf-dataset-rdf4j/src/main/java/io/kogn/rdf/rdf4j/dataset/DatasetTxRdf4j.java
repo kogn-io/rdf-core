@@ -3,7 +3,6 @@
 
 package io.kogn.rdf.rdf4j.dataset;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -11,11 +10,12 @@ import java.util.stream.Stream;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
+import org.eclipse.rdf4j.query.BooleanQuery;
 import org.eclipse.rdf4j.query.GraphQuery;
 import org.eclipse.rdf4j.query.QueryLanguage;
 import org.eclipse.rdf4j.query.QueryResults;
 import org.eclipse.rdf4j.query.TupleQuery;
-import org.eclipse.rdf4j.query.TupleQueryResult;
+import org.eclipse.rdf4j.query.Update;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryResult;
 
@@ -39,7 +39,7 @@ import io.kogn.rdf.terms.Triple;
  * read-your-writes semantics within a single unit-of-work.</p>
  *
  * <p>{@link #select(String)} collects results eagerly so that the
- * {@link TupleQueryResult} is closed before returning, preventing resource leaks
+ * {@code TupleQueryResult} is closed before returning, preventing resource leaks
  * across transaction boundaries.</p>
  *
  * <p>{@link #contains(IRI, io.kogn.rdf.terms.BlankNodeOrIRI, IRI, io.kogn.rdf.terms.RDFTerm)}
@@ -140,8 +140,9 @@ class DatasetTxRdf4j implements DatasetTx {
 
   @Override
   public void update(final String sparql, final Map<String, RDFTerm> bindings) {
-    SparqlErrors.bound(SparqlErrors.preparing(() -> connection.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings)
-        .execute();
+    final Update operation = SparqlErrors
+        .bound(SparqlErrors.translating(() -> connection.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings);
+    SparqlErrors.executing(operation::execute);
   }
 
   @Override
@@ -152,14 +153,10 @@ class DatasetTxRdf4j implements DatasetTx {
   @Override
   public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
     final TupleQuery query = SparqlErrors
-        .bound(SparqlErrors.preparing(() -> connection.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings);
-    final List<BindingSet> results = new ArrayList<>();
-    try (TupleQueryResult result = query.evaluate()) {
-      while (result.hasNext()) {
-        results.add(new RDF4JBindingSet(result.next()));
-      }
-    }
-    return results.stream();
+        .bound(SparqlErrors.translating(() -> connection.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings);
+    final List<org.eclipse.rdf4j.query.BindingSet> rows = SparqlErrors
+        .translating(() -> QueryResults.asList(query.evaluate()));
+    return rows.stream().<BindingSet>map(RDF4JBindingSet::new).toList().stream();
   }
 
   @Override
@@ -177,9 +174,9 @@ class DatasetTxRdf4j implements DatasetTx {
 
   @Override
   public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
-    return SparqlErrors
-        .bound(SparqlErrors.preparing(() -> connection.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings)
-        .evaluate();
+    final BooleanQuery query = SparqlErrors
+        .bound(SparqlErrors.translating(() -> connection.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings);
+    return SparqlErrors.translating(query::evaluate);
   }
 
   @Override
@@ -190,8 +187,8 @@ class DatasetTxRdf4j implements DatasetTx {
   @Override
   public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
     final GraphQuery query = SparqlErrors
-        .bound(SparqlErrors.preparing(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
-    final Model model = QueryResults.asModel(query.evaluate());
+        .bound(SparqlErrors.translating(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
+    final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
     return new RDF4JGraph(model);
   }
 }

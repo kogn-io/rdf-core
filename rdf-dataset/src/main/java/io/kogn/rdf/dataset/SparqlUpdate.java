@@ -39,6 +39,8 @@ public interface SparqlUpdate {
    *
    * @param sparql the SPARQL Update string; must not be {@code null} or empty
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   void update(String sparql);
 
@@ -55,6 +57,8 @@ public interface SparqlUpdate {
    *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
    *     {@link #update(String)}
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
+   * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
+   *     while evaluating it
    */
   void update(String sparql, Map<String, RDFTerm> bindings);
 }

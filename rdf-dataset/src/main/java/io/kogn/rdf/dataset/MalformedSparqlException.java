@@ -8,7 +8,8 @@ package io.kogn.rdf.dataset;
  *
  * <p>Thrown by the query and update ports — {@link SparqlQuery}, {@link SparqlUpdate} and
  * {@link DatasetTx} — when the supplied SPARQL is syntactically invalid and the backend
- * rejects it before evaluation.</p>
+ * rejects it before evaluation. A string that parses but then fails while it runs is a
+ * {@link SparqlEvaluationException} instead.</p>
  *
  * <p>This is the neutral, backend-independent form of a parse failure. Implementations
  * translate their backend's malformed-query signal into it and keep the original as

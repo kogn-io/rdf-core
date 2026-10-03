@@ -3,15 +3,16 @@
 
 package io.kogn.rdf.rdf4j.dataset;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.query.BooleanQuery;
+import org.eclipse.rdf4j.query.GraphQuery;
 import org.eclipse.rdf4j.query.QueryLanguage;
 import org.eclipse.rdf4j.query.QueryResults;
-import org.eclipse.rdf4j.query.TupleQueryResult;
+import org.eclipse.rdf4j.query.TupleQuery;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 
@@ -51,15 +52,11 @@ public class SparqlQueryRdf4j implements SparqlQuery {
   @Override
   public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      final List<BindingSet> results = new ArrayList<>();
-      try (TupleQueryResult result = SparqlErrors
-          .bound(SparqlErrors.preparing(() -> conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings)
-          .evaluate()) {
-        while (result.hasNext()) {
-          results.add(new RDF4JBindingSet(result.next()));
-        }
-      }
-      return results.stream();
+      final TupleQuery query = SparqlErrors
+          .bound(SparqlErrors.translating(() -> conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings);
+      final List<org.eclipse.rdf4j.query.BindingSet> rows = SparqlErrors
+          .translating(() -> QueryResults.asList(query.evaluate()));
+      return rows.stream().<BindingSet>map(RDF4JBindingSet::new).toList().stream();
     }
   }
 
@@ -71,9 +68,9 @@ public class SparqlQueryRdf4j implements SparqlQuery {
   @Override
   public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      final Model model = QueryResults.asModel(SparqlErrors
-          .bound(SparqlErrors.preparing(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings)
-          .evaluate());
+      final GraphQuery query = SparqlErrors
+          .bound(SparqlErrors.translating(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
+      final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
       return new RDF4JGraph(model);
     }
   }
@@ -86,9 +83,9 @@ public class SparqlQueryRdf4j implements SparqlQuery {
   @Override
   public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
-      return SparqlErrors
-          .bound(SparqlErrors.preparing(() -> conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings)
-          .evaluate();
+      final BooleanQuery query = SparqlErrors
+          .bound(SparqlErrors.translating(() -> conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings);
+      return SparqlErrors.translating(query::evaluate);
     }
   }
 }
