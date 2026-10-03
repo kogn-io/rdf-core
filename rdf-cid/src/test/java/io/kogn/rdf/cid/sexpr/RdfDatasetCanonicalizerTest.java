@@ -86,10 +86,10 @@ class RdfDatasetCanonicalizerTest {
   }
 
   @Test
-  @DisplayName("a complete graph of 7 blank nodes is rejected before RDFC-1.0 runs")
-  void cliqueOfSevenIsRejected() {
+  @DisplayName("a complete graph of 4 blank nodes is already rejected before RDFC-1.0 runs (3 still pass)")
+  void cliqueOfFourIsRejected() {
     assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
-        .isThrownBy(() -> canonicalizer.canonicalIdentifiers(clique(7)))
+        .isThrownBy(() -> canonicalizer.canonicalIdentifiers(clique(4)))
         .withMessageStartingWith("[RESOURCE_LIMIT]")
         .withNoCause();
   }

@@ -84,7 +84,7 @@ public interface ContentAddressedIriGenerator {
    * RDFC-1.0 runs in factorial time on blank nodes it cannot tell apart by their own triples
    * and that have several mutually indistinguishable neighbours. ni-rdf/1 §4.3 estimates that
    * work as a cost bound before canonicalizing, and a graph whose bound exceeds 10 000 000
-   * (for instance 7 blank nodes all linked to each other by one predicate) gets no
+   * (for instance 4 blank nodes all linked to each other by one predicate; 3 still pass) gets no
    * identifier, as a {@link CanonicalizationResourceLimitExceededException}. The limit
    * depends on the graph alone, not on the speed or the budget of the canonicalizer, so every
    * conforming implementation accepts and rejects the same graphs. The bound is deliberately
