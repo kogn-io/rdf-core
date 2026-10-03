@@ -180,6 +180,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   private final Set<DatasetId> deletionUnfinished = ConcurrentHashMap.newKeySet();
 
   /**
+   * Set on the thread that is currently inside the {@code onCreate} hook, so a call back into this
+   * lifecycle from that hook can be refused instead of re-entering {@code datasets.compute}.
+   */
+  private final ThreadLocal<Boolean> insideOnCreate = new ThreadLocal<>();
+
+  /**
    * Creates a lifecycle.
    *
    * @param config backend-neutral store configuration; must not be {@code null}.
@@ -198,7 +204,10 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    *     under the per-key map lock, so it must only seed its own
    *     {@code GraphStore} and must not call back into this
    *     lifecycle ({@code acquire}/{@code close}/{@code delete}/{@code list}, nor the
-   *     maintenance calls). If it throws, creation is rolled back (store shut down,
+   *     maintenance calls or {@code shutDownAll}). A call back on the hook's own thread is
+   *     refused with an {@link IllegalStateException}, which then propagates as described below;
+   *     a call from another thread that the hook starts and waits for is not detected and
+   *     can deadlock. If it throws, creation is rolled back (store shut down,
    *     a newly created persistent store removed) and the exception propagates from
    *     {@code acquire}. May be {@code null}
    * @throws NullPointerException if {@code config} is {@code null}, or if
@@ -251,6 +260,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   @Override
   public DatasetHandle acquire(final DatasetId id) {
     Objects.requireNonNull(id, "id");
+    requireNotInsideOnCreate("acquire");
     final ManagedDataset managed = datasets.compute(id, (key, existing) -> {
       requireNoRemainsOfFailedDelete(key);
       final ManagedDataset md = existing != null ? existing : createAndSeed(key);
@@ -263,6 +273,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   @Override
   public DatasetCloseOutcome close(final DatasetId id) {
     Objects.requireNonNull(id, "id");
+    requireNotInsideOnCreate("close");
     final RuntimeException[] teardownFailure = new RuntimeException[1];
     final DatasetCloseOutcome[] outcome = new DatasetCloseOutcome[1];
     datasets.compute(id, (key, md) -> {
@@ -305,6 +316,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   @Override
   public void delete(final DatasetId id) {
     Objects.requireNonNull(id, "id");
+    requireNotInsideOnCreate("delete");
     final RuntimeException[] teardownFailure = new RuntimeException[1];
     datasets.compute(id, (key, md) -> {
       if (md != null && md.leaseCount.get() > 0) {
@@ -342,6 +354,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    */
   @Override
   public Set<DatasetId> list() {
+    requireNotInsideOnCreate("list");
     final Set<DatasetId> result = new HashSet<>(datasets.keySet());
     if (config.persistence() != Persistence.IN_MEMORY && storageRoot != null && Files.isDirectory(storageRoot)) {
       try (Stream<Path> entries = Files.list(storageRoot)) {
@@ -367,6 +380,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    */
   @Override
   public Set<DatasetId> listUnfinishedDeletes() {
+    requireNotInsideOnCreate("listUnfinishedDeletes");
     if (config.persistence() == Persistence.IN_MEMORY) {
       return Set.of();
     }
@@ -398,6 +412,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   @Override
   public DatasetCleanupOutcome clearUnfinishedDelete(final DatasetId id) {
     Objects.requireNonNull(id, "id");
+    requireNotInsideOnCreate("clearUnfinishedDelete");
     final DatasetCleanupOutcome[] outcome = new DatasetCleanupOutcome[1];
     datasets.compute(id, (key, md) -> {
       if (md != null) {
@@ -436,6 +451,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * teardown proceeds.</p>
    */
   public void shutDownAll() {
+    requireNotInsideOnCreate("shutDownAll");
     final Set<DatasetId> stillLeased = datasets.entrySet()
         .stream()
         .filter(entry -> entry.getValue().leaseCount.get() > 0)
@@ -450,6 +466,13 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   }
 
   // ---------------------------------------------------------------------------
+
+  private void requireNotInsideOnCreate(final String operation) {
+    if (insideOnCreate.get() != null) {
+      throw new IllegalStateException(operation + " called from within the onCreate hook: the hook runs under the "
+          + "per-key map lock and must not call back into the lifecycle");
+    }
+  }
 
   private ManagedDataset createAndSeed(final DatasetId id) {
     final boolean isNew;
@@ -466,7 +489,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
       repository.init();
       final ManagedDataset managed = new ManagedDataset(repository);
       if (isNew && onCreate != null) {
-        onCreate.accept(id, managed.graphStore);
+        insideOnCreate.set(Boolean.TRUE);
+        try {
+          onCreate.accept(id, managed.graphStore);
+        } finally {
+          insideOnCreate.remove();
+        }
       }
       return managed;
     } catch (final RuntimeException e) {

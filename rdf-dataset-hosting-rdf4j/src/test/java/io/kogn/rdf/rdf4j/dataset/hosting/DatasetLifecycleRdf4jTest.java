@@ -6,6 +6,7 @@ package io.kogn.rdf.rdf4j.dataset.hosting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.ByteArrayOutputStream;
@@ -16,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -26,6 +28,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
@@ -454,6 +457,43 @@ class DatasetLifecycleRdf4jTest {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }
       assertThat(calls).hasValue(2);
+    }
+
+    @Test
+    @DisplayName("a hook that calls back into the lifecycle fails fast instead of hanging, and rolls back")
+    void onCreate_reentry_failsFastAndRollsBack() {
+      final DatasetId other = new DatasetId("other");
+      final List<Consumer<DatasetLifecycleRdf4j>> callbacks = List.of(lc -> lc.acquire(other),
+          lc -> lc.acquire(new DatasetId("reenter")), lc -> lc.close(other), lc -> lc.delete(other),
+          DatasetLifecycleRdf4j::list, DatasetLifecycleRdf4j::listUnfinishedDeletes,
+          lc -> lc.clearUnfinishedDelete(other), DatasetLifecycleRdf4j::shutDownAll);
+      for (final Consumer<DatasetLifecycleRdf4j> callback : callbacks) {
+        final AtomicBoolean reenter = new AtomicBoolean(true);
+        final AtomicInteger calls = new AtomicInteger();
+        lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+            DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
+              calls.incrementAndGet();
+              if (reenter.get()) {
+                callback.accept(lifecycle);
+              }
+              graphStore.add(GRAPH, singleTriple());
+            });
+        final DatasetId id = new DatasetId("reenter");
+
+        assertTimeoutPreemptively(Duration.ofSeconds(10),
+            () -> assertThatThrownBy(() -> lifecycle.acquire(id)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("onCreate"));
+
+        // rolled back through the ordinary failure path: nothing registered, and the guard
+        // is gone once the hook returned, so a well-behaved retry seeds cleanly
+        assertThat(lifecycle.list()).isEmpty();
+        reenter.set(false);
+        try (DatasetHandle ds = lifecycle.acquire(id)) {
+          assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+        }
+        assertThat(calls).hasValue(2);
+        lifecycle.shutDownAll();
+      }
     }
   }
 
