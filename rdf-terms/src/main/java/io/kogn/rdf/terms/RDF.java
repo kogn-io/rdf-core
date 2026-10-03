@@ -60,8 +60,7 @@ public interface RDF extends IRIFactory {
    *
    * <p>{@link BlankNode#uniqueReference()} of the returned node equals {@code identifier}.
    * Callers that skolemize or otherwise round-trip blank node identifiers through this method
-   * — as content-addressed identifier derivation does — rely on that identity to stay stable
-   * across implementations.</p>
+   * rely on that identity to stay stable across implementations.</p>
    *
    * @param identifier the identifier
    * @return the blank node instance
