@@ -201,6 +201,9 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    *     maintenance calls). If it throws, creation is rolled back (store shut down,
    *     a newly created persistent store removed) and the exception propagates from
    *     {@code acquire}. May be {@code null}
+   * @throws NullPointerException if {@code config} is {@code null}, or if
+   *     {@code config.persistence()} is {@code PERSISTENT} and {@code storageRoot} or
+   *     {@code indexSpec} is {@code null}
    * @throws UnsupportedOperationException if {@code config.fullTextSearch()} is
    *     {@code true}
    */
@@ -226,6 +229,10 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    *
    * @param config backend-neutral store configuration
    * @param storageRoot root directory for persistent datasets
+   * @throws NullPointerException if {@code config} is {@code null}, or if
+   *     {@code config.persistence()} is {@code PERSISTENT} and {@code storageRoot} is {@code null}
+   * @throws UnsupportedOperationException if {@code config.fullTextSearch()} is
+   *     {@code true}
    */
   public DatasetLifecycleRdf4j(final DatasetStoreConfig config, final Path storageRoot) {
     this(config, storageRoot, DEFAULT_INDEX_SPEC, null);
@@ -238,6 +245,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * retries that cleanup and throws {@link IllegalStateException} if the remains are still there
    * — see the class documentation.</p>
    *
+   * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if a failed delete left remains that could not be cleaned up
    */
   @Override
