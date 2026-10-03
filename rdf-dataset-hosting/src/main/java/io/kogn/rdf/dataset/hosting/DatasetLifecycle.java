@@ -47,6 +47,7 @@ public interface DatasetLifecycle {
    *
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}
+   * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if a failed {@link #delete(DatasetId)} left remains
    *     that cannot be cleared away
    */
@@ -82,6 +83,7 @@ public interface DatasetLifecycle {
    *
    * @param id the dataset identifier; must not be {@code null}
    * @return what happened to the dataset; never {@code null}
+   * @throws NullPointerException if {@code id} is {@code null}
    * @throws RuntimeException if tearing the backing store down fails
    */
   DatasetCloseOutcome close(DatasetId id);
@@ -99,6 +101,7 @@ public interface DatasetLifecycle {
    * resolved.</p>
    *
    * @param id the dataset identifier; must not be {@code null}
+   * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if the dataset has at least one open lease
    */
   void delete(DatasetId id);
