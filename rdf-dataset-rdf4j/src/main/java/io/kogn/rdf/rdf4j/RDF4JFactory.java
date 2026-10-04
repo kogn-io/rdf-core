@@ -4,7 +4,6 @@
 package io.kogn.rdf.rdf4j;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.eclipse.rdf4j.model.BNode;
 import org.eclipse.rdf4j.model.Model;
@@ -12,7 +11,6 @@ import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.eclipse.rdf4j.model.util.Values;
 
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.BlankNode;
@@ -70,60 +68,13 @@ public class RDF4JFactory implements RDF {
 
   @Override
   public Triple createTriple(BlankNodeOrIRI subject, IRI predicate, RDFTerm object) {
-    return new RDF4JTriple(toRDF4JResource(subject), toRDF4JIRI(predicate), toRDF4JValue(object));
+    return new RDF4JTriple(RDF4JConverters.toRDF4JResource(subject), RDF4JConverters.toRDF4JIRI(predicate),
+        RDF4JConverters.toRDF4JValue(object));
   }
 
   @Override
   public Graph createGraph() {
     return new RDF4JGraph();
-  }
-
-  /**
-   * Converts our IRI to RDF4J IRI.
-   */
-  private org.eclipse.rdf4j.model.IRI toRDF4JIRI(IRI iri) {
-    if (!(iri instanceof RDF4JIRI)) {
-      return Values.iri(iri.getIRIString());
-      // throw new IllegalArgumentException("IRI must be an RDF4JIRI instance, but is: " + iri.getClass().getName());
-    }
-    return ((RDF4JIRI) iri).getRDF4JValue();
-  }
-
-  /**
-   * Converts our BlankNodeOrIRI to RDF4J Resource.
-   */
-  private org.eclipse.rdf4j.model.Resource toRDF4JResource(BlankNodeOrIRI term) {
-    if (term instanceof RDF4JIRI) {
-      return ((RDF4JIRI) term).getRDF4JValue();
-    } else if (term instanceof RDF4JBlankNode) {
-      return ((RDF4JBlankNode) term).getRDF4JValue();
-    }
-    throw new IllegalArgumentException("Unknown BlankNodeOrIRI type: " + term.getClass());
-  }
-
-  /**
-   * Converts our RDFTerm to RDF4J Value.
-   */
-  private org.eclipse.rdf4j.model.Value toRDF4JValue(RDFTerm term) {
-    if (term instanceof RDF4JIRI) {
-      return ((RDF4JIRI) term).getRDF4JValue();
-    } else if (term instanceof RDF4JLiteral) {
-      return ((RDF4JLiteral) term).getRDF4JValue();
-    } else if (term instanceof RDF4JBlankNode) {
-      return ((RDF4JBlankNode) term).getRDF4JValue();
-    } else if (term instanceof IRI) {
-      return Values.iri(((IRI) term).getIRIString());
-    } else if (term instanceof Literal) {
-      Literal literal = (Literal) term;
-      Optional<String> languageTag = literal.getLanguageTag();
-      if (languageTag.isPresent()) {
-        return Values.literal(literal.getLexicalForm(), languageTag.get());
-      }
-      return Values.literal(literal.getLexicalForm(), Values.iri(literal.getDatatype().getIRIString()));
-    } else if (term instanceof BlankNode) {
-      return Values.bnode(((BlankNode) term).uniqueReference());
-    }
-    throw new IllegalArgumentException("Unknown RDFTerm type: " + term.getClass());
   }
 
   @Override
@@ -138,7 +89,7 @@ public class RDF4JFactory implements RDF {
     BNode listHead = valueFactory.createBNode();
     BNode node = listHead;
     for (int i = 0; i < items.size(); i++) {
-      model.add(node, org.eclipse.rdf4j.model.vocabulary.RDF.FIRST, toRDF4JValue(items.get(i)));
+      model.add(node, org.eclipse.rdf4j.model.vocabulary.RDF.FIRST, RDF4JConverters.toRDF4JValue(items.get(i)));
       boolean last = i == items.size() - 1;
       Resource rest = last ? org.eclipse.rdf4j.model.vocabulary.RDF.NIL : valueFactory.createBNode();
       model.add(node, org.eclipse.rdf4j.model.vocabulary.RDF.REST, rest);
