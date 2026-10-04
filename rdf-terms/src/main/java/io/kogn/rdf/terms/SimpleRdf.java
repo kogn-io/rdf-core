@@ -24,6 +24,8 @@ public class SimpleRdf implements RDF {
   private static final String LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString";
   private static final String DIR_LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString";
 
+  private static final IRI XSD_STRING_IRI = new SimpleIRI(XSD_STRING);
+
   /** Creates a new {@code SimpleRdf} factory. */
   public SimpleRdf() {
   }
@@ -35,7 +37,7 @@ public class SimpleRdf implements RDF {
 
   @Override
   public Literal createLiteral(String lexicalForm) {
-    return new SimpleLiteral(lexicalForm, new SimpleIRI(XSD_STRING), null);
+    return new SimpleLiteral(lexicalForm, XSD_STRING_IRI, null);
   }
 
   @Override

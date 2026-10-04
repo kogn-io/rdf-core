@@ -15,12 +15,12 @@ import io.kogn.rdf.terms.SimpleRdf;
  *
  * <p>Example usage:
  * <pre>{@code
- * IRI myTerm = VocabHelper.createIRI("http://example.org/vocab#", "MyTerm");
+ * IRI myTerm = VocabIriFactory.createIRI("http://example.org/vocab#", "MyTerm");
  * }</pre>
  */
 class VocabIriFactory {
 
-  private static RDF rdf = new SimpleRdf();
+  private static final RDF RDF_FACTORY = new SimpleRdf();
 
   /**
    * Creates an IRI by concatenating a namespace URI with a local name.
@@ -30,6 +30,6 @@ class VocabIriFactory {
    * @return an IRI representing the full URI
    */
   public static IRI createIRI(String namespace, String localName) {
-    return rdf.createIRI(namespace + localName);
+    return RDF_FACTORY.createIRI(namespace + localName);
   }
 }
