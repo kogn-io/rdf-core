@@ -23,11 +23,13 @@ final class NTriples {
    *
    * @param iri the IRI string
    * @return {@code <iri>}
-   * @throws IllegalArgumentException if {@code iri} contains a character the {@code IRIREF} production forbids
+   * @throws IllegalArgumentException if {@code iri} contains a character the {@code IRIREF} production forbids or
+   *     an unpaired UTF-16 surrogate
    */
   static String iri(final String iri) {
     for (int i = 0; i < iri.length(); i++) {
       final char c = iri.charAt(i);
+      rejectUnpairedSurrogate(iri, i, "IRI");
       if (c <= LAST_FORBIDDEN_CONTROL_OR_SPACE || FORBIDDEN_IRI_CHARACTERS.indexOf(c) >= 0) {
         throw new IllegalArgumentException(
             PREFIX + "IRI contains the forbidden character U+" + String.format("%04X", (int) c) + " at index " + i);
@@ -57,7 +59,8 @@ final class NTriples {
    * @param datatype the datatype IRI string; ignored when {@code languageTag} is not {@code null}
    * @param languageTag the language tag, or {@code null}
    * @return the quoted, escaped lexical form followed by {@code @tag} or {@code ^^<datatype>}
-   * @throws IllegalArgumentException if the language tag or the datatype IRI cannot be serialized
+   * @throws IllegalArgumentException if the language tag or the datatype IRI cannot be serialized, or the lexical
+   *     form contains an unpaired UTF-16 surrogate
    */
   static String literal(final String lexicalForm, final String datatype, final String languageTag) {
     final String quoted = "\"" + escape(lexicalForm) + "\"";
@@ -70,10 +73,22 @@ final class NTriples {
     return quoted + "@" + languageTag;
   }
 
+  private static void rejectUnpairedSurrogate(final String text, final int index, final String what) {
+    final char c = text.charAt(index);
+    final boolean paired = Character.isHighSurrogate(c) && index + 1 < text.length()
+        && Character.isLowSurrogate(text.charAt(index + 1))
+        || Character.isLowSurrogate(c) && index > 0 && Character.isHighSurrogate(text.charAt(index - 1));
+    if (Character.isSurrogate(c) && !paired) {
+      throw new IllegalArgumentException(PREFIX + what + " contains an unpaired surrogate U+"
+          + String.format("%04X", (int) c) + " at index " + index + ", not a Unicode scalar value");
+    }
+  }
+
   private static String escape(final String lexicalForm) {
     final StringBuilder out = new StringBuilder(lexicalForm.length() + 2);
     for (int i = 0; i < lexicalForm.length(); i++) {
       final char c = lexicalForm.charAt(i);
+      rejectUnpairedSurrogate(lexicalForm, i, "literal");
       switch (c) {
       case '"' -> out.append("\\\"");
       case '\\' -> out.append("\\\\");

@@ -78,6 +78,33 @@ class SimpleRdfNTriplesTest {
   }
 
   @Test
+  void languageTagCaseIsPreserved() {
+    assertThat(rdf.createLiteral("hi", "EN-gb").ntriplesString()).isEqualTo("\"hi\"@EN-gb");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"a\uD800b", "a\uDC00b", "\uDBFF", "a\uDC00\uD800"})
+  void literalWithAnUnpairedSurrogateIsRejected(final String lexicalForm) {
+    final Literal term = rdf.createLiteral(lexicalForm);
+
+    assertThatThrownBy(term::ntriplesString).isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("N-Triples:");
+  }
+
+  @Test
+  void iriWithAnUnpairedSurrogateIsRejected() {
+    final IRI term = rdf.createIRI("http://a\uD800b");
+
+    assertThatThrownBy(term::ntriplesString).isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("N-Triples:");
+  }
+
+  @Test
+  void literalWithAPairedSurrogateIsKept() {
+    assertThat(rdf.createLiteral("\uD83D\uDE00").ntriplesString()).startsWith("\"\uD83D\uDE00\"");
+  }
+
+  @Test
   void blankNodeUsesTheLabelSyntax() {
     assertThat(rdf.createBlankNode("b1").ntriplesString()).isEqualTo("_:b1");
     assertThat(rdf.createBlankNode("1.a-b_c:d").ntriplesString()).isEqualTo("_:1.a-b_c:d");
