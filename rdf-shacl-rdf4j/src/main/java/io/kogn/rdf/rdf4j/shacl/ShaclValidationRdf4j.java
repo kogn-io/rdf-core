@@ -289,9 +289,9 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     Set<Resource> checkedPaths = new HashSet<>();
     for (IRI parameter : LIST_PARAMETERS) {
       for (Statement statement : shapes.filter(null, parameter, null)) {
-        List<Value> elements = listElements(shapes, statement.getObject(), parameter);
+        listElements(shapes, statement.getObject(), parameter);
         if (SHACL.ALTERNATIVE_PATH.equals(parameter)) {
-          elements.forEach(element -> requireWellFormedPath(shapes, element, new HashSet<>(), checkedPaths));
+          requireWellFormedPath(shapes, statement.getSubject(), new HashSet<>(), checkedPaths);
         }
       }
     }
@@ -304,11 +304,13 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
    * Walks one path expression. Only a blank node is expanded, as RDF4J does: an IRI is
    * always a predicate path, whatever triples it carries itself. A blank node carrying
    * {@code rdf:first} or {@code rdf:rest} is a sequence path and must be a well-formed list;
-   * the operands of the path operators are walked in turn. A path expression that contains
-   * itself is rejected: {@code enclosing} holds the nodes the walk is currently inside of. A
-   * node reached twice without being its own operand — the same path shared by two
-   * alternatives, say — is no cycle; {@code checked} holds the nodes already walked in full,
-   * so such sharing is checked once.
+   * the elements of a sequence or {@code sh:alternativePath} list and the operands of the
+   * other path operators are walked in turn — every constructor RDF4J's
+   * {@code Path.buildPath} descends into. A path expression that contains itself is
+   * rejected: {@code enclosing} holds the nodes the walk is currently inside of. A node
+   * reached twice without being its own operand — the same path shared by two alternatives,
+   * say — is no cycle; {@code checked} holds the nodes already walked in full, so such
+   * sharing is checked once.
    */
   private static void requireWellFormedPath(Model shapes, Value path, Set<Resource> enclosing, Set<Resource> checked) {
     if (!(path instanceof BNode node) || checked.contains(node)) {
@@ -320,6 +322,10 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     }
     if (shapes.contains(node, RDF.FIRST, null) || shapes.contains(node, RDF.REST, null)) {
       listElements(shapes, node, SHACL.PATH)
+          .forEach(element -> requireWellFormedPath(shapes, element, enclosing, checked));
+    }
+    for (Value alternatives : shapes.filter(node, SHACL.ALTERNATIVE_PATH, null).objects()) {
+      listElements(shapes, alternatives, SHACL.ALTERNATIVE_PATH)
           .forEach(element -> requireWellFormedPath(shapes, element, enclosing, checked));
     }
     for (IRI operator : PATH_OPERATORS) {
