@@ -22,7 +22,7 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * Pins the hashed input of ni-rdf/1 §4.5 byte for byte: the expected strings below are written
+ * Pins the hashed input of ni-rdf/1 section 4.5 byte for byte: the expected strings below are written
  * out by hand from the specification (UTF-8 byte lengths in ASCII decimal, unsigned byte order),
  * not computed by the code under test. Graphs without blank nodes, so RDFC-1.0 plays no part.
  */
@@ -30,7 +30,7 @@ class SerializationEncodingTest {
 
   private static final String EX = "http://example.org/";
   private static final String BASE = EX + "doc";
-  private static final String SMILEY = "😀";
+  private static final String SMILEY = "\uD83D\uDE00";
   private static final String PREFIX = "(8:ni-rdf/1";
 
   /** {@code LS("I")} and {@code LS(<xsd:string>)}: the datatype of a plain literal. */
@@ -76,18 +76,18 @@ class SerializationEncodingTest {
   }
 
   @Test
-  @DisplayName("triples whose encodings differ first at a byte of 0x80 or more sort by unsigned byte value: \"~a\" before \"é\"")
+  @DisplayName("triples whose encodings differ first at a byte of 0x80 or more sort by unsigned byte value: \"~a\" before \"\u00E9\"")
   void unsignedByteOrderAgainstAscii() {
-    List<Triple> triples = List.of(literalTriple("é"), literalTriple("~a"));
+    List<Triple> triples = List.of(literalTriple("\u00E9"), literalTriple("~a"));
 
     assertThat(hashedInput(triples)).isEqualTo(PREFIX + "(" + SELF + PREDICATE + "1:L2:~a" + XSD_STRING + "0:)" + "("
-        + SELF + PREDICATE + "1:L2:é" + XSD_STRING + "0:))");
+        + SELF + PREDICATE + "1:L2:\u00E9" + XSD_STRING + "0:))");
   }
 
   @Test
   @DisplayName("U+E000 sorts before U+1F600 (code point order, which UTF-16 order would reverse), whatever the input order")
   void codePointOrderBeyondTheBmp() {
-    String privateUse = "a";
+    String privateUse = "\uE000a";
 
     String expected = PREFIX + "(" + SELF + PREDICATE + "1:L4:" + privateUse + XSD_STRING + "0:)" + "(" + SELF
         + PREDICATE + "1:L4:" + SMILEY + XSD_STRING + "0:))";

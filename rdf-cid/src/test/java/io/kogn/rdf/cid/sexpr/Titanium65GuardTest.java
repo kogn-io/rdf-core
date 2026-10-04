@@ -30,8 +30,8 @@ import io.kogn.rdf.terms.Triple;
 class Titanium65GuardTest {
 
   private static final String EX = "http://example.org/";
-  private static final String SUPPLEMENTARY = "😀";
-  private static final String UPPER_BMP = "";
+  private static final String SUPPLEMENTARY = "\uD83D\uDE00";
+  private static final String UPPER_BMP = "\uE000";
 
   private final RDF rdf = new SimpleRdf();
   private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
@@ -48,7 +48,7 @@ class Titanium65GuardTest {
     IRI base = rdf.createIRI(EX + SUPPLEMENTARY);
     IRI plainBase = rdf.createIRI(EX + "doc");
 
-    // With the base IRI still in place, "…😀" next to U+E000 would trigger the guard.
+    // With the base IRI still in place, "...\uD83D\uDE00" next to U+E000 would trigger the guard.
     List<Triple> triples = triplesWith(base, "p", UPPER_BMP);
     List<Triple> plainTriples = triplesWith(plainBase, "p", UPPER_BMP);
 
@@ -115,7 +115,7 @@ class Titanium65GuardTest {
   }
 
   /**
-   * One blank node under {@code <doc#…>} with an IRI object, a typed literal and a tagged
+   * One blank node under {@code <doc#...>} with an IRI object, a typed literal and a tagged
    * literal, so every position exists; {@code text} says what goes into each.
    */
   private List<Triple> graphWith(Function<Position, String> text) {
