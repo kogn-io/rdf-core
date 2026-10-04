@@ -857,6 +857,26 @@ class ShaclValidationRdf4jTest {
     assertThat(report.conforms()).isTrue();
   }
 
+  @Test
+  void iriThatIsItsOwnInversePathIsAPredicatePathAndNoCycle() {
+    Graph shapes = personShapeRequiringName();
+    BlankNode property = rdf.createBlankNode();
+    shapes.add(ex("PersonShape"), sh("property"), property);
+    shapes.add(property, sh("path"), ex("knows"));
+    shapes.add(property, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
+    // an IRI is always a predicate path, whatever it carries itself
+    shapes.add(ex("knows"), sh("inversePath"), ex("knows"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+    data.add(ex("bob"), ex("name"), rdf.createLiteral("Bob"));
+    data.add(ex("bob"), ex("knows"), ex("alice"));
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isTrue();
+  }
+
   private void assertShapesStillApply(Graph shapes) {
     Graph data = rdf.createGraph();
     data.add(ex("bob"), a(), ex("Person"));
