@@ -17,8 +17,10 @@ import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.impl.LinkedHashModel;
 import org.eclipse.rdf4j.model.vocabulary.DASH;
 import org.eclipse.rdf4j.model.vocabulary.RDF;
+import org.eclipse.rdf4j.model.vocabulary.RSX;
 import org.eclipse.rdf4j.model.vocabulary.SHACL;
 import org.eclipse.rdf4j.sail.Sail;
 import org.eclipse.rdf4j.sail.SailConnection;
@@ -109,6 +111,16 @@ import io.kogn.rdf.terms.ReadableGraph;
  * cell twice. A shapes graph that breaks this is rejected with a
  * {@link ShaclValidationException} before RDF4J sees it — RDF4J itself walks such a list
  * until the heap is exhausted.</p>
+ *
+ * <h2>Shapes-graph links are ignored</h2>
+ *
+ * <p>The shapes to validate against are exactly the {@code shapes} argument. A
+ * {@code sh:shapesGraph} triple — or an RDF4J {@code rdf4j-ext:DataAndShapesGraphLink} — inside
+ * the shapes graph is therefore dropped before RDF4J reads it: RDF4J would take it as a pointer
+ * to another shapes graph and skip every shape in the graph it was handed, reporting any data
+ * as conforming. This matters for {@code validate(g, g, options)}, where a data graph naming its
+ * shapes graph by {@code sh:shapesGraph}, as SHACL suggests, is also the shapes graph. In the
+ * data graph the triple stays untouched; it is plain data there.</p>
  */
 public final class ShaclValidationRdf4j implements ShaclValidation {
 
@@ -136,7 +148,7 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
       dataSail = toSail(toModel(data, "data"));
       Model shapesModel = toModel(shapes, "shapes");
       requireWellFormedLists(shapesModel);
-      shapesSail = toSail(shapesModel);
+      shapesSail = toSail(withoutShapesGraphLinks(shapesModel));
       ValidationReport report = ShaclValidator.builder()
           .setRdfsSubClassReasoning(options.rdfsSubClassReasoning())
           .setEclipseRdf4jShaclExtensions(false)
@@ -244,6 +256,23 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     return new ShaclValidationException(
         "the shapes graph holds a malformed RDF list as a value of " + parameter + " (list " + head + "): " + reason,
         null);
+  }
+
+  /**
+   * Drops the statements RDF4J reads as a redirection to other shapes graphs, as described on
+   * the class: every {@code sh:shapesGraph} triple and every {@code rdf:type} triple naming
+   * {@link RSX#DataAndShapesGraphLink}. The remaining {@code rdf4j-ext:} predicates of such a
+   * link are inert once its type is gone.
+   */
+  private static Model withoutShapesGraphLinks(Model shapes) {
+    if (!shapes.contains(null, SHACL.SHAPES_GRAPH, null)
+        && !shapes.contains(null, RDF.TYPE, RSX.DataAndShapesGraphLink)) {
+      return shapes;
+    }
+    Model copy = new LinkedHashModel(shapes);
+    copy.remove(null, SHACL.SHAPES_GRAPH, null);
+    copy.remove(null, RDF.TYPE, RSX.DataAndShapesGraphLink);
+    return copy;
   }
 
   private static Sail toSail(Model model) {
