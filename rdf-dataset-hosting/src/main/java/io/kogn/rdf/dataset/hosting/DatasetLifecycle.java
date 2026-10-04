@@ -3,6 +3,7 @@
 
 package io.kogn.rdf.dataset.hosting;
 
+import java.io.UncheckedIOException;
 import java.util.Set;
 
 /**
@@ -12,8 +13,11 @@ import java.util.Set;
  * <p>Datasets are addressed by an opaque {@link DatasetId}. A dataset is
  * obtained through {@link #acquire(DatasetId)}, which returns a leased
  * {@link DatasetHandle} and never exposes a backend-specific store type. The
- * lease is what makes eviction and deletion safe: while a handle is open the
- * underlying store cannot be torn down.</p>
+ * lease is what makes eviction and deletion safe: while a handle is open,
+ * {@link #close(DatasetId)} and {@link #delete(DatasetId)} leave the underlying store
+ * alone. The one call that does not honour a lease is {@link #shutDownAll()}, a last
+ * resort for the end of the process; a handle still open after it points at a
+ * shut-down store.</p>
  *
  * <p>This port is pure <em>mechanism</em>. Any idle/TTL eviction <em>policy</em>
  * lives with the consumer, which decides when to call {@link #close(DatasetId)}.
@@ -53,11 +57,22 @@ public interface DatasetLifecycle {
    * away, so that this call creates the dataset anew, or it refuses the identifier
    * with an {@link IllegalStateException} for as long as they are there.</p>
    *
+   * <p>If the dataset is created by this call, a failure while opening its store or
+   * a failure of the on-create hook leaves nothing behind: a half-created dataset is
+   * rolled back, no lease is taken, and the failure reaches the caller as it was raised —
+   * the backend's exception for the store, the hook's own exception (or error) for the
+   * hook. The next {@code acquire} then starts from scratch, the hook included.</p>
+   *
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}
    * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if a failed {@link #delete(DatasetId)} left remains
    *     that cannot be cleared away
+   * @throws UncheckedIOException if the storage of the dataset cannot be read, so that it
+   *     is unknown whether the dataset exists; the storage is then left untouched
+   * @throws RuntimeException if the backend fails to open or create the store, or if the
+   *     on-create hook fails; the hook's exception is passed on unchanged, and an
+   *     {@link Error} it raises is passed on as well
    */
   DatasetHandle acquire(DatasetId id);
 
@@ -106,11 +121,18 @@ public interface DatasetLifecycle {
    * <p>Deleting a dataset's storage need not be atomic, so this call can fail with
    * the dataset half gone. What is left over is then no longer a dataset an
    * implementation may serve — see {@link #acquire(DatasetId)} for how that state is
-   * resolved.</p>
+   * resolved. The failure is the backend's own {@link RuntimeException}, raised
+   * after the dataset has been dropped from the in-memory cache; this port does not
+   * fix a more specific type, since what can go wrong depends on the storage (a
+   * file-based implementation will typically raise an {@link UncheckedIOException}).
+   * A caller that needs to know which identifiers are left in that state asks
+   * {@link DatasetMaintenance#listUnfinishedDeletes()}.</p>
    *
    * @param id the dataset identifier; must not be {@code null}
    * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if the dataset has at least one open lease
+   * @throws RuntimeException if shutting the store down or removing its storage fails,
+   *     leaving the dataset half gone
    */
   void delete(DatasetId id);
 
@@ -135,8 +157,16 @@ public interface DatasetLifecycle {
    * stand. An implementation that can leave such remains behind names them through
    * {@link DatasetMaintenance#listUnfinishedDeletes()} instead.</p>
    *
+   * <p>The listing is all-or-nothing: if the storage cannot be read, or if it cannot be
+   * determined whether an identifier carries the remains of a failed delete, this call
+   * fails rather than report that identifier as usable or drop it silently. Entries in
+   * the storage that this implementation did not itself create for a dataset are not
+   * reported; how reliably it tells them apart is for the implementation to document.</p>
+   *
    * @return the identifiers this implementation currently reports as usable;
    *     never {@code null}
+   * @throws UncheckedIOException if the storage cannot be listed, or if it cannot be
+   *     determined whether an identifier carries the remains of a failed delete
    */
   Set<DatasetId> list();
 
@@ -150,12 +180,18 @@ public interface DatasetLifecycle {
    * applied to everything at once. It is not maintenance, which concerns the remains
    * of something that went wrong.</p>
    *
+   * <p>A dataset whose store is still being created by a concurrent
+   * {@link #acquire(DatasetId)} is waited for and shut down with the rest, so that no
+   * store is left open behind this call. Afterwards the lifecycle remains usable: a later
+   * {@code acquire} of the same identifier opens the dataset again — reopening a
+   * persisted one, creating an {@code IN_MEMORY} one anew.</p>
+   *
    * <p><strong>Last resort — does not honour open leases.</strong> Unlike
    * {@link #close(DatasetId)} and {@link #delete(DatasetId)}, this call tears every
    * store down unconditionally, including ones with an open {@link DatasetHandle};
-   * such a handle fails with whatever the backend raises for a shut-down store. Call
-   * it only when the process is going down anyway, never as a substitute for
-   * releasing leases in the normal course of business. Persisted storage stays
+   * such a handle keeps pointing at the shut-down store and fails with whatever the
+   * backend raises for it. Call it only when the process is going down anyway, never
+   * as a substitute for releasing leases in the normal course of business. Persisted storage stays
    * untouched; the contents of an {@code IN_MEMORY} dataset are lost, as with
    * {@link #close(DatasetId)}. Calling it when nothing is open is a no-op.</p>
    *

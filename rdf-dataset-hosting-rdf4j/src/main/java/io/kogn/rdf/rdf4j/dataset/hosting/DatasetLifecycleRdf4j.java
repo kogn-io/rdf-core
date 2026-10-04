@@ -151,6 +151,15 @@ import lombok.extern.slf4j.Slf4j;
  * Base64url-encoded into a single directory segment, so values such as
  * {@code "../etc"} cannot escape the storage root.</p>
  *
+ * <p>{@link #list()} and {@link #listUnfinishedDeletes()} read the ids back from the directory
+ * names, and the storage root may hold directories this lifecycle did not create ({@code data},
+ * {@code logs}). A directory name counts as ours only if it decodes as canonical Base64url, as
+ * strictly valid UTF-8 (malformed input is rejected, not replaced), to a value {@link DatasetId}
+ * accepts, and encodes back to exactly that name. This is a plausibility test, not proof of
+ * origin: no marker file identifies a directory as a dataset, so a foreign directory whose name
+ * happens to be a validly encoded id (such as {@code Zm9v}, the encoding of {@code foo}) is
+ * listed as that id. Keep the {@code storageRoot} free of unrelated directories.</p>
+ *
  * <p>Store creation runs under the per-key lock; for the expected workload
  * (few datasets, rare creation) holding the lock across store initialisation is
  * an acceptable trade for correctness.</p>
@@ -333,6 +342,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * <p>A failure of the on-disk teardown is logged at {@code ERROR} as well as rethrown, and
    * marks the dataset as having an unfinished delete so the next {@link #acquire(DatasetId)}
    * does not open its remains — see the class documentation.</p>
+   *
+   * <p>If removing the storage fails part-way, the failure is an {@link UncheckedIOException}
+   * naming the path that could not be deleted; a failure of the store's own shutdown propagates
+   * as RDF4J raised it. Either way the dataset is dropped from the cache.</p>
+   *
+   * @throws UncheckedIOException if removing the dataset's storage fails, leaving it half gone
    */
   @Override
   public void delete(final DatasetId id) {
