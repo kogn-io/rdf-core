@@ -3,14 +3,19 @@
 
 package io.kogn.rdf.rdf4j.dataset;
 
+import java.util.List;
+import java.util.function.ToLongFunction;
+
 import org.eclipse.rdf4j.common.transaction.IsolationLevels;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryResult;
 
+import io.kogn.rdf.dataset.DatasetStorageException;
 import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.rdf4j.RDF4JGraph;
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
@@ -23,6 +28,10 @@ import io.kogn.rdf.terms.ReadableGraph;
  * <p>Each operation opens a dedicated {@link RepositoryConnection} from the
  * underlying {@link Repository} and closes it immediately after, following
  * the same pattern used by the existing service layer.</p>
+ *
+ * <p>A failure of the backend — an I/O error of a file-backed store, a repository that is shut
+ * down — reaches the caller as the neutral {@link DatasetStorageException}, never as an RDF4J
+ * type; see {@link StorageErrors} for what is and is not translated.</p>
  */
 public class GraphStoreRdf4j implements GraphStore {
 
@@ -52,14 +61,13 @@ public class GraphStoreRdf4j implements GraphStore {
   @Override
   public long add(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    return inTransaction(conn -> {
+    final List<Statement> statements = toStatements(triples);
+    return StorageErrors.translating(() -> inTransaction(conn -> {
       final long before = conn.size(context);
-      triples.stream()
-          .forEach(triple -> conn.add(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-              RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
-              context));
+      statements.forEach(
+          statement -> conn.add(statement.getSubject(), statement.getPredicate(), statement.getObject(), context));
       return conn.size(context) - before;
-    });
+    }));
   }
 
   /**
@@ -71,14 +79,13 @@ public class GraphStoreRdf4j implements GraphStore {
   @Override
   public long remove(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    return inTransaction(conn -> {
+    final List<Statement> statements = toStatements(triples);
+    return StorageErrors.translating(() -> inTransaction(conn -> {
       final long before = conn.size(context);
-      triples.stream()
-          .forEach(triple -> conn.remove(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-              RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject()),
-              context));
+      statements.forEach(
+          statement -> conn.remove(statement.getSubject(), statement.getPredicate(), statement.getObject(), context));
       return before - conn.size(context);
-    });
+    }));
   }
 
   /**
@@ -103,7 +110,7 @@ public class GraphStoreRdf4j implements GraphStore {
    * optimistic-concurrency guard for a later write — see
    * {@link DatasetTransactorRdf4j} for that stronger case.</p>
    */
-  private long inTransaction(final java.util.function.ToLongFunction<RepositoryConnection> work) {
+  private long inTransaction(final ToLongFunction<RepositoryConnection> work) {
     try (RepositoryConnection conn = repository.getConnection()) {
       conn.begin(IsolationLevels.SNAPSHOT);
       try {
@@ -121,12 +128,26 @@ public class GraphStoreRdf4j implements GraphStore {
     }
   }
 
+  /**
+   * Converts the caller's triples to RDF4J statements before the backend is touched, so that
+   * reading the caller's graph and converting its terms stay outside the exception translation.
+   */
+  private static List<Statement> toStatements(final ReadableGraph triples) {
+    final SimpleValueFactory values = SimpleValueFactory.getInstance();
+    return triples.stream()
+        .map(triple -> values.createStatement(RDF4JConverters.toRDF4JResource(triple.getSubject()),
+            RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject())))
+        .toList();
+  }
+
   @Override
   public void clear(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    try (RepositoryConnection conn = repository.getConnection()) {
-      conn.clear(context);
-    }
+    StorageErrors.running(() -> {
+      try (RepositoryConnection conn = repository.getConnection()) {
+        conn.clear(context);
+      }
+    });
   }
 
   /**
@@ -140,16 +161,15 @@ public class GraphStoreRdf4j implements GraphStore {
   @Override
   public ReadableGraph export(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    try (RepositoryConnection conn = repository.getConnection()) {
-      final Model model = new LinkedHashModel();
-      try (RepositoryResult<Statement> result = conn.getStatements(null, null, null, false, context)) {
-        result.forEach(statement -> {
-          RDF4JConverters.requireNoTripleTerm(statement.getObject(), "object of " + statement.getPredicate());
-          model.add(statement);
-        });
+    final List<Statement> statements = StorageErrors.translating(() -> {
+      try (RepositoryConnection conn = repository.getConnection();
+          RepositoryResult<Statement> result = conn.getStatements(null, null, null, false, context)) {
+        return result.asList();
       }
-      return new RDF4JGraph(model);
-    }
+    });
+    final Model model = new LinkedHashModel(statements);
+    RDF4JConverters.requireNoTripleTerms(model);
+    return new RDF4JGraph(model);
   }
 
   /**
@@ -161,9 +181,11 @@ public class GraphStoreRdf4j implements GraphStore {
   @Override
   public long count(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    try (RepositoryConnection conn = repository.getConnection()) {
-      return conn.size(context);
-    }
+    return StorageErrors.translating(() -> {
+      try (RepositoryConnection conn = repository.getConnection()) {
+        return conn.size(context);
+      }
+    });
   }
 
   /**
@@ -174,8 +196,10 @@ public class GraphStoreRdf4j implements GraphStore {
    */
   @Override
   public long count() {
-    try (RepositoryConnection conn = repository.getConnection()) {
-      return conn.size();
-    }
+    return StorageErrors.translating(() -> {
+      try (RepositoryConnection conn = repository.getConnection()) {
+        return conn.size();
+      }
+    });
   }
 }

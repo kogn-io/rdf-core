@@ -66,10 +66,11 @@ public interface DatasetTransactor {
    * @throws IllegalStateException if this thread is already inside an {@code inTransaction}
    *     call; nesting is forbidden (see class Javadoc) and is rejected rather than opening a
    *     second, independent transaction
-   * @throws RuntimeException re-thrown unchanged from {@code work} after rollback,
-   *     or raised by the commit itself for a failure that is not a conflict (an
-   *     I/O or storage error, say) — such a failure is not retryable and must not
-   *     be translated to {@link ConcurrencyConflictException}
+   * @throws DatasetStorageException if the store fails while the transaction is opened or
+   *     committed, for a reason that is not a conflict (an I/O or storage error, say) — such a
+   *     failure is not translated to {@link ConcurrencyConflictException}; the original is the
+   *     cause
+   * @throws RuntimeException re-thrown unchanged from {@code work} after rollback
    */
   <T> T inTransaction(Function<DatasetTx, T> work);
 }

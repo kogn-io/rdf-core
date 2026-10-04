@@ -23,6 +23,11 @@ import io.kogn.rdf.terms.ReadableGraph;
  *
  * <p>Implementations may choose to buffer writes; callers must not assume immediate
  * persistence outside of a {@link DatasetTransactor} transaction.</p>
+ *
+ * <p>A failure of the store itself — an I/O error, a store that is shut down — reaches the
+ * caller as the neutral {@link DatasetStorageException} on every operation, never as a backend
+ * type; the original is kept as cause. A defect of the call ({@code null} arguments) is not a
+ * storage failure and keeps its own type.</p>
  */
 public interface GraphStore {
 
@@ -42,6 +47,7 @@ public interface GraphStore {
    *     delta shares the exactness guarantee of {@link #count(IRI)}: it is exact
    *     wherever the implementation's triple count is exact, and no more precise
    *     than an estimate where the count is one.
+   * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   long add(IRI namedGraph, ReadableGraph triples);
 
@@ -61,6 +67,7 @@ public interface GraphStore {
    *     the exactness guarantee of {@link #count(IRI)}: it is exact wherever the
    *     implementation's triple count is exact, and no more precise than an
    *     estimate where the count is one.
+   * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   long remove(IRI namedGraph, ReadableGraph triples);
 
@@ -71,6 +78,7 @@ public interface GraphStore {
    * enumeration if the underlying store only tracks non-empty graphs.</p>
    *
    * @param namedGraph IRI identifying the named graph to clear; must not be {@code null}
+   * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   void clear(IRI namedGraph);
 
@@ -85,6 +93,7 @@ public interface GraphStore {
    * @param namedGraph IRI identifying the named graph to export; must not be {@code null}
    * @return a snapshot of all triples in the named graph
    * @throws IllegalStateException if the named graph holds an RDF 1.2 triple term
+   * @throws DatasetStorageException if the backend fails while carrying out the operation
    * @see DatasetExport#export(java.io.OutputStream, RdfFormat, IRI)
    */
   ReadableGraph export(IRI namedGraph);
@@ -101,6 +110,7 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the named graph; must not be {@code null}
    * @return triple count; {@code 0} if the named graph does not exist
+   * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   long count(IRI namedGraph);
 
@@ -116,6 +126,7 @@ public interface GraphStore {
    * store with such statements reports a larger value than the sum.</p>
    *
    * @return total triple count
+   * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   long count();
 }
