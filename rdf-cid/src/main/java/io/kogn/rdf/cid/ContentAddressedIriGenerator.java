@@ -97,8 +97,9 @@ public interface ContentAddressedIriGenerator {
    * identifier, as a {@link CanonicalizationResourceLimitExceededException}. The limit
    * depends on the graph alone, not on the speed or the budget of the canonicalizer, so every
    * conforming implementation accepts and rejects the same graphs. The bound is deliberately
-   * conservative and also rejects some graphs that would be cheap. RDF lists whose items differ
-   * and nested anonymous structures stay far below it; a list whose items recur does not: 216
+   * conservative and also rejects some graphs that would be cheap. RDF lists whose items differ,
+   * nested anonymous structures and repeated identical anonymous nodes under distinguishable
+   * parents stay far below it; a list whose items recur does not: 216
    * equal items still pass (bound 9 892 150), 217 do not (10 031 040), and a list of 220 items
    * drawn from three values is rejected (10 455 498).</p>
    *
