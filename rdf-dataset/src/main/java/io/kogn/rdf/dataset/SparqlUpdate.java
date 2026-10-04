@@ -27,6 +27,18 @@ import io.kogn.rdf.terms.RDFTerm;
  * executes, and lands its statements in the underlying store's default graph — a
  * location none of the other dataset ports can read back. Every update must therefore
  * name its target graph explicitly.</p>
+ *
+ * <p><strong>The delete side is wider than the insert side.</strong> A {@code DELETE DATA}
+ * or {@code DELETE WHERE} without a {@code GRAPH} clause is not confined to the default
+ * graph: it removes every matching triple from <em>each</em> named graph that holds it (and
+ * from the default graph), following the union-default-graph semantics of the RDF4J
+ * backend. A graph-less delete aimed at one named graph therefore silently removes the same
+ * triple from all the others.</p>
+ *
+ * <p><strong>RDF 1.2 triple terms.</strong> An update can store an RDF 1.2 triple term, which
+ * the port data model cannot represent; the update itself is not rejected. Reading such
+ * content back through {@link GraphStore#export(io.kogn.rdf.terms.IRI)} or {@link SparqlQuery}
+ * fails with an {@link IllegalStateException}.</p>
  */
 public interface SparqlUpdate {
 
