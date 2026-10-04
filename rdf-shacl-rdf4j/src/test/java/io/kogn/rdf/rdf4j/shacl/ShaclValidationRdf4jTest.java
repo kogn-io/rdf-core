@@ -729,10 +729,34 @@ class ShaclValidationRdf4jTest {
   @Test
   void emptyAlternativePathIsRejectedInsteadOfRenderedEmpty() {
     Model model = new LinkedHashModel();
-    Resource path = Values.bnode("alt");
+    Resource path = Values.bnode("emptyAltNode");
     model.add(path, SHACL.ALTERNATIVE_PATH, NIL);
 
-    assertThatThrownBy(() -> render(model, path)).isInstanceOf(IllegalStateException.class).hasMessageContaining("alt");
+    assertThatThrownBy(() -> render(model, path)).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("emptyAltNode")
+        .hasMessageContaining("empty list");
+  }
+
+  @Test
+  void alternativePathWithLiteralObjectIsDiagnosedAsNotAList() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode("litAltNode");
+    model.add(path, SHACL.ALTERNATIVE_PATH, Values.literal("nope"));
+
+    assertThatThrownBy(() -> render(model, path)).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("litAltNode")
+        .hasMessageContaining("not a list");
+  }
+
+  @Test
+  void alternativePathWithIriObjectOtherThanNilIsDiagnosedAsNotAList() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode("iriAltNode");
+    model.add(path, SHACL.ALTERNATIVE_PATH, Values.iri(P));
+
+    assertThatThrownBy(() -> render(model, path)).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("iriAltNode")
+        .hasMessageContaining("not a list");
   }
 
   @Test
@@ -785,9 +809,9 @@ class ShaclValidationRdf4jTest {
   void pathNodeWithoutAnOperatorIsRejectedInsteadOfRenderedEmpty() {
     Model model = new LinkedHashModel();
 
-    assertThatThrownBy(() -> ShaclValidationRdf4j.toPropertyPath(model, Values.bnode("x")))
+    assertThatThrownBy(() -> ShaclValidationRdf4j.toPropertyPath(model, Values.bnode("bareNode")))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("x");
+        .hasMessageContaining("bareNode");
   }
 
   @Test
