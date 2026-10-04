@@ -5,6 +5,9 @@ package io.kogn.rdf.rdf4j.shacl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.eclipse.rdf4j.model.vocabulary.RDF.FIRST;
+import static org.eclipse.rdf4j.model.vocabulary.RDF.NIL;
+import static org.eclipse.rdf4j.model.vocabulary.RDF.REST;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -698,12 +701,39 @@ class ShaclValidationRdf4jTest {
     Resource second = Values.bnode();
     Resource first = Values.bnode();
     model.add(path, SHACL.ONE_OR_MORE_PATH, first);
-    model.add(first, org.eclipse.rdf4j.model.vocabulary.RDF.FIRST, Values.iri(P));
-    model.add(first, org.eclipse.rdf4j.model.vocabulary.RDF.REST, second);
-    model.add(second, org.eclipse.rdf4j.model.vocabulary.RDF.FIRST, Values.iri(P + "2"));
-    model.add(second, org.eclipse.rdf4j.model.vocabulary.RDF.REST, org.eclipse.rdf4j.model.vocabulary.RDF.NIL);
+    model.add(first, FIRST, Values.iri(P));
+    model.add(first, REST, second);
+    model.add(second, FIRST, Values.iri(P + "2"));
+    model.add(second, REST, NIL);
 
     assertThat(render(model, path)).isEqualTo("(<" + P + ">/<" + P + "2>)+");
+  }
+
+  @Test
+  void alternativeUnderAModifierIsParenthesized() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode();
+    Resource alternative = Values.bnode();
+    Resource first = Values.bnode();
+    Resource second = Values.bnode();
+    model.add(path, SHACL.ZERO_OR_MORE_PATH, alternative);
+    model.add(alternative, SHACL.ALTERNATIVE_PATH, first);
+    model.add(first, FIRST, Values.iri(P));
+    model.add(first, REST, second);
+    model.add(second, FIRST, Values.iri(P + "2"));
+    model.add(second, REST, NIL);
+
+    assertThat(render(model, path)).isEqualTo("(<" + P + ">|<" + P + "2>)*");
+  }
+
+  @Test
+  void emptyAlternativePathIsRejectedInsteadOfRenderedEmpty() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode("alt");
+    model.add(path, SHACL.ALTERNATIVE_PATH, NIL);
+
+    assertThatThrownBy(() -> render(model, path)).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("alt");
   }
 
   @Test
