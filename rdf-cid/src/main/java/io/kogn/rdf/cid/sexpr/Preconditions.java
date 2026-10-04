@@ -86,6 +86,7 @@ final class Preconditions {
    * starts with {@code _:}: no absolute IRI does, and the quad API would read it as a blank node.
    */
   private static void rejectUnsupportedTerms(String base, Collection<Triple> triples) {
+    triples.forEach(Preconditions::requireWellFormed);
     Stream.concat(Stream.of(base), triples.stream().flatMap(Preconditions::irisOf))
         .filter(iri -> iri.startsWith(Terms.BLANK_NODE_PREFIX))
         .findFirst()
@@ -106,8 +107,56 @@ final class Preconditions {
     return term instanceof IRI || term instanceof BlankNode;
   }
 
+  /**
+   * Rejects a null triple, a null term, and a term whose accessors return null where the term
+   * contract promises a value. Terms of foreign implementations can break the contract; the
+   * caller is told so with the failure code instead of a derivation failure caused by a
+   * {@link NullPointerException} deep inside.
+   */
+  private static void requireWellFormed(Triple triple) {
+    if (triple == null) {
+      throw failure(UNSUPPORTED_TERM, "The graph holds a null triple");
+    }
+    requireWellFormed(triple.getSubject(), "subject");
+    requireWellFormed(triple.getPredicate(), "predicate");
+    requireWellFormed(triple.getObject(), "object");
+  }
+
+  private static void requireWellFormed(RDFTerm term, String position) {
+    if (term == null) {
+      throw failure(UNSUPPORTED_TERM, "A triple has a null " + position);
+    }
+    switch (term) {
+    case IRI iri -> requireValue(iri.getIRIString(), "IRI string", position, term);
+    case BlankNode blankNode -> requireValue(blankNode.uniqueReference(), "unique reference", position, term);
+    case Literal literal -> {
+      requireValue(literal.getLexicalForm(), "lexical form", position, term);
+      requireValue(literal.getLanguageTag(), "language tag Optional", position, term);
+      if (literal.getDatatype() != null) {
+        requireValue(literal.getDatatype().getIRIString(), "datatype IRI string", position, term);
+      }
+    }
+    default -> {
+    }
+    }
+  }
+
+  private static void requireValue(Object value, String accessor, String position, RDFTerm term) {
+    if (value == null) {
+      throw failure(UNSUPPORTED_TERM, "The " + position + " is a " + term.getClass().getName() + " without " + accessor
+          + ", which the RDF 1.1 term contract requires");
+    }
+  }
+
+  /** Describes a term for a failure message from its accessors, never from {@code ntriplesString()}. */
   private static String describe(RDFTerm term) {
-    return isResource(term) || term instanceof Literal ? term.ntriplesString() : term.getClass().getName();
+    return switch (term) {
+    case IRI iri -> "<" + iri.getIRIString() + ">";
+    case BlankNode blankNode -> Terms.BLANK_NODE_PREFIX + blankNode.uniqueReference();
+    case Literal literal -> "\"" + literal.getLexicalForm() + "\""
+        + literal.getLanguageTag().map(tag -> "@" + tag).orElseGet(() -> "^^<" + Terms.datatypeOf(literal) + ">");
+    default -> term.getClass().getName();
+    };
   }
 
   /** Rejects an IRI in any position, datatype IRIs included, whose base is the reserved IRI. */

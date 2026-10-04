@@ -67,14 +67,7 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
 
     List<Triple> triples = graph.stream().toList();
 
-    ContentAddressableResult result;
-    try {
-      result = contentAddressableRdfSerializer.serializeWithIri(base, triples);
-    } catch (IllegalArgumentException | ContentAddressingException e) {
-      throw e;
-    } catch (RuntimeException e) {
-      throw new ContentAddressingException("Failed to generate content-addressed IRI", e);
-    }
+    ContentAddressableResult result = contentAddressableRdfSerializer.serializeWithIri(base, triples);
 
     return rdf.createIRI(result.iri().getIRIString());
   }

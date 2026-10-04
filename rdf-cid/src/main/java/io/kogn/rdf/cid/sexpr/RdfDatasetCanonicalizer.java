@@ -71,8 +71,8 @@ public class RdfDatasetCanonicalizer {
   public Map<String, String> canonicalIdentifiers(Collection<Triple> triples) {
     BigInteger cost = CanonicalizationCost.estimate(triples, MAX_COST);
     if (cost.compareTo(BigInteger.valueOf(MAX_COST)) > 0) {
-      throw new CanonicalizationResourceLimitExceededException("[RESOURCE_LIMIT] The graph's cost bound is " + cost
-          + ", more than the " + MAX_COST + " ni-rdf/1 admits: canonicalizing it would mean trying too many orders of "
+      throw new CanonicalizationResourceLimitExceededException("[RESOURCE_LIMIT] The graph's cost bound exceeds "
+          + MAX_COST + ", the most ni-rdf/1 admits: canonicalizing it would mean trying too many orders of "
           + "mutually indistinguishable blank nodes", null);
     }
     rejectWhereTitanium65Bites(triples);
