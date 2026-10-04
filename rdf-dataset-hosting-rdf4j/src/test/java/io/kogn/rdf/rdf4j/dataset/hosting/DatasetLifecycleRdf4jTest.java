@@ -1319,7 +1319,7 @@ class DatasetLifecycleRdf4jTest {
       Files.createDirectory(root.resolve("logs"));
       // Base64url of the single byte 0xFF: canonical, but not valid UTF-8
       Files.createDirectory(root.resolve("_w"));
-      // Base64url of a blank value " ": decodes to valid UTF-8 that DatasetId rejects
+      // Base64url of a blank value of three spaces: decodes to valid UTF-8 that DatasetId rejects
       Files.createDirectory(root.resolve("ICAg"));
 
       assertThat(lifecycle.list()).containsExactly(own);
@@ -1364,6 +1364,12 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("acquire(null) throws NullPointerException")
     void acquire_null_throws() {
       assertThatThrownBy(() -> inMemory().acquire(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("clearUnfinishedDelete(null) throws NullPointerException")
+    void clearUnfinishedDelete_null_throws() {
+      assertThatThrownBy(() -> inMemory().clearUnfinishedDelete(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
