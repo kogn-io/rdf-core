@@ -6,6 +6,7 @@ package io.kogn.rdf.rdf4j;
 import org.eclipse.rdf4j.model.Value;
 
 import io.kogn.rdf.terms.RDFTerm;
+import io.kogn.rdf.terms.SimpleRdf;
 import lombok.EqualsAndHashCode;
 
 /**
@@ -37,13 +38,31 @@ public abstract class RDF4JTerm implements RDFTerm {
     return rdf4jValue;
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Serialized by {@code rdf-terms} itself, so both backends produce the same string.</p>
+   */
   @Override
   public String ntriplesString() {
-    return rdf4jValue.toString();
+    if (rdf4jValue instanceof org.eclipse.rdf4j.model.IRI iri) {
+      return new SimpleRdf().createIRI(iri.stringValue()).ntriplesString();
+    }
+    if (rdf4jValue instanceof org.eclipse.rdf4j.model.BNode bnode) {
+      return new SimpleRdf().createBlankNode(bnode.getID()).ntriplesString();
+    }
+    if (rdf4jValue instanceof org.eclipse.rdf4j.model.Literal literal) {
+      final SimpleRdf rdf = new SimpleRdf();
+      return literal.getLanguage()
+          .map(tag -> rdf.createLiteral(literal.getLabel(), tag))
+          .orElseGet(() -> rdf.createLiteral(literal.getLabel(), rdf.createIRI(literal.getDatatype().stringValue())))
+          .ntriplesString();
+    }
+    throw new IllegalStateException("Unsupported RDF4J value: " + rdf4jValue.getClass());
   }
 
   @Override
   public String toString() {
-    return ntriplesString();
+    return rdf4jValue.toString();
   }
 }
