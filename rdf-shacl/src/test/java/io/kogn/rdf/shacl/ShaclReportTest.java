@@ -10,13 +10,22 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.RDF;
+import io.kogn.rdf.terms.SimpleRdf;
+
 class ShaclReportTest {
 
-  private static final ShaclResult VIOLATION_RESULT = new ShaclResult("https://example.org/alice",
-      "https://example.org/name", Severity.VIOLATION, List.of(ShaclMessage.untagged("missing name")));
+  private static final RDF RDF_FACTORY = new SimpleRdf();
+  private static final IRI ALICE = RDF_FACTORY.createIRI("https://example.org/alice");
 
-  private static final ShaclResult WARNING_RESULT = new ShaclResult("https://example.org/alice",
-      "https://example.org/email", Severity.WARNING, List.of(ShaclMessage.untagged("missing email")));
+  private static final ShaclResult VIOLATION_RESULT = new ShaclResult(ALICE, "<https://example.org/name>",
+      Severity.VIOLATION, RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl#Violation"),
+      List.of(ShaclMessage.untagged("missing name")));
+
+  private static final ShaclResult WARNING_RESULT = new ShaclResult(ALICE, "<https://example.org/email>",
+      Severity.WARNING, RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl#Warning"),
+      List.of(ShaclMessage.untagged("missing email")));
 
   @Test
   void conformingReportWithNoResultsIsValid() {

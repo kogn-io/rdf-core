@@ -30,6 +30,7 @@ import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
+import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.SimpleRdf;
 
 /**
@@ -122,8 +123,9 @@ class ShaclValidationRdf4jTest {
     assertThat(report.conforms()).isFalse();
     assertThat(report.results()).hasSize(1);
     ShaclResult result = report.results().get(0);
-    assertThat(result.focusNode()).isEqualTo(ex("bob").getIRIString());
-    assertThat(result.path()).isEqualTo(ex("name").getIRIString());
+    assertThat(result.focusNode()).isEqualTo(ex("bob"));
+    assertThat(result.path()).isEqualTo("<" + ex("name").getIRIString() + ">");
+    assertThat(result.severityIri()).isEqualTo(sh("Violation"));
     assertThat(result.severity()).isEqualTo(Severity.VIOLATION);
     assertThat(result.messages()).containsExactly(ShaclMessage.untagged("Name is required"));
   }
@@ -182,7 +184,7 @@ class ShaclValidationRdf4jTest {
 
     assertThat(report.conforms()).isFalse();
     assertThat(report.results()).hasSize(1);
-    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex").getIRIString());
+    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex"));
     assertThat(report.results().get(0).severity()).isEqualTo(Severity.VIOLATION);
   }
 
@@ -205,7 +207,7 @@ class ShaclValidationRdf4jTest {
 
     assertThat(report.conforms()).isFalse();
     assertThat(report.results()).hasSize(1);
-    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex").getIRIString());
+    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex"));
   }
 
   /**
@@ -273,7 +275,7 @@ class ShaclValidationRdf4jTest {
 
     assertThat(report.conforms()).isFalse();
     assertThat(report.results()).hasSize(1);
-    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex").getIRIString());
+    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex"));
     assertThat(report.results().get(0).severity()).isEqualTo(Severity.VIOLATION);
   }
 
@@ -326,7 +328,7 @@ class ShaclValidationRdf4jTest {
 
     assertThat(report.conforms()).isFalse();
     assertThat(report.results()).hasSize(1);
-    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex").getIRIString());
+    assertThat(report.results().get(0).focusNode()).isEqualTo(ex("rex"));
     assertThat(report.results().get(0).severity()).isEqualTo(Severity.VIOLATION);
   }
 
@@ -528,7 +530,7 @@ class ShaclValidationRdf4jTest {
     assertThat(report.conforms()).isFalse();
     assertThat(report.results()).hasSize(1);
     ShaclResult result = report.results().get(0);
-    assertThat(result.focusNode()).isEqualTo(ex("bob").getIRIString());
+    assertThat(result.focusNode()).isEqualTo(ex("bob"));
     assertThat(result.path()).isNull();
     assertThat(result.severity()).isEqualTo(Severity.VIOLATION);
   }
@@ -558,6 +560,75 @@ class ShaclValidationRdf4jTest {
     ShaclResult result = report.results().get(0);
     assertThat(result.severity()).isEqualTo(Severity.INFO);
     assertThat(result.messages()).containsExactly(ShaclMessage.untagged("A nickname is nice to have"));
+  }
+
+  @Test
+  void severityIriIsKeptAlongsideTheEnum() {
+    Graph shapes = personShapeRequiringOneValueOf(ex("nickname"));
+    shapes.add(shapeProperty(shapes), sh("severity"), sh("Warning"));
+    Graph data = rdf.createGraph();
+    data.add(ex("carol"), a(), ex("Person"));
+
+    ShaclResult result = validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0);
+
+    assertThat(result.severity()).isEqualTo(Severity.WARNING);
+    assertThat(result.severityIri()).isEqualTo(sh("Warning"));
+  }
+
+  @Test
+  void customSeverityIsReportedByTheBackendAsShViolation() {
+    Graph shapes = personShapeRequiringOneValueOf(ex("nickname"));
+    shapes.add(shapeProperty(shapes), sh("severity"), ex("Critical"));
+    Graph data = rdf.createGraph();
+    data.add(ex("carol"), a(), ex("Person"));
+
+    ShaclResult result = validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0);
+
+    assertThat(result.severity()).isEqualTo(Severity.VIOLATION);
+    // RDF4J's validation report knows only sh:Violation/Warning/Info and drops a custom severity IRI itself
+    assertThat(result.severityIri()).isEqualTo(sh("Violation"));
+  }
+
+  @Test
+  void blankNodeFocusNodeStaysABlankNode() {
+    Graph shapes = personShapeRequiringOneValueOf(ex("name"));
+    BlankNode person = rdf.createBlankNode("person1");
+    Graph data = rdf.createGraph();
+    data.add(person, a(), ex("Person"));
+
+    ShaclResult result = validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0);
+
+    assertThat(result.focusNode()).isInstanceOf(BlankNode.class).isEqualTo(person);
+  }
+
+  @Test
+  void inversePathIsRenderedInSparqlPropertyPathSyntax() {
+    BlankNode path = rdf.createBlankNode();
+    Graph shapes = personShapeRequiringOneValueOf(path);
+    shapes.add(path, sh("inversePath"), ex("knows"));
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    ShaclResult result = validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0);
+
+    assertThat(result.path()).isEqualTo("^<" + ex("knows").getIRIString() + ">");
+  }
+
+  @Test
+  void sequencePathIsRenderedInSparqlPropertyPathSyntax() {
+    BlankNode second = rdf.createBlankNode();
+    BlankNode first = rdf.createBlankNode();
+    Graph shapes = personShapeRequiringOneValueOf(first);
+    shapes.add(first, rdfFirst(), ex("knows"));
+    shapes.add(first, rdfRest(), second);
+    shapes.add(second, rdfFirst(), ex("name"));
+    shapes.add(second, rdfRest(), rdfNil());
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    ShaclResult result = validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0);
+
+    assertThat(result.path()).isEqualTo("<" + ex("knows").getIRIString() + ">/<" + ex("name").getIRIString() + ">");
   }
 
   /**
@@ -679,7 +750,7 @@ class ShaclValidationRdf4jTest {
     ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
 
     assertThat(report.conforms()).isFalse();
-    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("sky").getIRIString());
+    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("sky"));
   }
 
   /**
@@ -706,7 +777,7 @@ class ShaclValidationRdf4jTest {
     ShaclReport report = validation.validate(graph, graph, ValidationOptions.defaults());
 
     assertThat(report.conforms()).isFalse();
-    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("bob").getIRIString());
+    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("bob"));
   }
 
   @Test
@@ -904,7 +975,11 @@ class ShaclValidationRdf4jTest {
     assertThat(report.conforms()).isTrue();
   }
 
-  private Graph personShapeRequiringOneValueOf(BlankNode path) {
+  private BlankNode shapeProperty(Graph shapes) {
+    return (BlankNode) shapes.stream(null, sh("property"), null).findFirst().orElseThrow().getObject();
+  }
+
+  private Graph personShapeRequiringOneValueOf(RDFTerm path) {
     Graph shapes = rdf.createGraph();
     IRI personShape = ex("PersonShape");
     BlankNode property = rdf.createBlankNode();
@@ -933,7 +1008,7 @@ class ShaclValidationRdf4jTest {
     ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
 
     assertThat(report.conforms()).isFalse();
-    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("bob").getIRIString());
+    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("bob"));
   }
 
   private void assertMalformedListIsRejected(Graph shapes) {

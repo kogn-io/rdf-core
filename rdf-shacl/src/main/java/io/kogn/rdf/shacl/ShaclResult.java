@@ -5,6 +5,9 @@ package io.kogn.rdf.shacl;
 
 import java.util.List;
 
+import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.RDFTerm;
+
 /**
  * A single SHACL validation result, corresponding to one {@code sh:ValidationResult}.
  *
@@ -29,22 +32,29 @@ import java.util.List;
  * {@link ShaclMessage#language()}; do not read {@code messages().get(0)} as "the"
  * message.</p>
  *
- * @param focusNode the string representation of the node that failed validation (an
- *     IRI or blank node identifier); must not be {@code null}
- * @param path the string representation of the {@code sh:resultPath} that caused this
- *     result, or {@code null} if the shape that produced it carries no path (e.g. a
- *     node shape)
- * @param severity the severity of this result; must not be {@code null}
+ * @param focusNode the node that failed validation, as the term it is in the data graph
+ *     (IRI, blank node or literal — its kind is preserved); must not be {@code null}
+ * @param path the {@code sh:resultPath} that caused this result, rendered in SPARQL
+ *     property path syntax (an IRI as {@code <iri>}, composed with {@code /}, {@code |},
+ *     {@code ^}, {@code *}, {@code +}, {@code ?}), or {@code null} if the shape that
+ *     produced it carries no path (e.g. a node shape)
+ * @param severity the severity of this result, mapped onto the closed {@link Severity}
+ *     enum (a severity IRI other than {@code sh:Warning}/{@code sh:Info} maps to
+ *     {@link Severity#VIOLATION}); must not be {@code null}
+ * @param severityIri the {@code sh:resultSeverity} IRI as reported, so a custom severity
+ *     keeps its identity even though {@code severity} cannot express it; must not be
+ *     {@code null}
  * @param messages every {@code sh:resultMessage} of this result, in no meaningful order;
  *     must not be {@code null}, possibly empty
  */
-public record ShaclResult(String focusNode, String path, Severity severity, List<ShaclMessage> messages) {
+public record ShaclResult(RDFTerm focusNode, String path, Severity severity, IRI severityIri,
+    List<ShaclMessage> messages) {
 
   /**
    * Validates and defensively copies the result.
    *
-   * @throws IllegalArgumentException if {@code focusNode}, {@code severity} or
-   *     {@code messages} is {@code null}
+   * @throws IllegalArgumentException if {@code focusNode}, {@code severity},
+   *     {@code severityIri} or {@code messages} is {@code null}
    * @throws NullPointerException if {@code messages} contains {@code null}
    */
   public ShaclResult {
@@ -53,6 +63,9 @@ public record ShaclResult(String focusNode, String path, Severity severity, List
     }
     if (severity == null) {
       throw new IllegalArgumentException("severity must not be null");
+    }
+    if (severityIri == null) {
+      throw new IllegalArgumentException("severityIri must not be null");
     }
     if (messages == null) {
       throw new IllegalArgumentException("messages must not be null");
