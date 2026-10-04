@@ -3,12 +3,18 @@
 
 package io.kogn.rdf.rdf4j;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.impl.LinkedHashModel;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Triple;
 
 /**
  * Verifies that a null subject reaching {@code RDF4JGraph#add(BlankNodeOrIRI, IRI, RDFTerm)} fails
@@ -32,5 +38,49 @@ class RDF4JGraphTest {
     // unsupported-type fallback.
     assertThatThrownBy(() -> graph.add(null, PREDICATE, OBJECT)).isInstanceOf(NullPointerException.class)
         .hasMessage("resource must not be null");
+  }
+
+  private static final ValueFactory VF = SimpleValueFactory.getInstance();
+
+  /** A graph as {@code export} returns it: the statement keeps its named-graph context. */
+  private static RDF4JGraph graphWithContextualStatement() {
+    final Model model = new LinkedHashModel();
+    model.add(VF.createIRI("https://example.org/s"), VF.createIRI("https://example.org/predicate"),
+        VF.createIRI("https://example.org/object"), VF.createIRI("https://example.org/g"));
+    return new RDF4JGraph(model);
+  }
+
+  private static Triple triple() {
+    return new RDF4JTriple(VF.createIRI("https://example.org/s"), VF.createIRI("https://example.org/predicate"),
+        VF.createIRI("https://example.org/object"));
+  }
+
+  @Test
+  @DisplayName("contains finds a triple whose statement carries a context (issue #152 R1-1)")
+  void contains_ignoresStatementContext() {
+    final RDF4JGraph graph = graphWithContextualStatement();
+
+    assertThat(graph.contains(triple())).isTrue();
+  }
+
+  @Test
+  @DisplayName("add of a triple already present under a context does not grow the graph (issue #152 R1-1)")
+  void add_ofTripleAlreadyPresentUnderContext_doesNotDuplicate() {
+    final RDF4JGraph graph = graphWithContextualStatement();
+
+    graph.add(triple());
+    graph.add(triple().getSubject(), triple().getPredicate(), triple().getObject());
+
+    assertThat(graph.size()).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("remove deletes a triple that carries a context (issue #152 R1-1)")
+  void remove_ignoresStatementContext() {
+    final RDF4JGraph graph = graphWithContextualStatement();
+
+    graph.remove(triple());
+
+    assertThat(graph.isEmpty()).isTrue();
   }
 }

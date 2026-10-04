@@ -40,13 +40,13 @@ public class RDF4JGraph implements Graph {
     this.model = model;
   }
 
+  // The wrapped model may hold statements with a context (an exported dataset keeps its named-graph
+  // contexts). A Graph is a set of triples, so add, remove and contains match on subject, predicate and
+  // object only and ignore the context.
+
   @Override
   public void add(Triple triple) {
-    if (triple instanceof RDF4JTriple rdf4jTriple) {
-      model.add(rdf4jTriple.toRDF4JStatement());
-    } else {
-      add(triple.getSubject(), triple.getPredicate(), triple.getObject());
-    }
+    add(triple.getSubject(), triple.getPredicate(), triple.getObject());
   }
 
   @Override
@@ -55,26 +55,21 @@ public class RDF4JGraph implements Graph {
     org.eclipse.rdf4j.model.IRI rdf4jPredicate = RDF4JConverters.toRDF4JIRI(predicate);
     Value rdf4jObject = RDF4JConverters.toRDF4JValue(object);
 
-    model.add(rdf4jSubject, rdf4jPredicate, rdf4jObject);
+    if (!model.contains(rdf4jSubject, rdf4jPredicate, rdf4jObject)) {
+      model.add(rdf4jSubject, rdf4jPredicate, rdf4jObject);
+    }
   }
 
   @Override
   public void remove(Triple triple) {
-    if (triple instanceof RDF4JTriple rdf4jTriple) {
-      model.remove(rdf4jTriple.toRDF4JStatement());
-    } else {
-      org.eclipse.rdf4j.model.Resource rdf4jSubject = RDF4JConverters.toRDF4JResource(triple.getSubject());
-      org.eclipse.rdf4j.model.IRI rdf4jPredicate = RDF4JConverters.toRDF4JIRI(triple.getPredicate());
-      Value rdf4jObject = RDF4JConverters.toRDF4JValue(triple.getObject());
-      model.remove(rdf4jSubject, rdf4jPredicate, rdf4jObject);
-    }
+    org.eclipse.rdf4j.model.Resource rdf4jSubject = RDF4JConverters.toRDF4JResource(triple.getSubject());
+    org.eclipse.rdf4j.model.IRI rdf4jPredicate = RDF4JConverters.toRDF4JIRI(triple.getPredicate());
+    Value rdf4jObject = RDF4JConverters.toRDF4JValue(triple.getObject());
+    model.remove(rdf4jSubject, rdf4jPredicate, rdf4jObject);
   }
 
   @Override
   public boolean contains(Triple triple) {
-    if (triple instanceof RDF4JTriple rdf4jTriple) {
-      return model.contains(rdf4jTriple.toRDF4JStatement());
-    }
     org.eclipse.rdf4j.model.Resource rdf4jSubject = RDF4JConverters.toRDF4JResource(triple.getSubject());
     org.eclipse.rdf4j.model.IRI rdf4jPredicate = RDF4JConverters.toRDF4JIRI(triple.getPredicate());
     Value rdf4jObject = RDF4JConverters.toRDF4JValue(triple.getObject());
