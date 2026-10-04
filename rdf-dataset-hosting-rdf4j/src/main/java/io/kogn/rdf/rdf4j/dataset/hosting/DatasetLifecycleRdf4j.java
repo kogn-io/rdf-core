@@ -518,11 +518,11 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
         }
       }
       return managed;
-    } catch (final RuntimeException e) {
-      // init or the on-create seed failed: don't leak the (possibly) initialised store, and
-      // don't leave a half-created persistent store on disk — that would make isNewStore false
-      // on the next acquire, so onCreate would never run again and the dataset would stay
-      // unseeded. Restore the invariant: a dataset is created-and-seeded atomically, or not at all.
+    } catch (final RuntimeException | Error e) {
+      // init or the on-create seed failed (an Error from the hook included): don't leak the (possibly)
+      // initialised store, and don't leave a half-created persistent store on disk — that would make
+      // isNewStore false on the next acquire, so onCreate would never run again and the dataset would
+      // stay unseeded. Restore the invariant: a dataset is created-and-seeded atomically, or not at all.
       try {
         shutDownRepository(repository);
       } catch (final RuntimeException teardownFailure) {
