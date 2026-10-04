@@ -12,6 +12,7 @@ import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.sail.SailConflictException;
 
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
+import io.kogn.rdf.dataset.DatasetStorageException;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 
@@ -151,14 +152,17 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
   }
 
   private <T> T doInTransaction(final Function<DatasetTx, T> work) {
-    try (RepositoryConnection conn = repository.getConnection()) {
-      conn.begin(IsolationLevels.SERIALIZABLE);
+    final RepositoryConnection conn = StorageErrors.translating(repository::getConnection);
+    Throwable failure = null;
+    try {
+      StorageErrors.running(() -> conn.begin(IsolationLevels.SERIALIZABLE));
+      final DatasetTxRdf4j tx = new DatasetTxRdf4j(conn);
       try {
-        final T result = work.apply(new DatasetTxRdf4j(conn));
+        final T result = work.apply(tx);
         try {
           conn.commit();
         } catch (RuntimeException e) {
-          throw translateConflict(e);
+          throw translateCommitFailure(e);
         }
         return result;
       } catch (Throwable e) {
@@ -168,28 +172,51 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
           e.addSuppressed(rollbackEx);
         }
         throw e;
+      } finally {
+        tx.invalidate();
       }
+    } catch (Throwable e) {
+      failure = e;
+      throw e;
+    } finally {
+      close(conn, failure);
     }
   }
 
   /**
-   * Maps a failed commit to the port's neutral conflict type, if that is what it was.
+   * Closes the connection. A failing close must not mask the failure that ended the transaction;
+   * it is attached to it as suppressed. If the transaction itself succeeded, the failed close is
+   * the storage failure.
+   */
+  private static void close(final RepositoryConnection conn, final Throwable failure) {
+    try {
+      conn.close();
+    } catch (RuntimeException closeEx) {
+      if (failure == null) {
+        throw StorageErrors.storageFailure(closeEx);
+      }
+      failure.addSuppressed(closeEx);
+    }
+  }
+
+  /**
+   * Maps a failed commit to the port's neutral exception types.
    *
    * <p>RDF4J reports a lost {@code SERIALIZABLE} race as a {@link SailConflictException},
    * which reaches this class wrapped in a {@link RepositoryException}. Anything else is a
-   * genuine commit failure and is passed through unchanged.</p>
+   * genuine commit failure of the store and becomes a {@link DatasetStorageException}.</p>
    *
    * @param commitFailure the exception {@code commit()} threw
    * @return the exception to throw on: a {@link ConcurrencyConflictException} for a lost race,
-   *     otherwise {@code commitFailure} itself
+   *     otherwise a {@link DatasetStorageException} carrying {@code commitFailure} as cause
    */
-  private static RuntimeException translateConflict(final RuntimeException commitFailure) {
+  private static RuntimeException translateCommitFailure(final RuntimeException commitFailure) {
     for (Throwable t = commitFailure; t != null; t = t.getCause()) {
       if (t instanceof SailConflictException) {
         return new ConcurrencyConflictException("commit rejected: transaction lost an optimistic-concurrency race",
             commitFailure);
       }
     }
-    return commitFailure;
+    return StorageErrors.storageFailure(commitFailure);
   }
 }

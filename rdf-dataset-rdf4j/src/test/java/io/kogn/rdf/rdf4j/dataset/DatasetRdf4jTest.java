@@ -64,6 +64,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
+import io.kogn.rdf.dataset.DatasetStorageException;
 import io.kogn.rdf.dataset.MalformedSparqlException;
 import io.kogn.rdf.dataset.RdfExportException;
 import io.kogn.rdf.dataset.RdfFormat;
@@ -1404,7 +1405,8 @@ class DatasetRdf4jTest {
 
       // when, then
       assertThatThrownBy(() -> new DatasetTransactorRdf4j(failingCommit).inTransaction(tx -> null))
-          .isInstanceOf(RepositoryException.class)
+          .isInstanceOf(DatasetStorageException.class)
+          .hasCauseInstanceOf(RepositoryException.class)
           .hasMessage("storage failure, not a conflict")
           .isNotInstanceOf(ConcurrencyConflictException.class);
     }

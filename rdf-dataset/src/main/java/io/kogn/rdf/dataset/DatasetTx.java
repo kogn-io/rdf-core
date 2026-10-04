@@ -22,7 +22,11 @@ import io.kogn.rdf.terms.ReadableGraph;
  * non-transactional equivalent (ADR-0008).</p>
  *
  * <p>Instances are created and managed by {@link DatasetTransactor#inTransaction}
- * and must not be used outside the scope of that call.</p>
+ * and must not be used outside the scope of that call. An instance kept past the end of its
+ * transaction — committed or rolled back — is dead: every operation, the SPARQL ones as well as
+ * the graph ones, fails with an {@link IllegalStateException}. This is a programming error, not a
+ * failure of the store, so it is deliberately neither a {@link SparqlEvaluationException} nor a
+ * {@link DatasetStorageException}: a caller that retries on those types must not retry it.</p>
  */
 public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
 
@@ -57,6 +61,8 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * @param predicate the predicate to match, or {@code null} for any predicate
    * @param object the object to match, or {@code null} for any object
    * @return {@code true} if the named graph contains at least one matching triple
+   * @throws DatasetStorageException if the backend fails while carrying out the lookup
+   * @throws IllegalStateException if the transaction has already ended
    */
   boolean contains(IRI namedGraph, BlankNodeOrIRI subject, IRI predicate, RDFTerm object);
 }
