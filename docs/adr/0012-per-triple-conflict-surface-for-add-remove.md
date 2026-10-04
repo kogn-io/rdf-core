@@ -1,6 +1,8 @@
 # ADR-0012: Per-triple conflict surface for `DatasetTx#add`/`#remove`
 
-Status: Accepted
+Status: Accepted — the scope of its delta and conflict promise is limited to
+disjoint writers by
+[ADR-0020](0020-delta-and-conflict-promise-holds-for-disjoint-writers.md)
 
 ## Context
 
