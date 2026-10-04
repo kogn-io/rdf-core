@@ -61,7 +61,9 @@ public interface DatasetLifecycle {
    * a failure of the on-create hook leaves nothing behind: a half-created dataset is
    * rolled back, no lease is taken, and the failure reaches the caller as it was raised —
    * the backend's exception for the store, the hook's own exception (or error) for the
-   * hook. The next {@code acquire} then starts from scratch, the hook included.</p>
+   * hook. The next {@code acquire} then starts from scratch, the hook included — unless
+   * the rollback itself fails: what is left is then treated like the remains of a failed
+   * delete (see above).</p>
    *
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}
@@ -131,8 +133,9 @@ public interface DatasetLifecycle {
    * @param id the dataset identifier; must not be {@code null}
    * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if the dataset has at least one open lease
-   * @throws RuntimeException if shutting the store down or removing its storage fails,
-   *     leaving the dataset half gone
+   * @throws RuntimeException if shutting the store down fails (its storage is then left
+   *     untouched and unmarked), or if removing its storage fails, leaving the dataset
+   *     half gone
    */
   void delete(DatasetId id);
 
