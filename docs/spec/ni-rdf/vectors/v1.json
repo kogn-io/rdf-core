@@ -123,6 +123,14 @@
       "hashed": "(8:ni-rdf/1(1:B5:c14n01:I30:http://example.org/vocab#knows1:B5:c14n0)(1:S1:I31:http://example.org/vocab#member1:B5:c14n0))"
     },
     {
+      "id": "self-loop-beside-second-blank-node",
+      "description": "A blank node that is its own object, beside a second blank node: the self-loop triple counts once per position in the first-degree hash, which decides which of the two blank nodes is c14n0.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/member> _:x .\n_:x <http://example.org/knows> _:x .\n<http://example.org/a> <http://example.org/member> _:y .\n_:y <http://example.org/q> \"v1\" .\n",
+      "name": "ni:///sha3-256;ThB-LFry2If1b80oqlngaoJl7mY3n3XIRuvM1rVLAh8",
+      "hashed": "(8:ni-rdf/1(1:B5:c14n01:I24:http://example.org/knows1:B5:c14n0)(1:B5:c14n11:I20:http://example.org/q1:L2:v11:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I25:http://example.org/member1:B5:c14n0)(1:S1:I25:http://example.org/member1:B5:c14n1))"
+    },
+    {
       "id": "blank-node-points-at-base",
       "description": "A reachable blank node whose triple has the base as object: the base is the placeholder S in object position.",
       "base": "http://example.org/a",
