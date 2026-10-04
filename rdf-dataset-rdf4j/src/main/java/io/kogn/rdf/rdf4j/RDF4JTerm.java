@@ -49,7 +49,11 @@ public abstract class RDF4JTerm implements RDFTerm {
       return new SimpleRdf().createIRI(iri.stringValue()).ntriplesString();
     }
     if (rdf4jValue instanceof org.eclipse.rdf4j.model.BNode bnode) {
-      return new SimpleRdf().createBlankNode(bnode.getID()).ntriplesString();
+      final String id = bnode.getID();
+      if (id == null || id.isEmpty()) {
+        throw new IllegalArgumentException("N-Triples: not a valid blank node label: " + id);
+      }
+      return new SimpleRdf().createBlankNode(id).ntriplesString();
     }
     if (rdf4jValue instanceof org.eclipse.rdf4j.model.Literal literal) {
       final SimpleRdf rdf = new SimpleRdf();

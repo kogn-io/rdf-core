@@ -49,7 +49,7 @@ class SimpleTermsEqualityTest {
   }
 
   @Test
-  void tripleToStringIsAnNTriplesStatementForSerializableTerms() {
+  void tripleToStringJoinsTheTermsWithATerminatingDot() {
     final Triple triple = rdf.createTriple(rdf.createBlankNode("b"), rdf.createIRI(EX + "p"), rdf.createLiteral("o"));
 
     assertThat(triple.toString()).startsWith("_:b ").endsWith(" .");

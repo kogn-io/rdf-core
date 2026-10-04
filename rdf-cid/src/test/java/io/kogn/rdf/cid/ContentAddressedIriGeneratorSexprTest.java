@@ -91,8 +91,8 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph withBlankNode = graph();
       withBlankNode.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createBlankNode("b"));
 
-      // RDFC-1.0 labels the single blank node c14n0, so this IRI and this literal spell out
-      // exactly the label the blank node is serialized under.
+      // RDFC-1.0 labels the single blank node c14n0, so this IRI (ending in the label) and
+      // this literal (spelling it out) mimic the label the blank node is serialized under.
       Graph withLookalikeIri = graph();
       withLookalikeIri.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createIRI("urn:c14n0"));
       Graph withLookalikeLiteral = graph();
