@@ -28,10 +28,14 @@ At ~6k LOC the whole tree fits in one pass. Do not sample.
 | rdf-shacl | `rdf-shacl` | 2 | `2853056` | 2026-10-03 |
 | rdf-shacl-rdf4j | `rdf-shacl-rdf4j` | 2 | `2853056` | 2026-10-03 |
 | rdf-terms | `rdf-terms` | 3 | `2853056` | 2026-10-03 |
+| rdf-cid | `rdf-cid` | 1 | `51e7702` | 2026-10-04 |
 
-The 2026-10-03 stamp (round 4) is a from-scratch audit of all modules except `rdf-cid`
-(excluded; it follows the #142 state and has no row yet) plus an independent re-check of the
-earlier fixes. Before that, the 2026-08-06 stamp covered the delta since `45aee87` in the four dataset modules (the
+The 2026-10-04 stamp on `rdf-cid` is its first audit on the ni-rdf/1 state (after #142):
+two reviewers (spec conformance clause by clause; hostile input, cost bound, exception
+translation, foreign term implementations), each list re-verified by a fresh adversarial
+verifier with its own repro. The 2026-10-03 stamp (round 4) is a from-scratch audit of all
+other modules (`rdf-cid` was excluded then, as #142 was still in flight) plus an independent
+re-check of the earlier fixes. Before that, the 2026-08-06 stamp covered the delta since `45aee87` in the four dataset modules (the
 DatasetExport vertical plus the round-2 fix commits) and an independent re-derivation of the
 #64/#68/#73 fixes — not a from-scratch re-audit of the unchanged remainder.
 
@@ -141,6 +145,34 @@ New traps and rules:
   `MemorySailStore`, `ShaclAstLists`, `readShapes` in one pass each.
 - **Verifier lesson:** reviewer claims about "changes every run" or "silently wrong value"
   need their own repro — R3-4 and R4-3/A1 were each partly refuted that way.
+
+## Calibration — round 5 (2026-10-04, commit `51e7702`, `rdf-cid`)
+
+First audit of `rdf-cid` on the ni-rdf/1 state (after #142). Two reviewers (spec conformance
+clause by clause; hostile input, cost bound, exception translation, foreign term
+implementations), each finding list re-verified by a fresh adversarial verifier with its own
+repro. Result: 1 P1 (#172, blocks 0.4.0) and 7 P3 (#173, #174); orchestration in #175.
+
+| Sweep | Found |
+|---|---|
+| Run a *second* RDFC-1.0 implementation, do not only read the primary one's source | **#172** — the headline: rdf-canonize (npm, in a scratch directory) and pyld (venv) disagree with each other on how a self-loop line counts in Hash First Degree Quads; reading titanium's source alone would have called it a titanium bug. A reviewer's claim "X is the conforming reading" needs two references, not one. |
+| Recompute the vectors from the specification text alone (Python, stdlib) | 17 vectors reproduced; `control-characters` only with RDFC-1.0 Appendix A escaping — proves the N-Quads writer at exactly the place source reading cannot. |
+| Double violations of the precondition order (17 pairs) | Order holds; test gap (**#174**). |
+| Signed vs. unsigned byte sort, UTF-8 byte lengths beyond the BMP in every position | Code conforms, the vectors do not pin it (**#174**). |
+| Cost bound against the backend's real runtime: 23 graph families, ratios to the `limit-hubs-2x7` baseline, hard timeout, `-Xmx512m` | No DoS; the bound is conservative; the prose about RDF lists is wrong (**#174**). |
+| Exception table from the backend's source jars (`unzip -p` on `titanium-rdfc-3.0.0-sources.jar`, `javap -c` where no sources exist) | One catch-all too wide (**#173**). |
+| Foreign term implementations against `SimpleRdf` (11 variants) | Contract-conforming terms mint the same name; identity `equals` breaks dedup and reachability (**#173**). |
+| Lone surrogates, control characters, empty strings in every position | `?` collision (**#173**); the rest conforms. |
+
+Empty: `@throws` types (all nine codes correct), §4.1 before §4.3/§4.4, the #65 guard
+(complete, 4000-graph fuzz).
+
+Traps worth keeping:
+
+- **A subagent may be refused writing to the scratch directory** — collect reports as text.
+- **`main` moved three times during the audit** (parallel campaigns) — pin the commit in every
+  repro and re-check `git log <start>..HEAD -- <module>` before filing.
+- **Time only as ratios**, the CPU is shared.
 
 ## Project-specific traps
 
