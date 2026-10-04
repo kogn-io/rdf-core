@@ -128,6 +128,10 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link ShaclValidationException} before RDF4J sees it — RDF4J itself walks such a list
  * until the heap is exhausted.</p>
  *
+ * <p>Likewise a path expression must not contain itself — {@code _:p sh:inversePath _:p}, or
+ * a sequence path listing its own head. Such a shapes graph is rejected the same way: RDF4J
+ * recurses into it until the stack overflows.</p>
+ *
  * <h2>Shapes-graph links are ignored</h2>
  *
  * <p>The shapes to validate against are exactly the {@code shapes} argument. A
@@ -273,40 +277,53 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
 
   /**
    * Rejects a shapes graph whose list-valued parameters or sequence paths are not
-   * well-formed RDF lists, as described on the class.
+   * well-formed RDF lists, or whose path expressions are cyclic, as described on the class.
    *
    * <p>The check runs over the whole shapes graph, not just the shapes RDF4J would pick up,
    * so a stray malformed {@code sh:in} that no shape reaches is rejected too.</p>
    */
   private static void requireWellFormedLists(Model shapes) {
+    Set<Resource> checkedPaths = new HashSet<>();
     for (IRI parameter : LIST_PARAMETERS) {
       for (Statement statement : shapes.filter(null, parameter, null)) {
         List<Value> elements = listElements(shapes, statement.getObject(), parameter);
         if (SHACL.ALTERNATIVE_PATH.equals(parameter)) {
-          elements.forEach(element -> requireWellFormedPath(shapes, element, new HashSet<>()));
+          elements.forEach(element -> requireWellFormedPath(shapes, element, new HashSet<>(), checkedPaths));
         }
       }
     }
     for (Value path : shapes.filter(null, SHACL.PATH, null).objects()) {
-      requireWellFormedPath(shapes, path, new HashSet<>());
+      requireWellFormedPath(shapes, path, new HashSet<>(), checkedPaths);
     }
   }
 
   /**
    * Walks one path expression: a node carrying {@code rdf:first} or {@code rdf:rest} is a
    * sequence path and must be a well-formed list; the operands of the path operators are
-   * walked in turn. {@code visited} keeps this walk finite on a cyclic path expression.
+   * walked in turn. A path expression that contains itself is rejected: {@code enclosing}
+   * holds the nodes the walk is currently inside of. A node reached twice without being its
+   * own operand — the same path shared by two alternatives, say — is no cycle; {@code checked}
+   * holds the nodes already walked in full, so such sharing is checked once.
    */
-  private static void requireWellFormedPath(Model shapes, Value path, Set<Resource> visited) {
-    if (!(path instanceof Resource node) || !visited.add(node)) {
+  private static void requireWellFormedPath(Model shapes, Value path, Set<Resource> enclosing, Set<Resource> checked) {
+    if (!(path instanceof Resource node) || checked.contains(node)) {
       return;
     }
+    if (!enclosing.add(node)) {
+      throw new ShaclValidationException(
+          "the shapes graph holds a cyclic path expression: " + node + " is an operand of itself", null);
+    }
     if (shapes.contains(node, RDF.FIRST, null) || shapes.contains(node, RDF.REST, null)) {
-      listElements(shapes, node, SHACL.PATH).forEach(element -> requireWellFormedPath(shapes, element, visited));
+      listElements(shapes, node, SHACL.PATH)
+          .forEach(element -> requireWellFormedPath(shapes, element, enclosing, checked));
     }
     for (IRI operator : PATH_OPERATORS) {
-      shapes.filter(node, operator, null).objects().forEach(operand -> requireWellFormedPath(shapes, operand, visited));
+      shapes.filter(node, operator, null)
+          .objects()
+          .forEach(operand -> requireWellFormedPath(shapes, operand, enclosing, checked));
     }
+    enclosing.remove(node);
+    checked.add(node);
   }
 
   private static List<Value> listElements(Model shapes, Value head, IRI parameter) {
