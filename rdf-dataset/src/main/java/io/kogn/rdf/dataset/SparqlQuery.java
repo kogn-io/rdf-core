@@ -32,6 +32,11 @@ import io.kogn.rdf.terms.ReadableGraph;
  * avoids both SPARQL injection and having to hand-escape the term's lexical form. The
  * bindings map itself must not be {@code null}, and none of its values may be
  * {@code null} either — there is no such thing as binding a variable to "no value".</p>
+ *
+ * <p><strong>RDF 1.2 triple terms.</strong> A SPARQL update (see {@link SparqlUpdate}) can
+ * store an RDF 1.2 triple term, which the port data model cannot represent. {@link #select}
+ * and {@link #construct} fail with an {@link IllegalStateException} if a result holds one;
+ * {@link #ask} returns only a boolean and is unaffected.</p>
  */
 public interface SparqlQuery {
 

@@ -36,7 +36,9 @@ public interface GraphStore {
    * @param triples the triples to add; must not be {@code null}
    * @return the net number of triples actually inserted — duplicates that were
    *     already present do not count, measured atomically with the write so that
-   *     concurrent writers to the same named graph cannot distort the delta. This
+   *     concurrent writers to <em>disjoint</em> triples cannot distort the delta. Two
+   *     concurrent writers adding the same triple can both report it as inserted, so the
+   *     deltas of such writers may sum to more than the net change. This
    *     delta shares the exactness guarantee of {@link #count(IRI)}: it is exact
    *     wherever the implementation's triple count is exact, and no more precise
    *     than an estimate where the count is one.
@@ -53,7 +55,9 @@ public interface GraphStore {
    * @param triples the triples to remove; must not be {@code null}
    * @return the net number of triples actually removed — triples that were not
    *     present do not count, measured atomically with the write so that concurrent
-   *     writers to the same named graph cannot distort the delta. This delta shares
+   *     writers of <em>disjoint</em> triples cannot distort the delta. Two concurrent writers
+   *     removing the same triple can both report it as removed, so the deltas of such writers
+   *     may sum to more than the net change. This delta shares
    *     the exactness guarantee of {@link #count(IRI)}: it is exact wherever the
    *     implementation's triple count is exact, and no more precise than an
    *     estimate where the count is one.
@@ -75,8 +79,12 @@ public interface GraphStore {
    *
    * <p>Returns an empty graph if the named graph does not exist or is empty.</p>
    *
+   * <p>The graph is rejected, not truncated, if the store holds an RDF 1.2 triple term: a
+   * SPARQL update (see {@link SparqlUpdate}) can store one, the data model cannot represent it.</p>
+   *
    * @param namedGraph IRI identifying the named graph to export; must not be {@code null}
    * @return a snapshot of all triples in the named graph
+   * @throws IllegalStateException if the named graph holds an RDF 1.2 triple term
    * @see DatasetExport#export(java.io.OutputStream, RdfFormat, IRI)
    */
   ReadableGraph export(IRI namedGraph);
@@ -97,9 +105,15 @@ public interface GraphStore {
   long count(IRI namedGraph);
 
   /**
-   * Returns the total number of triples across all named graphs in this store.
+   * Returns the total number of triples in this store, across all named graphs and the
+   * default graph.
    *
    * <p>Shares the exactness behavior of {@link #count(IRI)}.</p>
+  *
+  * <p>Despite its description this count is not the sum of {@link #count(IRI)} over the named
+  * graphs: it also includes triples in the store's default graph, which no named-graph
+  * operation of this port can address (see {@link SparqlUpdate} for how they get there). A
+  * store with such statements reports a larger value than the sum.</p>
    *
    * @return total triple count
    */
