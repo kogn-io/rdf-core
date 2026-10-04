@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import io.kogn.rdf.dataset.BindingSet;
+import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.RDFTerm;
 
 /**
@@ -33,10 +34,7 @@ public class RDF4JBindingSet implements BindingSet {
    */
   public RDF4JBindingSet(org.eclipse.rdf4j.query.BindingSet rdf4jBindingSet) {
     for (final org.eclipse.rdf4j.query.Binding binding : rdf4jBindingSet) {
-      if (binding.getValue() instanceof org.eclipse.rdf4j.model.TripleTerm) {
-        throw new IllegalStateException(
-            "RDF 1.2 triple term is not supported by the port data model (bound to ?" + binding.getName() + ")");
-      }
+      RDF4JConverters.requireNoTripleTerm(binding.getValue(), "bound to ?" + binding.getName());
     }
     this.rdf4jBindingSet = rdf4jBindingSet;
   }

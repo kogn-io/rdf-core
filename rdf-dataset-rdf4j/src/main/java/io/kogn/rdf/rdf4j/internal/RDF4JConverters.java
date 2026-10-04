@@ -109,4 +109,18 @@ public final class RDF4JConverters {
     }
     throw new IllegalArgumentException("Unsupported RDFTerm type: " + term.getClass());
   }
+
+  /**
+   * Rejects an RDF 1.2 triple term, which the port data model cannot represent but a SPARQL update
+   * can store.
+   *
+   * @param value the RDF4J value read from the store; may be {@code null}
+   * @param position where the value was found, for the message (e.g. {@code "object of <p>"})
+   * @throws IllegalStateException if {@code value} is a triple term
+   */
+  public static void requireNoTripleTerm(Value value, String position) {
+    if (value instanceof org.eclipse.rdf4j.model.TripleTerm) {
+      throw new IllegalStateException("RDF 1.2 triple term is not supported by the port data model (" + position + ")");
+    }
+  }
 }

@@ -129,13 +129,24 @@ public class GraphStoreRdf4j implements GraphStore {
     }
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Rejects an RDF 1.2 triple term in the graph with an {@link IllegalStateException}: a SPARQL
+   * update can store one, the port data model cannot represent it.</p>
+   *
+   * @throws IllegalStateException if the graph holds an RDF 1.2 triple term
+   */
   @Override
   public ReadableGraph export(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
     try (RepositoryConnection conn = repository.getConnection()) {
       final Model model = new LinkedHashModel();
       try (RepositoryResult<Statement> result = conn.getStatements(null, null, null, false, context)) {
-        result.forEach(model::add);
+        result.forEach(statement -> {
+          RDF4JConverters.requireNoTripleTerm(statement.getObject(), "object of " + statement.getPredicate());
+          model.add(statement);
+        });
       }
       return new RDF4JGraph(model);
     }

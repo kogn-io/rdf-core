@@ -10,6 +10,7 @@ import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 
+import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDFTerm;
@@ -39,10 +40,7 @@ public class RDF4JTriple implements Triple {
    *     model cannot represent
    */
   public RDF4JTriple(Resource subject, org.eclipse.rdf4j.model.IRI predicate, Value object) {
-    if (object instanceof org.eclipse.rdf4j.model.TripleTerm) {
-      throw new IllegalStateException(
-          "RDF 1.2 triple term is not supported by the port data model (as object of " + predicate + ")");
-    }
+    RDF4JConverters.requireNoTripleTerm(object, "object of " + predicate);
     this.subject = subject;
     this.predicate = predicate;
     this.object = object;
