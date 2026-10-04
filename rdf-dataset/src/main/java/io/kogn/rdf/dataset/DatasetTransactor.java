@@ -69,7 +69,9 @@ public interface DatasetTransactor {
    * @throws DatasetStorageException if the store fails while the transaction is opened or
    *     committed, for a reason that is not a conflict (an I/O or storage error, say) — such a
    *     failure is not translated to {@link ConcurrencyConflictException}; the original is the
-   *     cause
+   *     cause. Do not conclude from it that nothing was committed: if only closing the
+   *     connection failed after a successful commit, the work is durable, and re-running it
+   *     would apply it twice
    * @throws RuntimeException re-thrown unchanged from {@code work} after rollback
    */
   <T> T inTransaction(Function<DatasetTx, T> work);

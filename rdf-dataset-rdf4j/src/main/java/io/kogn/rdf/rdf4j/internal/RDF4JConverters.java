@@ -3,9 +3,12 @@
 
 package io.kogn.rdf.rdf4j.internal;
 
+import java.util.List;
 import java.util.Objects;
 
+import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.model.util.Values;
 
 import io.kogn.rdf.rdf4j.RDF4JIRI;
@@ -15,6 +18,7 @@ import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDFTerm;
+import io.kogn.rdf.terms.ReadableGraph;
 
 /**
  * Internal adapter glue: converts between the {@code io.kogn.rdf.terms} API types and the RDF4J
@@ -135,5 +139,21 @@ public final class RDF4JConverters {
     for (final org.eclipse.rdf4j.model.Statement statement : statements) {
       requireNoTripleTerm(statement.getObject(), "object of " + statement.getPredicate());
     }
+  }
+
+  /**
+   * Converts the triples of a port graph to RDF4J statements (without a context). Callers run
+   * this before touching the backend, so that reading the caller's graph and converting its
+   * terms stay outside the storage-exception translation.
+   *
+   * @param triples the caller's triples
+   * @return the statements, in the graph's stream order
+   */
+  public static List<Statement> toStatements(final ReadableGraph triples) {
+    final SimpleValueFactory values = SimpleValueFactory.getInstance();
+    return triples.stream()
+        .map(triple -> values.createStatement(toRDF4JResource(triple.getSubject()), toRDF4JIRI(triple.getPredicate()),
+            toRDF4JValue(triple.getObject())))
+        .toList();
   }
 }

@@ -55,8 +55,9 @@ import io.kogn.rdf.dataset.DatasetTx;
  * <p>Such a failed commit is rethrown as the port's neutral
  * {@link ConcurrencyConflictException}, with the {@link RepositoryException} kept as
  * cause — so a retry loop catches an {@code io.kogn} type rather than an RDF4J one.
- * Every other commit failure, and every exception the work function itself threw,
- * passes through unchanged.</p>
+ * Every other failure of the store — opening the connection, beginning, committing,
+ * closing — becomes a {@link DatasetStorageException} with the original kept as cause;
+ * every exception the work function itself threw passes through unchanged.</p>
  *
  * <p><strong>What counts as an "observed pattern" differs by operation.</strong> Reads through
  * {@link DatasetTx#contains(io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.BlankNodeOrIRI,

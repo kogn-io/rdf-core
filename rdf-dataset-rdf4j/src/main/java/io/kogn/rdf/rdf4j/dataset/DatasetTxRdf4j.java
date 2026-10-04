@@ -10,7 +10,6 @@ import java.util.stream.Stream;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.query.BooleanQuery;
 import org.eclipse.rdf4j.query.GraphQuery;
 import org.eclipse.rdf4j.query.QueryLanguage;
@@ -99,19 +98,11 @@ class DatasetTxRdf4j implements DatasetTx {
     }
   }
 
-  private static List<Statement> toStatements(final ReadableGraph triples) {
-    final SimpleValueFactory values = SimpleValueFactory.getInstance();
-    return triples.stream()
-        .map(triple -> values.createStatement(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-            RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject())))
-        .toList();
-  }
-
   @Override
   public long add(final IRI namedGraph, final ReadableGraph triples) {
     requireActive();
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    final List<Statement> statements = toStatements(triples);
+    final List<Statement> statements = RDF4JConverters.toStatements(triples);
     return StorageErrors.translating(() -> {
       long added = 0;
       for (final Statement statement : statements) {
@@ -130,7 +121,7 @@ class DatasetTxRdf4j implements DatasetTx {
   public long remove(final IRI namedGraph, final ReadableGraph triples) {
     requireActive();
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    final List<Statement> statements = toStatements(triples);
+    final List<Statement> statements = RDF4JConverters.toStatements(triples);
     return StorageErrors.translating(() -> {
       long removed = 0;
       for (final Statement statement : statements) {

@@ -10,7 +10,6 @@ import org.eclipse.rdf4j.common.transaction.IsolationLevels;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryResult;
@@ -61,7 +60,7 @@ public class GraphStoreRdf4j implements GraphStore {
   @Override
   public long add(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    final List<Statement> statements = toStatements(triples);
+    final List<Statement> statements = RDF4JConverters.toStatements(triples);
     return StorageErrors.translating(() -> inTransaction(conn -> {
       final long before = conn.size(context);
       statements.forEach(
@@ -79,7 +78,7 @@ public class GraphStoreRdf4j implements GraphStore {
   @Override
   public long remove(final IRI namedGraph, final ReadableGraph triples) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
-    final List<Statement> statements = toStatements(triples);
+    final List<Statement> statements = RDF4JConverters.toStatements(triples);
     return StorageErrors.translating(() -> inTransaction(conn -> {
       final long before = conn.size(context);
       statements.forEach(
@@ -126,18 +125,6 @@ public class GraphStoreRdf4j implements GraphStore {
         throw e;
       }
     }
-  }
-
-  /**
-   * Converts the caller's triples to RDF4J statements before the backend is touched, so that
-   * reading the caller's graph and converting its terms stay outside the exception translation.
-   */
-  private static List<Statement> toStatements(final ReadableGraph triples) {
-    final SimpleValueFactory values = SimpleValueFactory.getInstance();
-    return triples.stream()
-        .map(triple -> values.createStatement(RDF4JConverters.toRDF4JResource(triple.getSubject()),
-            RDF4JConverters.toRDF4JIRI(triple.getPredicate()), RDF4JConverters.toRDF4JValue(triple.getObject())))
-        .toList();
   }
 
   @Override
