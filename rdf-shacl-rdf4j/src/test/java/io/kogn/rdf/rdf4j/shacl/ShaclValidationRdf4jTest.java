@@ -814,23 +814,50 @@ class ShaclValidationRdf4jTest {
   @Test
   @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
   void cyclicPathExpressionSurfacesAsTheNeutralValidationException() {
-    Graph shapes = rdf.createGraph();
-    IRI personShape = ex("PersonShape");
-    BlankNode property = rdf.createBlankNode();
     BlankNode path = rdf.createBlankNode();
-    shapes.add(personShape, a(), sh("NodeShape"));
-    shapes.add(personShape, sh("targetClass"), ex("Person"));
-    shapes.add(personShape, sh("property"), property);
-    shapes.add(property, sh("path"), path);
+    Graph shapes = personShapeRequiringOneValueOf(path);
     shapes.add(path, sh("inversePath"), path);
-    shapes.add(property, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
 
-    Graph data = rdf.createGraph();
-    data.add(ex("bob"), a(), ex("Person"));
+    assertCyclicPathIsRejected(shapes);
+  }
 
-    assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
-        .isInstanceOf(ShaclValidationException.class)
-        .hasMessageContaining("cyclic path");
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void sequencePathListingItselfSurfacesAsTheNeutralValidationException() {
+    BlankNode path = rdf.createBlankNode();
+    Graph shapes = personShapeRequiringOneValueOf(path);
+    shapes.add(path, rdfFirst(), path);
+    shapes.add(path, rdfRest(), rdfNil());
+
+    assertCyclicPathIsRejected(shapes);
+  }
+
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void alternativePathListingItselfSurfacesAsTheNeutralValidationException() {
+    BlankNode path = rdf.createBlankNode();
+    BlankNode alternatives = rdf.createBlankNode();
+    Graph shapes = personShapeRequiringOneValueOf(path);
+    shapes.add(path, sh("alternativePath"), alternatives);
+    shapes.add(alternatives, rdfFirst(), path);
+    shapes.add(alternatives, rdfRest(), rdfNil());
+
+    assertCyclicPathIsRejected(shapes);
+  }
+
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void alternativePathClosingACycleThroughAnInversePathSurfacesAsTheNeutralValidationException() {
+    BlankNode path = rdf.createBlankNode();
+    BlankNode alternative = rdf.createBlankNode();
+    BlankNode alternatives = rdf.createBlankNode();
+    Graph shapes = personShapeRequiringOneValueOf(path);
+    shapes.add(path, sh("inversePath"), alternative);
+    shapes.add(alternative, sh("alternativePath"), alternatives);
+    shapes.add(alternatives, rdfFirst(), path);
+    shapes.add(alternatives, rdfRest(), rdfNil());
+
+    assertCyclicPathIsRejected(shapes);
   }
 
   @Test
@@ -875,6 +902,27 @@ class ShaclValidationRdf4jTest {
     ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
 
     assertThat(report.conforms()).isTrue();
+  }
+
+  private Graph personShapeRequiringOneValueOf(BlankNode path) {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    BlankNode property = rdf.createBlankNode();
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(personShape, sh("property"), property);
+    shapes.add(property, sh("path"), path);
+    shapes.add(property, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
+    return shapes;
+  }
+
+  private void assertCyclicPathIsRejected(Graph shapes) {
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasMessageContaining("cyclic path");
   }
 
   private void assertShapesStillApply(Graph shapes) {
