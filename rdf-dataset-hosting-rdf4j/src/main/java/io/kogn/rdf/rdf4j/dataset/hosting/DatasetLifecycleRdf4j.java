@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -174,6 +175,15 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   private final ConcurrentHashMap<DatasetId, ManagedDataset> datasets = new ConcurrentHashMap<>();
 
   /**
+   * Held shared by an {@link #acquire(DatasetId)} while it may create a store, exclusively by
+   * {@link #shutDownAll()}. A store still being created sits in {@code datasets.compute} where
+   * iteration cannot see it; this lock is how {@code shutDownAll} waits for it to finish. The
+   * {@code onCreate} hook runs under the shared side and is barred from calling back into the
+   * lifecycle, so it can never wait on {@code shutDownAll}.
+   */
+  private final ReentrantReadWriteLock shutdownLock = new ReentrantReadWriteLock();
+
+  /**
    * In-process fallback for ids whose delete() is unfinished, used when writing the on-disk
    * {@value #DELETION_MARKER_FILE_NAME} marker itself fails. The marker file is the source of
    * truth that survives a process restart and a second instance over the same
@@ -266,12 +276,18 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   public DatasetHandle acquire(final DatasetId id) {
     Objects.requireNonNull(id, "id");
     requireNotInsideOnCreate("acquire");
-    final ManagedDataset managed = datasets.compute(id, (key, existing) -> {
-      requireNoRemainsOfFailedDelete(key);
-      final ManagedDataset md = existing != null ? existing : createAndSeed(key);
-      md.leaseCount.incrementAndGet();
-      return md;
-    });
+    final ManagedDataset managed;
+    shutdownLock.readLock().lock();
+    try {
+      managed = datasets.compute(id, (key, existing) -> {
+        requireNoRemainsOfFailedDelete(key);
+        final ManagedDataset md = existing != null ? existing : createAndSeed(key);
+        md.leaseCount.incrementAndGet();
+        return md;
+      });
+    } finally {
+      shutdownLock.readLock().unlock();
+    }
     return new LeasedDatasetHandle(managed);
   }
 
@@ -462,34 +478,44 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * <p>A store that fails to shut down does not stop the others: every store is
    * attempted and the cache is cleared regardless, then the first failure is
    * rethrown with any further ones attached as suppressed exceptions.</p>
+   *
+   * <p>An {@link #acquire(DatasetId)} that is still creating its dataset's store is waited for
+   * and its store shut down with the rest, so no store is left open. The lifecycle stays
+   * usable: a later {@code acquire} of the same id opens (or, if persistent, reopens) the
+   * dataset.</p>
    */
   @Override
   public void shutDownAll() {
     requireNotInsideOnCreate("shutDownAll");
-    final Set<DatasetId> stillLeased = datasets.entrySet()
-        .stream()
-        .filter(entry -> entry.getValue().leaseCount.get() > 0)
-        .map(Entry::getKey)
-        .collect(Collectors.toSet());
-    if (!stillLeased.isEmpty()) {
-      log.warn("shutDownAll: tearing down {} dataset(s) with an open lease, ignoring in-flight protection: {}",
-          stillLeased.size(), stillLeased);
-    }
     RuntimeException teardownFailure = null;
-    for (final ManagedDataset md : datasets.values()) {
-      try {
-        shutDownRepository(md.repository);
-      } catch (final RuntimeException e) {
-        // the process is going down: one stuck store must not keep the rest open (a NativeStore
-        // would keep its directory locked), so carry on and report every failure at the end.
-        if (teardownFailure == null) {
-          teardownFailure = e;
-        } else {
-          teardownFailure.addSuppressed(e);
+    shutdownLock.writeLock().lock();
+    try {
+      final Set<DatasetId> stillLeased = datasets.entrySet()
+          .stream()
+          .filter(entry -> entry.getValue().leaseCount.get() > 0)
+          .map(Entry::getKey)
+          .collect(Collectors.toSet());
+      if (!stillLeased.isEmpty()) {
+        log.warn("shutDownAll: tearing down {} dataset(s) with an open lease, ignoring in-flight protection: {}",
+            stillLeased.size(), stillLeased);
+      }
+      for (final ManagedDataset md : datasets.values()) {
+        try {
+          shutDownRepository(md.repository);
+        } catch (final RuntimeException e) {
+          // the process is going down: one stuck store must not keep the rest open (a NativeStore
+          // would keep its directory locked), so carry on and report every failure at the end.
+          if (teardownFailure == null) {
+            teardownFailure = e;
+          } else {
+            teardownFailure.addSuppressed(e);
+          }
         }
       }
+      datasets.clear();
+    } finally {
+      shutdownLock.writeLock().unlock();
     }
-    datasets.clear();
     if (teardownFailure != null) {
       throw teardownFailure;
     }
