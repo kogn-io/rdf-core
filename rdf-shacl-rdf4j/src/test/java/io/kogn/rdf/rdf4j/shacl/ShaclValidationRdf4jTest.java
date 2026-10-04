@@ -674,6 +674,53 @@ class ShaclValidationRdf4jTest {
     assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("sky").getIRIString());
   }
 
+  /**
+   * An {@code sh:shapesGraph} triple in the shapes graph must not switch every shape off. RDF4J
+   * reads it as a mapping to another shapes graph and then skips the default context, which
+   * would report an invalid data graph as conforming. The adapter ignores the triple instead,
+   * so the shapes still apply.
+   */
+  @Test
+  void shapesGraphTripleInTheShapesGraphIsIgnoredAndTheShapesStillApply() {
+    Graph shapes = personShapeRequiringName();
+    shapes.add(ex("dataGraph"), sh("shapesGraph"), ex("otherShapesGraph"));
+
+    assertShapesStillApply(shapes);
+  }
+
+  @Test
+  void graphCheckedAgainstItselfStillAppliesItsShapesWhenItNamesItsShapesGraph() {
+    Graph graph = personShapeRequiringName();
+    graph.add(ex("dataGraph"), sh("shapesGraph"), ex("dataGraph"));
+    graph.add(ex("bob"), a(), ex("Person"));
+    // no ex:name -> violates sh:minCount 1
+
+    ShaclReport report = validation.validate(graph, graph, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("bob").getIRIString());
+  }
+
+  @Test
+  void rdf4jDataAndShapesGraphLinkInTheShapesGraphIsIgnoredAndTheShapesStillApply() {
+    Graph shapes = personShapeRequiringName();
+    shapes.add(ex("link"), a(), rdf4jShaclExtension("DataAndShapesGraphLink"));
+    shapes.add(ex("link"), rdf4jShaclExtension("shapesGraph"), ex("otherShapesGraph"));
+
+    assertShapesStillApply(shapes);
+  }
+
+  private void assertShapesStillApply(Graph shapes) {
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+    // no ex:name -> violates sh:minCount 1
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("bob").getIRIString());
+  }
+
   private void assertMalformedListIsRejected(Graph shapes) {
     Graph data = rdf.createGraph();
     data.add(ex("bob"), a(), ex("Person"));
