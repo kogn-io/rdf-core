@@ -3,6 +3,7 @@
 
 package io.kogn.rdf.terms;
 
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -26,8 +27,10 @@ public final class UnmodifiableGraph implements ReadableGraph {
    *
    * @param graph the graph to wrap
    * @return an unmodifiable view of the graph
+   * @throws NullPointerException if {@code graph} is {@code null}
    */
   public static ReadableGraph of(ReadableGraph graph) {
+    Objects.requireNonNull(graph, "graph");
     if (graph instanceof UnmodifiableGraph) {
       return graph;
     }
