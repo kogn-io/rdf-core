@@ -7,8 +7,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.sail.SailConnection;
+import org.eclipse.rdf4j.sail.SailException;
+import org.eclipse.rdf4j.sail.helpers.SailWrapper;
+import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.shacl.ast.ShaclUnsupportedException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -42,7 +47,10 @@ class ShaclValidationRdf4jTest {
   private static final String RDFS_NS = "http://www.w3.org/2000/01/rdf-schema#";
   private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
   private static final String RDF4J_SHACL_EXTENSIONS_NS = "http://rdf4j.org/shacl-extensions#";
+  private static final String DASH_NS = "http://datashapes.org/dash#";
   private static final long LIST_GUARD_TIMEOUT_SECONDS = 10;
+  /** More violations of one constraint than RDF4J reports by default (1000). */
+  private static final int MANY_VIOLATIONS = 1500;
 
   private final RDF rdf = new SimpleRdf();
   private final ShaclValidationRdf4j validation = new ShaclValidationRdf4j();
@@ -708,6 +716,99 @@ class ShaclValidationRdf4jTest {
     shapes.add(ex("link"), rdf4jShaclExtension("shapesGraph"), ex("otherShapesGraph"));
 
     assertShapesStillApply(shapes);
+  }
+
+  @Test
+  void dashAllSubjectsTargetSelectsNothing() {
+    Graph shapes = animalShapeRequiringNameWithoutATarget();
+    BlankNode target = rdf.createBlankNode();
+    shapes.add(ex("AnimalShape"), sh("target"), target);
+    shapes.add(target, a(), rdf.createIRI(DASH_NS + "AllSubjectsTarget"));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("rex"), a(), ex("Animal"));
+    // no ex:name -> would violate sh:minCount 1 if DASH's target were honored
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isTrue();
+    assertThat(report.results()).isEmpty();
+  }
+
+  @Test
+  void everyViolationIsReportedWithoutATruncationLimit() {
+    Graph shapes = personShapeRequiringName();
+
+    Graph data = rdf.createGraph();
+    for (int i = 0; i < MANY_VIOLATIONS; i++) {
+      data.add(ex("person" + i), a(), ex("Person"));
+      // no ex:name -> violates sh:minCount 1
+    }
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).hasSize(MANY_VIOLATIONS);
+  }
+
+  @Test
+  void failingSailShutDownDoesNotMaskTheOriginalException() {
+    SailException shutDownFailure = new SailException("shut down failed");
+    ShaclValidationRdf4j failingShutDown = new ShaclValidationRdf4j(() -> new SailWrapper(new MemoryStore()) {
+      @Override
+      public void shutDown() {
+        super.shutDown();
+        throw shutDownFailure;
+      }
+    });
+    Graph shapes = personShapeRequiringName();
+    shapes.add(ex("PersonShape"), sh("in"), ex("notAList"));
+
+    assertThatThrownBy(() -> failingShutDown.validate(rdf.createGraph(), shapes, ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasMessageContaining("RDF list")
+        .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(shutDownFailure));
+  }
+
+  @Test
+  void failingSailShutDownAfterASuccessfulRunSurfacesAsTheNeutralValidationException() {
+    SailException shutDownFailure = new SailException("shut down failed");
+    ShaclValidationRdf4j failingShutDown = new ShaclValidationRdf4j(() -> new SailWrapper(new MemoryStore()) {
+      @Override
+      public void shutDown() {
+        super.shutDown();
+        throw shutDownFailure;
+      }
+    });
+
+    assertThatThrownBy(
+        () -> failingShutDown.validate(rdf.createGraph(), personShapeRequiringName(), ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasCause(shutDownFailure)
+        .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(shutDownFailure));
+  }
+
+  @Test
+  void sailThatFailsWhileLoadingIsShutDown() {
+    AtomicBoolean shutDown = new AtomicBoolean();
+    ShaclValidationRdf4j failingLoad = new ShaclValidationRdf4j(() -> new SailWrapper(new MemoryStore()) {
+      @Override
+      public SailConnection getConnection() {
+        throw new SailException("no connection");
+      }
+
+      @Override
+      public void shutDown() {
+        shutDown.set(true);
+        super.shutDown();
+      }
+    });
+
+    assertThatThrownBy(
+        () -> failingLoad.validate(rdf.createGraph(), personShapeRequiringName(), ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasCauseInstanceOf(SailException.class);
+    assertThat(shutDown).isTrue();
   }
 
   private void assertShapesStillApply(Graph shapes) {
