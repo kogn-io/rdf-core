@@ -17,12 +17,15 @@ import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * Verifies that a null subject reaching {@code RDF4JGraph#add(BlankNodeOrIRI, IRI, RDFTerm)} fails
- * with a named {@link NullPointerException} rather than the bare one that used to surface out of
- * {@code RDF4JConverters#toRDF4JResource} (issue #85).
+ * Unit tests for {@link RDF4JGraph}: a null subject fails with a named {@link NullPointerException}
+ * (issue #85), and triples are matched regardless of the statement context an exported graph keeps
+ * (issue #152 R1-1).
  */
 class RDF4JGraphTest {
 
+  private static final ValueFactory VF = SimpleValueFactory.getInstance();
+  private static final IRI SUBJECT = RDF4JIRI.of("https://example.org/subject");
+  private static final IRI GRAPH = RDF4JIRI.of("https://example.org/graph");
   private static final IRI PREDICATE = RDF4JIRI.of("https://example.org/predicate");
   private static final IRI OBJECT = RDF4JIRI.of("https://example.org/object");
 
@@ -40,19 +43,17 @@ class RDF4JGraphTest {
         .hasMessage("resource must not be null");
   }
 
-  private static final ValueFactory VF = SimpleValueFactory.getInstance();
-
   /** A graph as {@code export} returns it: the statement keeps its named-graph context. */
   private static RDF4JGraph graphWithContextualStatement() {
     final Model model = new LinkedHashModel();
-    model.add(VF.createIRI("https://example.org/s"), VF.createIRI("https://example.org/predicate"),
-        VF.createIRI("https://example.org/object"), VF.createIRI("https://example.org/g"));
+    model.add(VF.createIRI(SUBJECT.getIRIString()), VF.createIRI(PREDICATE.getIRIString()),
+        VF.createIRI(OBJECT.getIRIString()), VF.createIRI(GRAPH.getIRIString()));
     return new RDF4JGraph(model);
   }
 
   private static Triple triple() {
-    return new RDF4JTriple(VF.createIRI("https://example.org/s"), VF.createIRI("https://example.org/predicate"),
-        VF.createIRI("https://example.org/object"));
+    return new RDF4JTriple(VF.createIRI(SUBJECT.getIRIString()), VF.createIRI(PREDICATE.getIRIString()),
+        VF.createIRI(OBJECT.getIRIString()));
   }
 
   @Test
