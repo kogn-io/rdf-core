@@ -1169,6 +1169,33 @@ class DatasetLifecycleRdf4jTest {
       }
     }
 
+    @Test
+    @DisplayName("R2-5: a dataset whose deletion mark cannot be determined makes list() fail, not list it as normal")
+    void list_undeterminableDeletionMark_fails() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final DatasetLifecycleRdf4j lc = persistent(root);
+      final DatasetId id = new DatasetId("unknown-mark");
+      lc.acquire(id).close();
+      final Path datasetDir = onlyChild(root);
+      final Path marker = datasetDir.resolve(".deleting");
+      final Set<PosixFilePermission> original = Files.getPosixFilePermissions(datasetDir);
+      Files.setPosixFilePermissions(datasetDir, PosixFilePermissions.fromString("r--------"));
+      try {
+        assumeFalse(Files.exists(marker) || Files.notExists(marker),
+            "running with privileges that ignore directory permissions");
+
+        assertThatThrownBy(lc::list).isInstanceOf(UncheckedIOException.class);
+      } finally {
+        Files.setPosixFilePermissions(datasetDir, original);
+      }
+    }
+
+    private static Path onlyChild(final Path root) throws IOException {
+      try (Stream<Path> children = Files.list(root)) {
+        return children.filter(Files::isDirectory).findFirst().orElseThrow();
+      }
+    }
+
     private DatasetLifecycleRdf4j persistent(final Path storageRoot) {
       lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), storageRoot);
       return lifecycle;
