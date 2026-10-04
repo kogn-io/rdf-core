@@ -204,7 +204,8 @@ final class CanonicalizationCost {
 
   /**
    * Every blank node of the graph, with the triples that mention it, once per position: a triple
-   * whose subject and object are the same blank node is listed twice for it (ni-rdf/1 §4.4).
+   * whose subject and object are the same blank node is listed twice for it (ni-rdf/1 §4.3
+   * step 1, §4.4).
    */
   private static Map<String, List<Triple>> mentionsByBlankNode(Collection<Triple> triples) {
     Map<String, List<Triple>> mentions = new HashMap<>();

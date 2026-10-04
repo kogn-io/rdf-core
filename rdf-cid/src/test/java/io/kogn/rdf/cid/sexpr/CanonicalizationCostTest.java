@@ -119,17 +119,21 @@ class CanonicalizationCostTest {
   @DisplayName("the first-degree hashes of the estimate are the ones titanium-rdfc labels by")
   void firstDegreeHashesMatchTitanium() throws ReflectiveOperationException {
     List<Triple> triples = selfLoopBesideSecondBlankNode();
+    // Fed exactly as RdfDatasetCanonicalizer.canonicalize feeds it; keep the two in step.
     RdfCanon canon = RdfCanon.create("SHA-256");
     for (Triple triple : triples) {
-      if (triple.getObject() instanceof Literal literal) {
-        canon.quad(Terms.resource(triple.getSubject()), triple.getPredicate().getIRIString(), literal.getLexicalForm(),
-            Terms.datatypeOf(literal), null, null, null);
-      } else {
-        canon.quad(Terms.resource(triple.getSubject()), triple.getPredicate().getIRIString(),
-            Terms.resource(triple.getObject()), null, null, null, null);
+      String subject = Terms.resource(triple.getSubject());
+      String predicate = triple.getPredicate().getIRIString();
+      switch (triple.getObject()) {
+      case Literal literal -> canon.quad(subject, predicate, literal.getLexicalForm(), Terms.datatypeOf(literal),
+          literal.getLanguageTag().orElse(null), null, null);
+      case IRI iri -> canon.quad(subject, predicate, iri.getIRIString(), null, null, null, null);
+      default -> canon.quad(subject, predicate, Terms.resource(triple.getObject()), null, null, null, null);
       }
     }
-    // titanium-rdfc 3.0.0 keeps its Hash First Degree Quads package-private.
+    // titanium-rdfc 3.0.0 keeps its Hash First Degree Quads package-private. If an upgrade (#149)
+    // breaks this lookup, re-attach the test to the new titanium API rather than deleting it: the
+    // vectors alone do not notice the estimate drifting, since both readings group hashes alike.
     Method hashFirstDegree = RdfCanon.class.getDeclaredMethod("hashFirstDegree", String.class);
     hashFirstDegree.setAccessible(true);
 
