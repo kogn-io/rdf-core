@@ -3,9 +3,12 @@
 
 package io.kogn.rdf.rdf4j.shacl;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
@@ -14,6 +17,7 @@ import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.vocabulary.DASH;
 import org.eclipse.rdf4j.model.vocabulary.RDF;
 import org.eclipse.rdf4j.model.vocabulary.SHACL;
 import org.eclipse.rdf4j.sail.Sail;
@@ -94,8 +98,27 @@ import io.kogn.rdf.terms.ReadableGraph;
  * language tags intact — a shape carrying one message per language surfaces all of them,
  * and this adapter selects none. Their order is whatever the underlying report model
  * yields (in practice the parse order of the shapes graph) and carries no meaning.</p>
+ *
+ * <h2>RDF lists in the shapes graph must be well-formed</h2>
+ *
+ * <p>Every value of a list-valued SHACL parameter ({@code sh:in}, {@code sh:languageIn},
+ * {@code sh:and}, {@code sh:or}, {@code sh:xone}, {@code sh:ignoredProperties},
+ * {@code sh:alternativePath}, DASH's {@code dash:hasValueIn}) and every sequence path must be
+ * a well-formed RDF list: each cell carries exactly one {@code rdf:first} and one
+ * {@code rdf:rest}, and following {@code rdf:rest} reaches {@code rdf:nil} without visiting a
+ * cell twice. A shapes graph that breaks this is rejected with a
+ * {@link ShaclValidationException} before RDF4J sees it — RDF4J itself walks such a list
+ * until the heap is exhausted.</p>
  */
 public final class ShaclValidationRdf4j implements ShaclValidation {
+
+  /** SHACL (and DASH) parameters whose value RDF4J reads as an RDF list. */
+  private static final List<IRI> LIST_PARAMETERS = List.of(SHACL.IN, SHACL.LANGUAGE_IN, SHACL.AND, SHACL.OR, SHACL.XONE,
+      SHACL.IGNORED_PROPERTIES, SHACL.ALTERNATIVE_PATH, DASH.hasValueIn);
+
+  /** Path operators whose operand is itself a path expression. */
+  private static final List<IRI> PATH_OPERATORS = List.of(SHACL.INVERSE_PATH, SHACL.ZERO_OR_MORE_PATH,
+      SHACL.ONE_OR_MORE_PATH, SHACL.ZERO_OR_ONE_PATH);
 
   /** Creates a new RDF4J-backed SHACL validator. */
   public ShaclValidationRdf4j() {
@@ -110,8 +133,10 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     Sail dataSail = null;
     Sail shapesSail = null;
     try {
-      dataSail = load(data, "data");
-      shapesSail = load(shapes, "shapes");
+      dataSail = toSail(toModel(data, "data"));
+      Model shapesModel = toModel(shapes, "shapes");
+      requireWellFormedLists(shapesModel);
+      shapesSail = toSail(shapesModel);
       ValidationReport report = ShaclValidator.builder()
           .setRdfsSubClassReasoning(options.rdfsSubClassReasoning())
           .setEclipseRdf4jShaclExtensions(false)
@@ -136,7 +161,7 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
   }
 
   /**
-   * Converts one input graph and loads it into a transient sail.
+   * Converts one input graph into an RDF4J model.
    *
    * <p>The conversion is where a term {@code rdf-terms} accepts but RDF4J does not — a
    * literal whose lexical form does not fit its datatype, say — fails, as an
@@ -145,15 +170,80 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
    * translated like any other reason no report can be produced; {@code role} names which
    * of the two graphs was at fault, which the exception itself does not say.</p>
    */
-  private static Sail load(ReadableGraph graph, String role) {
-    Model model;
+  private static Model toModel(ReadableGraph graph, String role) {
     try {
-      model = GraphModelConverter.toModel(graph);
+      return GraphModelConverter.toModel(graph);
     } catch (IllegalArgumentException e) {
       throw new ShaclValidationException("the " + role + " graph could not be handed to the backend: " + e.getMessage(),
           e);
     }
-    return toSail(model);
+  }
+
+  /**
+   * Rejects a shapes graph whose list-valued parameters or sequence paths are not
+   * well-formed RDF lists, as described on the class.
+   *
+   * <p>The check runs over the whole shapes graph, not just the shapes RDF4J would pick up,
+   * so a stray malformed {@code sh:in} that no shape reaches is rejected too.</p>
+   */
+  private static void requireWellFormedLists(Model shapes) {
+    for (IRI parameter : LIST_PARAMETERS) {
+      for (Statement statement : shapes.filter(null, parameter, null)) {
+        List<Value> elements = listElements(shapes, statement.getObject(), parameter);
+        if (SHACL.ALTERNATIVE_PATH.equals(parameter)) {
+          elements.forEach(element -> requireWellFormedPath(shapes, element, new HashSet<>()));
+        }
+      }
+    }
+    for (Value path : shapes.filter(null, SHACL.PATH, null).objects()) {
+      requireWellFormedPath(shapes, path, new HashSet<>());
+    }
+  }
+
+  /**
+   * Walks one path expression: a node carrying {@code rdf:first} or {@code rdf:rest} is a
+   * sequence path and must be a well-formed list; the operands of the path operators are
+   * walked in turn. {@code visited} keeps this walk finite on a cyclic path expression.
+   */
+  private static void requireWellFormedPath(Model shapes, Value path, Set<Resource> visited) {
+    if (!(path instanceof Resource node) || !visited.add(node)) {
+      return;
+    }
+    if (shapes.contains(node, RDF.FIRST, null) || shapes.contains(node, RDF.REST, null)) {
+      listElements(shapes, node, SHACL.PATH).forEach(element -> requireWellFormedPath(shapes, element, visited));
+    }
+    for (IRI operator : PATH_OPERATORS) {
+      shapes.filter(node, operator, null).objects().forEach(operand -> requireWellFormedPath(shapes, operand, visited));
+    }
+  }
+
+  private static List<Value> listElements(Model shapes, Value head, IRI parameter) {
+    List<Value> elements = new ArrayList<>();
+    Set<Resource> cells = new HashSet<>();
+    Value current = head;
+    while (!RDF.NIL.equals(current)) {
+      if (!(current instanceof Resource cell)) {
+        throw malformedList(parameter, head, "a list cell is the literal " + current);
+      }
+      if (!cells.add(cell)) {
+        throw malformedList(parameter, head, "it is cyclic, cell " + cell + " is reached twice");
+      }
+      Set<Value> firsts = shapes.filter(cell, RDF.FIRST, null).objects();
+      Set<Value> rests = shapes.filter(cell, RDF.REST, null).objects();
+      if (firsts.size() != 1 || rests.size() != 1) {
+        throw malformedList(parameter, head, "cell " + cell + " has " + firsts.size() + " rdf:first and " + rests.size()
+            + " rdf:rest values instead of exactly one each");
+      }
+      elements.add(firsts.iterator().next());
+      current = rests.iterator().next();
+    }
+    return elements;
+  }
+
+  private static ShaclValidationException malformedList(IRI parameter, Value head, String reason) {
+    return new ShaclValidationException(
+        "the shapes graph holds a malformed RDF list as a value of " + parameter + " (list " + head + "): " + reason,
+        null);
   }
 
   private static Sail toSail(Model model) {
