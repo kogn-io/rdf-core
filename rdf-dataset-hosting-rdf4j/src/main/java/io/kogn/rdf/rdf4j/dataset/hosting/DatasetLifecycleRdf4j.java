@@ -7,6 +7,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -256,6 +259,8 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    *
    * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if a failed delete left remains that could not be cleaned up
+   * @throws UncheckedIOException if the state of the dataset's storage cannot be determined
+   *     (the storage is then left untouched)
    */
   @Override
   public DatasetHandle acquire(final DatasetId id) {
@@ -347,10 +352,14 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * {@inheritDoc}
    *
    * <p>The identifiers come from the in-memory cache plus every directory under the
-   * {@code storageRoot} whose name decodes back to the canonical Base64url encoding this
-   * lifecycle produces — a foreign directory is skipped. Ids whose storage carries the
-   * unfinished-deletion mark are left out — see the class documentation for what that
+   * {@code storageRoot} whose name this lifecycle itself would have produced for the id it
+   * decodes to (canonical Base64url of strictly valid UTF-8 that {@link DatasetId} accepts) — a
+   * foreign directory such as {@code data} or {@code logs} is skipped. Ids whose storage carries
+   * the unfinished-deletion mark are left out — see the class documentation for what that
    * does, and does not, promise about {@link #acquire(DatasetId)}.</p>
+   *
+   * @throws UncheckedIOException if the storage root cannot be listed, or if whether an
+   *     id's storage carries the unfinished-deletion mark cannot be determined
    */
   @Override
   public Set<DatasetId> list() {
@@ -683,15 +692,26 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     return dir.toFile();
   }
 
+  /**
+   * Recognises a directory name this lifecycle produced: it must decode as canonical Base64url,
+   * as strictly valid UTF-8, to a value {@link DatasetId} accepts, and map back to exactly this
+   * name through {@link #resolveDir(DatasetId)}. Anything else is a foreign directory and yields
+   * {@code null}.
+   */
   private DatasetId decodeSegment(final String segment) {
     try {
       final byte[] decoded = Base64.getUrlDecoder().decode(segment);
-      final String reEncoded = Base64.getUrlEncoder().withoutPadding().encodeToString(decoded);
-      if (!reEncoded.equals(segment)) {
-        return null; // not the canonical encoding resolveDir produces — foreign directory, skip
+      final String value = StandardCharsets.UTF_8.newDecoder()
+          .onMalformedInput(CodingErrorAction.REPORT)
+          .onUnmappableCharacter(CodingErrorAction.REPORT)
+          .decode(ByteBuffer.wrap(decoded))
+          .toString();
+      final DatasetId id = new DatasetId(value);
+      if (!resolveDir(id).getName().equals(segment)) {
+        return null; // not the encoding resolveDir produces — foreign directory, skip
       }
-      return new DatasetId(new String(decoded, StandardCharsets.UTF_8));
-    } catch (final IllegalArgumentException e) {
+      return id;
+    } catch (final IllegalArgumentException | CharacterCodingException e) {
       return null; // foreign directory not produced by this lifecycle — skip
     }
   }
