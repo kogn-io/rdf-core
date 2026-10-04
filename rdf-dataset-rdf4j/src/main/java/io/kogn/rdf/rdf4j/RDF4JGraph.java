@@ -21,6 +21,15 @@ import io.kogn.rdf.terms.Triple;
 
 /**
  * RDF4J-based implementation of Graph.
+ *
+ * <p>The wrapped model may hold statements with a context, as the graphs returned by
+ * {@code GraphStore#export} do. A graph is a set of triples, so {@link #add}, {@link #remove} and
+ * {@link #contains} match on subject, predicate and object only and ignore the context. {@code add}
+ * writes new triples into the default context.</p>
+ *
+ * <p>Precondition: the wrapped model holds at most one context per triple. If the same triple
+ * appears in several contexts, {@link #size()} and {@link #stream()} count each statement while
+ * {@code contains} and {@code remove} treat them as one triple; the behavior is unspecified.</p>
  */
 public class RDF4JGraph implements Graph {
 
@@ -34,15 +43,12 @@ public class RDF4JGraph implements Graph {
   /**
    * Wraps the given RDF4J model.
    *
-   * @param model the RDF4J model to wrap
+   * @param model the RDF4J model to wrap; it must hold at most one context per triple, see the class
+   *     description
    */
   public RDF4JGraph(Model model) {
     this.model = model;
   }
-
-  // The wrapped model may hold statements with a context (an exported dataset keeps its named-graph
-  // contexts). A Graph is a set of triples, so add, remove and contains match on subject, predicate and
-  // object only and ignore the context.
 
   @Override
   public void add(Triple triple) {
