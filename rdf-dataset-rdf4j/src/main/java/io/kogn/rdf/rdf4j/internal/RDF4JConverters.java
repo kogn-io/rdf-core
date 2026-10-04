@@ -123,4 +123,17 @@ public final class RDF4JConverters {
       throw new IllegalStateException("RDF 1.2 triple term is not supported by the port data model (" + position + ")");
     }
   }
+
+  /**
+   * Rejects every statement whose object is an RDF 1.2 triple term, see
+   * {@link #requireNoTripleTerm(Value, String)}.
+   *
+   * @param statements the statements read from the store
+   * @throws IllegalStateException if one of them has a triple term as object
+   */
+  public static void requireNoTripleTerms(Iterable<org.eclipse.rdf4j.model.Statement> statements) {
+    for (final org.eclipse.rdf4j.model.Statement statement : statements) {
+      requireNoTripleTerm(statement.getObject(), "object of " + statement.getPredicate());
+    }
+  }
 }

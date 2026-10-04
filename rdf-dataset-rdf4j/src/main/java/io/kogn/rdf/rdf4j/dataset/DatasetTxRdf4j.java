@@ -195,11 +195,20 @@ class DatasetTxRdf4j implements DatasetTx {
     return construct(sparql, Map.of());
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Rejects an RDF 1.2 triple term in the result with an {@link IllegalStateException}: a SPARQL
+   * update can store one, the port data model cannot represent it.</p>
+   *
+   * @throws IllegalStateException if the result holds an RDF 1.2 triple term
+   */
   @Override
   public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
     final GraphQuery query = SparqlErrors
         .bound(SparqlErrors.translating(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
     final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
+    RDF4JConverters.requireNoTripleTerms(model);
     return new RDF4JGraph(model);
   }
 }

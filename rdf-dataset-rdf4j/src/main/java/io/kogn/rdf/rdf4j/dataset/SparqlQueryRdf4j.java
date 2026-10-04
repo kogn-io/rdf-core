@@ -20,6 +20,7 @@ import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.rdf4j.RDF4JBindingSet;
 import io.kogn.rdf.rdf4j.RDF4JGraph;
+import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 
@@ -65,12 +66,21 @@ public class SparqlQueryRdf4j implements SparqlQuery {
     return construct(sparql, Map.of());
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Rejects an RDF 1.2 triple term in the result with an {@link IllegalStateException}: a SPARQL
+   * update can store one, the port data model cannot represent it.</p>
+   *
+   * @throws IllegalStateException if the result holds an RDF 1.2 triple term
+   */
   @Override
   public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
     try (RepositoryConnection conn = repository.getConnection()) {
       final GraphQuery query = SparqlErrors
           .bound(SparqlErrors.translating(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
       final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
+      RDF4JConverters.requireNoTripleTerms(model);
       return new RDF4JGraph(model);
     }
   }

@@ -58,4 +58,23 @@ class TripleTermExportTest {
     assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.export(graph))).isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("triple term");
   }
+
+  private static final String CONSTRUCT = "CONSTRUCT { ?s ?p ?o } WHERE { GRAPH ?g { ?s ?p ?o } }";
+
+  @Test
+  void sparqlQueryConstructRejectsATripleTerm() {
+    final SparqlQueryRdf4j query = new SparqlQueryRdf4j(repository);
+
+    assertThatThrownBy(() -> query.construct(CONSTRUCT)).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("triple term");
+  }
+
+  @Test
+  void datasetTxConstructRejectsATripleTerm() {
+    final DatasetTransactorRdf4j transactor = new DatasetTransactorRdf4j(repository);
+
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.construct(CONSTRUCT)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("triple term");
+  }
 }
