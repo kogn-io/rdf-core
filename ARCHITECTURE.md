@@ -327,10 +327,24 @@ Settled semantics worth knowing before consuming it:
   predicate in a shapes graph takes effect. This covers `rdf4j-ext:targetShape`
   too: a shape targeting only through it never fires and the report comes back
   conforming — target with standard SHACL
-  ([ADR-0007](docs/adr/0007-standalone-shacl-validation-port.md)).
+  ([ADR-0007](docs/adr/0007-standalone-shacl-validation-port.md)). RDF4J's DASH
+  data shapes are off for the same reason: `dash:AllSubjectsTarget` and the other
+  DASH targets select nothing.
+- **The shapes are exactly the `shapes` argument.** A `sh:shapesGraph` triple or
+  an `rdf4j-ext:DataAndShapesGraphLink` inside the shapes graph is dropped before
+  RDF4J reads it; RDF4J would follow it to another shapes graph and skip every
+  shape it was handed. This matters for `validate(g, g, options)`, where a data
+  graph naming its shapes graph is also the shapes graph. In the data graph the
+  triple is plain data and stays.
+- **Every result is reported.** RDF4J caps results at 1000 per constraint by
+  default; the adapter lifts that cap and the total one, so `results()` is
+  complete. The price is memory: a run over badly broken data holds every result
+  at once.
 - **A run that yields no report at all fails with the port's neutral
   `ShaclValidationException`** — an unparsable shapes graph, a construct the
-  backend does not support, a term it rejects. It is the counterpart to the
+  backend does not support, a term it rejects. A malformed RDF list or a cyclic
+  path expression in the shapes graph is rejected the same way before RDF4J sees
+  it, since RDF4J would exhaust the heap or the stack on it. It is the counterpart to the
   dataset ports' `ConcurrencyConflictException`: the caller handles a broken
   input without naming a backend exception type, with the backend's own signal
   kept as `cause`. A *non-conforming* data graph is not this — that is a normal
