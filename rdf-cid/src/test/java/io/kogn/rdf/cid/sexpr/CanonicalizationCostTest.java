@@ -5,15 +5,20 @@ package io.kogn.rdf.cid.sexpr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.apicatalog.rdf.canon.RdfCanon;
+
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
@@ -100,6 +105,48 @@ class CanonicalizationCostTest {
     }
 
     assertThat(cost(triples)).as("a complete graph whose nodes carry distinct names").isZero();
+  }
+
+  @Test
+  @DisplayName("a triple whose subject and object are the same blank node counts once per position in its first-degree hash")
+  void selfLoopCountsOncePerPosition() {
+    // SHA-256 over the sorted lines "<…/a> <…/member> _:a .", "_:a <…/knows> _:a .", "_:a <…/knows> _:a ."
+    assertThat(CanonicalizationCost.firstDegreeHashes(selfLoopBesideSecondBlankNode())).containsEntry("_:x",
+        "83d8650896984a4842dab9daa172c044188861cb634f9e90c6ca13c910c9f0d2");
+  }
+
+  @Test
+  @DisplayName("the first-degree hashes of the estimate are the ones titanium-rdfc labels by")
+  void firstDegreeHashesMatchTitanium() throws ReflectiveOperationException {
+    List<Triple> triples = selfLoopBesideSecondBlankNode();
+    RdfCanon canon = RdfCanon.create("SHA-256");
+    for (Triple triple : triples) {
+      if (triple.getObject() instanceof Literal literal) {
+        canon.quad(Terms.resource(triple.getSubject()), triple.getPredicate().getIRIString(), literal.getLexicalForm(),
+            Terms.datatypeOf(literal), null, null, null);
+      } else {
+        canon.quad(Terms.resource(triple.getSubject()), triple.getPredicate().getIRIString(),
+            Terms.resource(triple.getObject()), null, null, null, null);
+      }
+    }
+    // titanium-rdfc 3.0.0 keeps its Hash First Degree Quads package-private.
+    Method hashFirstDegree = RdfCanon.class.getDeclaredMethod("hashFirstDegree", String.class);
+    hashFirstDegree.setAccessible(true);
+
+    Map<String, String> estimated = CanonicalizationCost.firstDegreeHashes(triples);
+
+    assertThat(estimated).containsOnlyKeys("_:x", "_:y");
+    for (Map.Entry<String, String> entry : estimated.entrySet()) {
+      assertThat(hashFirstDegree.invoke(canon, entry.getKey())).as(entry.getKey()).isEqualTo(entry.getValue());
+    }
+  }
+
+  /** The scenario of the vector {@code self-loop-beside-second-blank-node}, base not mapped out. */
+  private List<Triple> selfLoopBesideSecondBlankNode() {
+    BlankNode x = rdf.createBlankNode("x");
+    BlankNode y = rdf.createBlankNode("y");
+    return List.of(rdf.createTriple(root, member, x), rdf.createTriple(x, rdf.createIRI(EX + "knows"), x),
+        rdf.createTriple(root, member, y), rdf.createTriple(y, rdf.createIRI(EX + "q"), rdf.createLiteral("v1")));
   }
 
   private long cost(List<Triple> triples) {

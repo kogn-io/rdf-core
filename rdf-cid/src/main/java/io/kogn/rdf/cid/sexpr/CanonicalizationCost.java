@@ -60,8 +60,7 @@ final class CanonicalizationCost {
    */
   static BigInteger estimate(Collection<Triple> triples, long limit) {
     Map<String, List<Triple>> mentions = mentionsByBlankNode(triples);
-    Map<String, String> hashes = new HashMap<>();
-    mentions.forEach((id, quads) -> hashes.put(id, hashFirstDegreeQuads(id, quads)));
+    Map<String, String> hashes = firstDegreeHashes(mentions);
 
     Map<String, Long> sharing = hashes.values()
         .stream()
@@ -186,20 +185,35 @@ final class CanonicalizationCost {
     return term instanceof BlankNode blankNode ? component.get(Terms.blankNodeId(blankNode)) : null;
   }
 
-  /** Every blank node of the graph, with the triples that mention it. */
+  /**
+   * The first-degree hash of every blank node of the graph (ni-rdf/1 §4.3, step 1).
+   *
+   * @param triples the mapped graph
+   * @return each blank node, as {@code _:} and its unique reference, mapped to its hash in
+   *         lower-case hexadecimal
+   */
+  static Map<String, String> firstDegreeHashes(Collection<Triple> triples) {
+    return firstDegreeHashes(mentionsByBlankNode(triples));
+  }
+
+  private static Map<String, String> firstDegreeHashes(Map<String, List<Triple>> mentions) {
+    Map<String, String> hashes = new HashMap<>();
+    mentions.forEach((id, quads) -> hashes.put(id, hashFirstDegreeQuads(id, quads)));
+    return hashes;
+  }
+
+  /**
+   * Every blank node of the graph, with the triples that mention it, once per position: a triple
+   * whose subject and object are the same blank node is listed twice for it (ni-rdf/1 §4.4).
+   */
   private static Map<String, List<Triple>> mentionsByBlankNode(Collection<Triple> triples) {
     Map<String, List<Triple>> mentions = new HashMap<>();
     for (Triple triple : triples) {
-      String subject = null;
       if (triple.getSubject() instanceof BlankNode blankSubject) {
-        subject = Terms.blankNodeId(blankSubject);
-        mentions.computeIfAbsent(subject, key -> new ArrayList<>()).add(triple);
+        mentions.computeIfAbsent(Terms.blankNodeId(blankSubject), key -> new ArrayList<>()).add(triple);
       }
       if (triple.getObject() instanceof BlankNode blankObject) {
-        String object = Terms.blankNodeId(blankObject);
-        if (!object.equals(subject)) {
-          mentions.computeIfAbsent(object, key -> new ArrayList<>()).add(triple);
-        }
+        mentions.computeIfAbsent(Terms.blankNodeId(blankObject), key -> new ArrayList<>()).add(triple);
       }
     }
     return mentions;
@@ -207,9 +221,10 @@ final class CanonicalizationCost {
 
   /**
    * Hash First Degree Quads (RDFC-1.0 §4.6.3) with SHA-256, every triple in the default graph:
-   * each quad mentioning {@code id} is serialized as canonical N-Quads with {@code id} written
-   * as {@code _:a} and every other blank node as {@code _:z}; the lines are sorted in Unicode
-   * code point order (the unsigned order of their UTF-8 bytes), concatenated and hashed.
+   * each of {@code quads} — the quads mentioning {@code id}, once per position — is serialized
+   * as canonical N-Quads with {@code id} written as {@code _:a} and every other blank node as
+   * {@code _:z}; the lines are sorted in Unicode code point order (the unsigned order of their
+   * UTF-8 bytes), concatenated and hashed.
    *
    * @return the hash in lower-case hexadecimal
    */
