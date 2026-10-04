@@ -732,8 +732,7 @@ class ShaclValidationRdf4jTest {
     Resource path = Values.bnode("alt");
     model.add(path, SHACL.ALTERNATIVE_PATH, NIL);
 
-    assertThatThrownBy(() -> render(model, path)).isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("alt");
+    assertThatThrownBy(() -> render(model, path)).isInstanceOf(IllegalStateException.class).hasMessageContaining("alt");
   }
 
   @Test
