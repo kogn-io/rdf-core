@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -1255,6 +1256,90 @@ class DatasetLifecycleRdf4jTest {
   }
 
   // ---------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("shutdown and listing")
+  class ShutdownAndListing {
+
+    @TempDir
+    Path tmp;
+
+    @Test
+    @DisplayName("R2-3: shutDownAll waits for a first acquire still creating its store; the id can be acquired again")
+    void shutDownAll_duringFirstCreation_closesItAndAllowsReacquire() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final CountDownLatch inHook = new CountDownLatch(1);
+      final CountDownLatch releaseHook = new CountDownLatch(1);
+      final AtomicBoolean firstCall = new AtomicBoolean(true);
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (i, graphStore) -> {
+            if (firstCall.getAndSet(false)) {
+              inHook.countDown();
+              awaitUninterruptibly(releaseHook);
+            }
+          });
+      final DatasetId id = new DatasetId("in-flight");
+      final ExecutorService pool = Executors.newFixedThreadPool(2);
+      try {
+        final Future<DatasetHandle> acquiring = pool.submit(() -> lifecycle.acquire(id));
+        assertThat(inHook.await(30, TimeUnit.SECONDS)).isTrue();
+        final Thread[] shutdownThread = new Thread[1];
+        final CountDownLatch shutdownStarted = new CountDownLatch(1);
+        final Future<?> shuttingDown = pool.submit(() -> {
+          shutdownThread[0] = Thread.currentThread();
+          shutdownStarted.countDown();
+          lifecycle.shutDownAll();
+        });
+        assertThat(shutdownStarted.await(30, TimeUnit.SECONDS)).isTrue();
+        // shutDownAll either waits for the creation (blocked/waiting) or — the defect — has already finished
+        awaitBlockedOrDone(shutdownThread[0], shuttingDown);
+        releaseHook.countDown();
+
+        final DatasetHandle first = acquiring.get(30, TimeUnit.SECONDS);
+        shuttingDown.get(30, TimeUnit.SECONDS);
+        first.close();
+
+        assertThat(lifecycle.acquire(id)).isNotNull().satisfies(DatasetHandle::close);
+      } finally {
+        releaseHook.countDown();
+        pool.shutdownNow();
+      }
+    }
+
+    @Test
+    @DisplayName("R2-4: list() skips directories this lifecycle did not create (data/, logs/, non-UTF-8, non-canonical)")
+    void list_skipsForeignDirectories() throws Exception {
+      final Path root = tmp.resolve("stores");
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null);
+      final DatasetId own = new DatasetId("own");
+      lifecycle.acquire(own).close();
+      lifecycle.close(own);
+      Files.createDirectory(root.resolve("data"));
+      Files.createDirectory(root.resolve("logs"));
+      // Base64url of the single byte 0xFF: canonical, but not valid UTF-8
+      Files.createDirectory(root.resolve("_w"));
+      // Base64url of a blank value "   ": decodes to valid UTF-8 that DatasetId rejects
+      Files.createDirectory(root.resolve("ICAg"));
+
+      assertThat(lifecycle.list()).containsExactly(own);
+    }
+
+    private static void awaitUninterruptibly(final CountDownLatch latch) {
+      try {
+        latch.await(30, TimeUnit.SECONDS);
+      } catch (final InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    }
+
+    private static void awaitBlockedOrDone(final Thread thread, final Future<?> done) {
+      final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+      while (!done.isDone() && thread.getState() == Thread.State.RUNNABLE && System.nanoTime() < deadline) {
+        Thread.onSpinWait();
+      }
+    }
+  }
 
   @Nested
   @DisplayName("configuration")
