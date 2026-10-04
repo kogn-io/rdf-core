@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.model.IRI;
@@ -76,6 +77,21 @@ import io.kogn.rdf.terms.ReadableGraph;
  * with identical {@link ValidationOptions} validate differently per backend — exactly the
  * leak the port exists to prevent.</p>
  *
+ * <p>RDF4J's DASH data shapes are switched off for the same reason
+ * ({@code setDashDataShapes(false)}): DASH targets such as {@code dash:AllSubjectsTarget}
+ * select nothing, so a shape whose only target is one of them never fires — again a
+ * silently conforming report, not an error. DASH's list-valued {@code dash:hasValueIn} is
+ * still checked for well-formedness below, since that check runs over the whole shapes
+ * graph.</p>
+ *
+ * <h2>Every result is reported</h2>
+ *
+ * <p>RDF4J caps the validation results it reports, by default at 1000 per constraint. This
+ * adapter lifts both the per-constraint and the total cap, so {@link ShaclReport#results()}
+ * lists every result: a data graph with 1500 violations of one constraint yields 1500
+ * results. The report grows with the number of violations; a caller validating large,
+ * possibly very broken data holds all of them in memory at once.</p>
+ *
  * <h2>Where RDFS axioms may live</h2>
  *
  * <p>With {@link ValidationOptions#rdfsSubClassReasoning()} enabled, this adapter picks the
@@ -128,12 +144,27 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
   private static final List<IRI> LIST_PARAMETERS = List.of(SHACL.IN, SHACL.LANGUAGE_IN, SHACL.AND, SHACL.OR, SHACL.XONE,
       SHACL.IGNORED_PROPERTIES, SHACL.ALTERNATIVE_PATH, DASH.hasValueIn);
 
+  /** RDF4J's value for "no limit" on the number of validation results. */
+  private static final long NO_LIMIT = -1;
+
   /** Path operators whose operand is itself a path expression. */
   private static final List<IRI> PATH_OPERATORS = List.of(SHACL.INVERSE_PATH, SHACL.ZERO_OR_MORE_PATH,
       SHACL.ONE_OR_MORE_PATH, SHACL.ZERO_OR_ONE_PATH);
 
+  /** Supplies a fresh, uninitialized sail for each input graph of one validation run. */
+  private final Supplier<Sail> sailFactory;
+
   /** Creates a new RDF4J-backed SHACL validator. */
   public ShaclValidationRdf4j() {
+    this(MemoryStore::new);
+  }
+
+  /**
+   * Creates a validator that loads the input graphs into sails from {@code sailFactory}, so a
+   * test can reach the failure paths of loading and shutting down a sail.
+   */
+  ShaclValidationRdf4j(Supplier<Sail> sailFactory) {
+    this.sailFactory = Objects.requireNonNull(sailFactory, "sailFactory must not be null");
   }
 
   @Override
@@ -142,16 +173,35 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     Objects.requireNonNull(shapes, "shapes must not be null");
     Objects.requireNonNull(options, "options must not be null");
 
-    Sail dataSail = null;
-    Sail shapesSail = null;
+    List<Sail> sails = new ArrayList<>(2);
+    ShaclReport report;
     try {
-      dataSail = toSail(toModel(data, "data"));
+      report = runValidation(data, shapes, options, sails);
+    } catch (RuntimeException | Error e) {
+      shutDownAfterFailure(sails, e);
+      throw e;
+    }
+    shutDown(sails);
+    return report;
+  }
+
+  /**
+   * Runs one validation; every sail it creates is registered in {@code sails} before it is
+   * initialized, so the caller shuts each one down whether the run succeeds or fails.
+   */
+  private ShaclReport runValidation(ReadableGraph data, ReadableGraph shapes, ValidationOptions options,
+      List<Sail> sails) {
+    try {
+      Sail dataSail = toSail(toModel(data, "data"), sails);
       Model shapesModel = toModel(shapes, "shapes");
       requireWellFormedLists(shapesModel);
-      shapesSail = toSail(withoutShapesGraphLinks(shapesModel));
+      Sail shapesSail = toSail(withoutShapesGraphLinks(shapesModel), sails);
       ValidationReport report = ShaclValidator.builder()
           .setRdfsSubClassReasoning(options.rdfsSubClassReasoning())
           .setEclipseRdf4jShaclExtensions(false)
+          .setDashDataShapes(false)
+          .setValidationResultsLimitPerConstraint(NO_LIMIT)
+          .setValidationResultsLimitTotal(NO_LIMIT)
           .withShapes(shapesSail)
           .build()
           .validate(dataSail);
@@ -162,13 +212,43 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
       // wrapped in a ShaclShapeParsingException; the alternative is the defence against the
       // unwrapped case rather than a path a test can reach.
       throw new ShaclValidationException("SHACL validation could not be completed: " + e.getMessage(), e);
-    } finally {
-      if (shapesSail != null) {
-        shapesSail.shutDown();
+    }
+  }
+
+  /**
+   * Shuts the sails of a failed run down without letting a second failure replace the first:
+   * whatever a shutdown throws is attached to {@code failure} as suppressed.
+   */
+  private static void shutDownAfterFailure(List<Sail> sails, Throwable failure) {
+    for (Sail sail : sails.reversed()) {
+      try {
+        sail.shutDown();
+      } catch (RuntimeException e) {
+        failure.addSuppressed(e);
       }
-      if (dataSail != null) {
-        dataSail.shutDown();
+    }
+  }
+
+  /**
+   * Shuts the sails of a successful run down. Every sail gets its shutdown even if an earlier
+   * one fails; a failure is reported as the neutral exception, since no report can be handed out
+   * for a run whose backend did not come down cleanly.
+   */
+  private static void shutDown(List<Sail> sails) {
+    ShaclValidationException failure = null;
+    for (Sail sail : sails.reversed()) {
+      try {
+        sail.shutDown();
+      } catch (RuntimeException e) {
+        if (failure == null) {
+          failure = new ShaclValidationException("the backend could not be shut down: " + e.getMessage(), e);
+        } else {
+          failure.addSuppressed(e);
+        }
       }
+    }
+    if (failure != null) {
+      throw failure;
     }
   }
 
@@ -275,8 +355,9 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     return copy;
   }
 
-  private static Sail toSail(Model model) {
-    Sail sail = new MemoryStore();
+  private Sail toSail(Model model, List<Sail> sails) {
+    Sail sail = sailFactory.get();
+    sails.add(sail);
     sail.init();
     try (SailConnection connection = sail.getConnection()) {
       connection.begin();
@@ -301,7 +382,8 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
 
   private static ShaclResult toShaclResult(Model model, Resource resultId) {
     String focusNode = firstObject(model, resultId, SHACL.FOCUS_NODE).map(Value::stringValue)
-        .orElseThrow(() -> new IllegalStateException("SHACL validation result without sh:focusNode: " + resultId));
+        .orElseThrow(() -> new ShaclValidationException(
+            "the backend reported a validation result without sh:focusNode: " + resultId, null));
     String path = firstObject(model, resultId, SHACL.RESULT_PATH).map(Value::stringValue).orElse(null);
     Severity severity = firstObject(model, resultId, SHACL.RESULT_SEVERITY).map(ShaclValidationRdf4j::toSeverity)
         .orElse(Severity.VIOLATION);
