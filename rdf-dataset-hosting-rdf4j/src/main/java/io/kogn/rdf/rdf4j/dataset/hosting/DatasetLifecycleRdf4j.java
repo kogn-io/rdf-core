@@ -630,7 +630,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     if (deletionUnfinished.contains(id)) {
       return true;
     }
-    return Files.exists(resolveDir(id).toPath().resolve(DELETION_MARKER_FILE_NAME));
+    return carriesDeletionMarker(resolveDir(id).toPath());
   }
 
   /**
