@@ -80,6 +80,15 @@ public interface ContentAddressedIriGenerator {
    * {@code [UNSUPPORTED_TERM]}, {@code [FOREIGN_SUBJECT]}, {@code [NO_ROOT]},
    * {@code [UNREACHABLE]}), the first failing one reported.</p>
    *
+   * <p><strong>Valid RDF 1.1 is assumed.</strong> The method checks the conditions above, not
+   * that every IRI is absolute or every term well-formed; for input that is not valid RDF 1.1
+   * ni-rdf/1 defines no result. Exceptions thrown by the supplied {@link ReadableGraph}, or by
+   * the term factory when the implementation builds its mapped terms (for instance for a
+   * datatype IRI the factory rejects as not absolute), pass through untranslated. The
+   * {@code [CODE]} prefix marks the failures of the specification's §5 only: an
+   * {@link IllegalArgumentException} without it is a {@code null} argument or such a factory
+   * rejection, not a precondition failure.</p>
+   *
    * <p><strong>Not every graph meeting those preconditions gets an identifier.</strong>
    * RDFC-1.0 runs in factorial time on blank nodes it cannot tell apart by their own triples
    * and that have several mutually indistinguishable neighbours. ni-rdf/1 §4.3 estimates that
@@ -88,8 +97,10 @@ public interface ContentAddressedIriGenerator {
    * identifier, as a {@link CanonicalizationResourceLimitExceededException}. The limit
    * depends on the graph alone, not on the speed or the budget of the canonicalizer, so every
    * conforming implementation accepts and rejects the same graphs. The bound is deliberately
-   * conservative and also rejects some graphs that would be cheap. RDF lists, nested anonymous
-   * structures and repeated identical anonymous nodes stay far below it.</p>
+   * conservative and also rejects some graphs that would be cheap. RDF lists whose items differ
+   * and nested anonymous structures stay far below it; a list whose items recur does not: 216
+   * equal items still pass (bound 9 892 150), 217 do not (10 031 040), and a list of 220 items
+   * drawn from three values is rejected (10 455 498).</p>
    *
    * @param base the base IRI of the resource the graph describes; carries no {@code #}
    * @param graph the RDF graph describing that resource
