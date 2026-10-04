@@ -606,8 +606,8 @@ class ContentAddressedIriGeneratorSexprTest {
   class DerivationFailure {
 
     @Test
-    @DisplayName("a failure inside canonicalization surfaces with its cause")
-    void failureInsideCanonicalizationKeepsItsCause() {
+    @DisplayName("a failure inside the canonicalizer reaches the caller untranslated")
+    void failureInsideCanonicalizationIsNotRelabelled() {
       IllegalStateException broken = new IllegalStateException("broken");
       RdfDatasetCanonicalizer failing = new RdfDatasetCanonicalizer() {
         @Override
@@ -618,9 +618,9 @@ class ContentAddressedIriGeneratorSexprTest {
       ContentAddressedIriGenerator failingGenerator = new ContentAddressedIriGeneratorSexpr(rdf,
           new ContentAddressableRdfSerializer(failing, rdf));
 
-      assertThatExceptionOfType(ContentAddressingException.class)
+      assertThatExceptionOfType(IllegalStateException.class)
           .isThrownBy(() -> failingGenerator.generateIri(rdf.createIRI(EX + "resource"), nestedGraph("1", "t", "e")))
-          .withCause(broken);
+          .isSameAs(broken);
     }
 
     @Test

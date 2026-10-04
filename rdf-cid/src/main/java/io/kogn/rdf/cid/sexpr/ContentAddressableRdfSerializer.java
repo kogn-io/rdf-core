@@ -139,22 +139,11 @@ public class ContentAddressableRdfSerializer {
     String baseIri = Preconditions.check(base, triples, RESERVED_IRI);
 
     List<Triple> mapped = triples.stream().map(t -> mapped(t, baseIri)).distinct().toList();
-    Map<String, String> labels = canonicalIdentifiers(mapped);
+    Map<String, String> labels = canonicalizer.canonicalIdentifiers(mapped);
     byte[] hashed = document(mapped, labels);
 
     String name = NI_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(sha3256(hashed));
     return new ContentAddressableResult(rdf.createIRI(name), hashed);
-  }
-
-  /** The canonicalizer is a collaborator: whatever it fails with beyond its own port exceptions is a derivation failure. */
-  private Map<String, String> canonicalIdentifiers(List<Triple> mapped) {
-    try {
-      return canonicalizer.canonicalIdentifiers(mapped);
-    } catch (IllegalArgumentException | ContentAddressingException e) {
-      throw e;
-    } catch (RuntimeException e) {
-      throw new ContentAddressingException("Failed to generate content-addressed IRI", e);
-    }
   }
 
   /**
