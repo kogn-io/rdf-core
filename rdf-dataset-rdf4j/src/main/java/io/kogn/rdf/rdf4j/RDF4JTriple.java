@@ -17,6 +17,11 @@ import io.kogn.rdf.terms.Triple;
 
 /**
  * RDF4J-based implementation of Triple.
+ *
+ * <p>The port data model has no RDF 1.2 triple terms ({@code <<( s p o )>>}). A store can still
+ * hold one, because a SPARQL update accepts it; wrapping a statement whose object is a triple term
+ * is rejected on creation with an {@link IllegalStateException}, so the failure shows up when the
+ * triples are read, not on first access to the object.</p>
  */
 public class RDF4JTriple implements Triple {
 
@@ -30,8 +35,14 @@ public class RDF4JTriple implements Triple {
    * @param subject the RDF4J subject (IRI or blank node)
    * @param predicate the RDF4J predicate IRI
    * @param object the RDF4J object value
+   * @throws IllegalStateException if {@code object} is an RDF 1.2 triple term, which the port data
+   *     model cannot represent
    */
   public RDF4JTriple(Resource subject, org.eclipse.rdf4j.model.IRI predicate, Value object) {
+    if (object instanceof org.eclipse.rdf4j.model.TripleTerm) {
+      throw new IllegalStateException(
+          "RDF 1.2 triple term is not supported by the port data model (as object of " + predicate + ")");
+    }
     this.subject = subject;
     this.predicate = predicate;
     this.object = object;
