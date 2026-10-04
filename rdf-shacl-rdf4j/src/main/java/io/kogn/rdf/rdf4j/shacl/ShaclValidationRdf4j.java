@@ -463,7 +463,9 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     if (alternative.isPresent()) {
       List<Value> alternatives = listItems(model, alternative.get());
       if (alternatives.isEmpty()) {
-        throw new IllegalStateException("sh:alternativePath of node " + node + " is an empty list");
+        final boolean emptyList = RDF.NIL.equals(alternative.get());
+        throw new IllegalStateException("sh:alternativePath of node " + node
+            + (emptyList ? " is an empty list" : " is not a list: " + alternative.get()));
       }
       return String.join("|", alternatives.stream().map(item -> toPropertyPath(model, item)).toList());
     }
