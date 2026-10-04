@@ -39,7 +39,9 @@ import io.kogn.rdf.shacl.ShaclResult;
 import io.kogn.rdf.shacl.ShaclValidation;
 import io.kogn.rdf.shacl.ShaclValidationException;
 import io.kogn.rdf.shacl.ValidationOptions;
+import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
+import io.kogn.rdf.terms.SimpleRdf;
 
 /**
  * RDF4J-based implementation of {@link ShaclValidation}, wrapping
@@ -152,6 +154,8 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
       SHACL.IGNORED_PROPERTIES, SHACL.ALTERNATIVE_PATH, DASH.hasValueIn);
 
   /** RDF4J's value for "no limit" on the number of validation results. */
+  private static final SimpleRdf TERMS = new SimpleRdf();
+
   private static final long NO_LIMIT = -1;
 
   /** Path operators whose operand is itself a path expression. */
@@ -409,18 +413,96 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
   }
 
   private static ShaclResult toShaclResult(Model model, Resource resultId) {
-    String focusNode = firstObject(model, resultId, SHACL.FOCUS_NODE).map(Value::stringValue)
+    RDFTerm focusNode = firstObject(model, resultId, SHACL.FOCUS_NODE).map(ShaclValidationRdf4j::toTerm)
         .orElseThrow(() -> new ShaclValidationException(
             "the backend reported a validation result without sh:focusNode: " + resultId, null));
-    String path = firstObject(model, resultId, SHACL.RESULT_PATH).map(Value::stringValue).orElse(null);
-    Severity severity = firstObject(model, resultId, SHACL.RESULT_SEVERITY).map(ShaclValidationRdf4j::toSeverity)
-        .orElse(Severity.VIOLATION);
+    String path = firstObject(model, resultId, SHACL.RESULT_PATH).map(resultPath -> toPropertyPath(model, resultPath))
+        .orElse(null);
+    Value severityValue = firstObject(model, resultId, SHACL.RESULT_SEVERITY).orElse(SHACL.VIOLATION);
+    IRI severityIri = severityValue instanceof IRI iri ? iri : SHACL.VIOLATION;
     List<ShaclMessage> messages = model.filter(resultId, SHACL.RESULT_MESSAGE, null)
         .stream()
         .map(Statement::getObject)
         .map(ShaclValidationRdf4j::toShaclMessage)
         .toList();
-    return new ShaclResult(focusNode, path, severity, messages);
+    return new ShaclResult(focusNode, path, toSeverity(severityIri), TERMS.createIRI(severityIri.stringValue()),
+        messages);
+  }
+
+  private static RDFTerm toTerm(Value value) {
+    if (value instanceof IRI iri) {
+      return TERMS.createIRI(iri.stringValue());
+    }
+    if (value instanceof BNode bnode) {
+      return TERMS.createBlankNode(bnode.getID());
+    }
+    Literal literal = (Literal) value;
+    return literal.getLanguage()
+        .map(tag -> TERMS.createLiteral(literal.getLabel(), tag))
+        .orElseGet(() -> TERMS.createLiteral(literal.getLabel(), TERMS.createIRI(literal.getDatatype().stringValue())));
+  }
+
+  /**
+   * Renders an {@code sh:resultPath} value in SPARQL property path syntax. Composite
+   * operators are parenthesized wherever precedence requires it, so the output parses
+   * back to the same path.
+   */
+  private static String toPropertyPath(Model model, Value path) {
+    if (path instanceof IRI iri) {
+      return "<" + iri.stringValue() + ">";
+    }
+    Resource node = (Resource) path;
+    Optional<Value> inverse = firstObject(model, node, SHACL.INVERSE_PATH);
+    if (inverse.isPresent()) {
+      return "^" + operand(model, inverse.get());
+    }
+    Optional<Value> alternative = firstObject(model, node, SHACL.ALTERNATIVE_PATH);
+    if (alternative.isPresent()) {
+      return String.join("|",
+          listItems(model, alternative.get()).stream().map(item -> toPropertyPath(model, item)).toList());
+    }
+    Optional<Value> zeroOrMore = firstObject(model, node, SHACL.ZERO_OR_MORE_PATH);
+    if (zeroOrMore.isPresent()) {
+      return operand(model, zeroOrMore.get()) + "*";
+    }
+    Optional<Value> oneOrMore = firstObject(model, node, SHACL.ONE_OR_MORE_PATH);
+    if (oneOrMore.isPresent()) {
+      return operand(model, oneOrMore.get()) + "+";
+    }
+    Optional<Value> zeroOrOne = firstObject(model, node, SHACL.ZERO_OR_ONE_PATH);
+    if (zeroOrOne.isPresent()) {
+      return operand(model, zeroOrOne.get()) + "?";
+    }
+    return String.join("/", listItems(model, node).stream().map(item -> sequenceItem(model, item)).toList());
+  }
+
+  private static String operand(Model model, Value path) {
+    String rendered = toPropertyPath(model, path);
+    return path instanceof IRI || isInverse(model, path) ? rendered : "(" + rendered + ")";
+  }
+
+  private static String sequenceItem(Model model, Value path) {
+    String rendered = toPropertyPath(model, path);
+    return isAlternative(model, path) ? "(" + rendered + ")" : rendered;
+  }
+
+  private static boolean isInverse(Model model, Value path) {
+    return path instanceof Resource node && firstObject(model, node, SHACL.INVERSE_PATH).isPresent();
+  }
+
+  private static boolean isAlternative(Model model, Value path) {
+    return path instanceof Resource node && firstObject(model, node, SHACL.ALTERNATIVE_PATH).isPresent();
+  }
+
+  private static List<Value> listItems(Model model, Value head) {
+    List<Value> items = new ArrayList<>();
+    Value current = head;
+    Set<Value> seen = new HashSet<>();
+    while (current instanceof Resource node && !RDF.NIL.equals(node) && seen.add(node)) {
+      firstObject(model, node, RDF.FIRST).ifPresent(items::add);
+      current = firstObject(model, node, RDF.REST).orElse(null);
+    }
+    return items;
   }
 
   /**
