@@ -53,7 +53,7 @@ final class CanonicalizationCost {
    * change whether {@code E ≤ limit}, so the result is exact only up to that decision: it is
    * at most {@code limit} if and only if the exact value is.
    *
-   * @param triples the graph {@code G'}: base already mapped out, language tags already
+   * @param triples the mapped graph: base IRI already mapped out, language tags already
    *        lower-cased
    * @param limit the largest admitted cost
    * @return {@code E}, or a value above {@code limit} if {@code E} is above it

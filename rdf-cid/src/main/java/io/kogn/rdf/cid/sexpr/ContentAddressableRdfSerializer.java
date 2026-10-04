@@ -30,21 +30,23 @@ import io.kogn.rdf.terms.Triple;
  * describes, following the specification ni-rdf/1 ({@code docs/spec/ni-rdf/v1.md} in the
  * kognio-rdf repository), which defines every byte of the derivation.
  *
- * <p>The resource is named by a <em>base IRI</em> {@code B}, an IRI without {@code #} that the
- * caller passes in rather than having it inferred from the triples. In short:</p>
+ * <p>The resource is named by a <em>base IRI</em>, an IRI without {@code #} that the caller
+ * passes in rather than having it inferred from the triples. In short:</p>
  * <ol>
- *   <li>the preconditions of §3 are checked in order — the graph describes exactly {@code B}:
- *       every IRI subject is {@code B} or a fragment IRI {@code <B#f>} of it, and every other
- *       triple is a blank node triple reachable from one of them;</li>
+ *   <li>the preconditions of §3 are checked in order — the graph describes exactly the
+ *       resource the base IRI names: every IRI subject is the base IRI or a fragment IRI
+ *       {@code <base#f>} of it, and every other triple is a blank node triple reachable from
+ *       one of them;</li>
  *   <li>language tags are lower-cased (§4.1);</li>
- *   <li>{@code B} and its fragment IRIs are mapped, in every position including datatype IRIs,
- *       onto the reserved IRI {@code R} = {@value #RESERVED_IRI} and its fragments (§4.2), so
- *       neither the blank node labels nor the digest can depend on {@code B};</li>
+ *   <li>the base IRI and its fragment IRIs are mapped, in every position including datatype
+ *       IRIs, onto the reserved IRI {@value #RESERVED_IRI} and its fragment IRIs (§4.2), so
+ *       neither the blank node labels nor the digest can depend on the base IRI;</li>
  *   <li>the resource limit of §4.3 is checked and the blank nodes are labelled with RDFC-1.0
  *       (§4.4), both by {@link RdfDatasetCanonicalizer};</li>
  *   <li>the triples are serialized into a sorted S-expression of length-prefixed strings,
- *       opened by the procedure tag {@value #PROCEDURE_TAG} (§4.5) — {@code R} as {@code S},
- *       {@code R#f} as {@code F} and {@code f}, any other IRI as {@code I} and its string, a
+ *       opened by the procedure tag {@value #PROCEDURE_TAG} (§4.5) — the reserved IRI as
+ *       {@code S}, a fragment IRI of it as {@code F} and the fragment, any other IRI as
+ *       {@code I} and its string, a
  *       literal as {@code L}, lexical form, datatype IRI and language tag, a blank node as
  *       {@code B} and its canonical issued identifier;</li>
  *   <li>the digest is SHA3-256 of those bytes, and the name is {@value #NI_PREFIX} followed by
@@ -54,8 +56,8 @@ import io.kogn.rdf.terms.Triple;
  * <p>The name is therefore independent of blank node labels, of triple order, of the case of
  * language tags and of the base IRI the resource is described under, but <em>not</em> of any
  * other term: an IRI by its string, a literal by lexical form, datatype <em>and</em> language
- * tag. Because {@code B} stays out of the digest, the resource can be renamed to its own name
- * ({@code <B>} to {@code <ni:…>}, {@code <B#f>} to {@code <ni:…#f>}) and deriving the name
+ * tag. Because the base IRI stays out of the digest, the resource can be renamed to its own
+ * name ({@code <base>} to {@code <ni:…>}, {@code <base#f>} to {@code <ni:…#f>}) and deriving the name
  * again from the renamed triples, with the name as base, yields the same name.</p>
  *
  * <p>Every precondition failure is an {@link IllegalArgumentException} whose message starts
@@ -72,7 +74,7 @@ public class ContentAddressableRdfSerializer {
   public static final String PROCEDURE_TAG = "ni-rdf/1";
 
   /**
-   * The reserved IRI {@code R} of ni-rdf/1 §1.2: the base IRI is mapped onto it before
+   * The reserved IRI of ni-rdf/1 §1.2: the base IRI is mapped onto it before
    * canonicalization, so no IRI of the input may have it as its base.
    */
   public static final String RESERVED_IRI = "urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1";
@@ -119,9 +121,9 @@ public class ContentAddressableRdfSerializer {
    * Derives the name of the resource {@code base} that the triples describe, together with the
    * bytes it is the digest of.
    *
-   * @param base the base IRI {@code B} of the resource the triples describe
-   * @param triples the graph {@code G} describing that resource
-   * @return the name together with the hashed input {@code D} it was derived from
+   * @param base the base IRI of the resource the triples describe
+   * @param triples the input graph describing that resource
+   * @return the name together with the hashed input it was derived from
    * @throws IllegalArgumentException if {@code base} or {@code triples} is null, or if a
    *         precondition of ni-rdf/1 §3 does not hold; the message then starts with its failure
    *         code in brackets ({@code [INVALID_BASE]}, {@code [RESERVED_IRI]},
@@ -173,7 +175,7 @@ public class ContentAddressableRdfSerializer {
     return mappedValue.equals(value) ? iri : rdf.createIRI(mappedValue);
   }
 
-  /** {@code B} becomes {@code R}, {@code B#f} becomes {@code R#f}, any other IRI stays. */
+  /** The base IRI becomes the reserved IRI, {@code base#f} becomes {@code reserved#f}, any other IRI stays. */
   private static String mapped(String iri, String base) {
     if (iri.equals(base)) {
       return RESERVED_IRI;
@@ -184,7 +186,7 @@ public class ContentAddressableRdfSerializer {
     return iri;
   }
 
-  /** The hashed input {@code D} of §4.5: the procedure tag and the sorted triple encodings. */
+  /** The hashed input of §4.5: the procedure tag and the sorted triple encodings. */
   private static byte[] document(List<Triple> triples, Map<String, String> labels) {
     List<byte[]> encodings = triples.stream()
         .map(triple -> encoded(triple, labels))
@@ -235,7 +237,7 @@ public class ContentAddressableRdfSerializer {
     }
   }
 
-  /** {@code R} as {@code S}, {@code R#f} as {@code F} and {@code f}, any other IRI as {@code I}. */
+  /** The reserved IRI as {@code S}, {@code reserved#f} as {@code F} and {@code f}, any other IRI as {@code I}. */
   private static void writeIri(ByteArrayOutputStream out, String iri) {
     if (iri.equals(RESERVED_IRI)) {
       writeString(out, KIND_SELF);
@@ -271,7 +273,7 @@ public class ContentAddressableRdfSerializer {
    * One name together with the bytes it is the digest of.
    *
    * @param iri the {@code ni:///sha3-256;…} name
-   * @param sexprBytes the hashed input {@code D} of ni-rdf/1 §4.5 {@code iri} was derived from;
+   * @param sexprBytes the hashed input of ni-rdf/1 §4.5 {@code iri} was derived from;
    *     defensively copied on construction and on every {@link #sexprBytes()} call, so neither
    *     the caller's original array nor a returned copy can change what this result reports
    *     having hashed
