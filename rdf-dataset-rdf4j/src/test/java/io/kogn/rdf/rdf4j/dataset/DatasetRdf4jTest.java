@@ -239,6 +239,24 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("an exported graph finds, deduplicates and removes its own triples (issue #152 R1-1)")
+    void export_graphFindsItsOwnTriples() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      final Triple triple = rdf.createTriple(SUBJECT, PREDICATE, OBJECT);
+
+      // when
+      final Graph exported = (Graph) store.export(GRAPH_1);
+
+      // then
+      assertThat(exported.contains(triple)).isTrue();
+      exported.add(triple);
+      assertThat(exported.size()).isEqualTo(1L);
+      exported.remove(triple);
+      assertThat(exported.isEmpty()).isTrue();
+    }
+
+    @Test
     @DisplayName("export returns the added triples")
     void export_afterAdd_returnsTriples() {
       // given
@@ -1211,6 +1229,25 @@ class DatasetRdf4jTest {
     void setUp() {
       transactor = new DatasetTransactorRdf4j(repository);
       store = new GraphStoreRdf4j(repository);
+    }
+
+    @Test
+    @DisplayName("a graph exported inside a transaction finds, deduplicates and removes its own triples"
+        + " (issue #152 R1-1)")
+    void txExport_graphFindsItsOwnTriples() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+      final Triple triple = rdf.createTriple(SUBJECT, PREDICATE, OBJECT);
+
+      // when
+      final Graph exported = transactor.inTransaction(tx -> (Graph) tx.export(GRAPH_1));
+
+      // then
+      assertThat(exported.contains(triple)).isTrue();
+      exported.add(triple);
+      assertThat(exported.size()).isEqualTo(1L);
+      exported.remove(triple);
+      assertThat(exported.isEmpty()).isTrue();
     }
 
     @Test
