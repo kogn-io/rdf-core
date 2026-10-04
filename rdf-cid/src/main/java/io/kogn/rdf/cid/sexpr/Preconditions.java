@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.kogn.rdf.terms.BlankNode;
-import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDFTerm;
@@ -24,7 +23,9 @@ import io.kogn.rdf.terms.Triple;
  * The preconditions of ni-rdf/1 §3, checked in the order the specification lists them, so that
  * the first failing one is the one reported. Every failure is an
  * {@link IllegalArgumentException} whose message starts with the failure code in brackets,
- * e.g. {@code [FOREIGN_SUBJECT]}.
+ * e.g. {@code [FOREIGN_SUBJECT]}. The check runs in two steps, {@link #checkTerms} and
+ * {@link #checkGraph}, so the caller can recreate the well-formed terms through its own term
+ * factory before any condition compares terms.
  */
 final class Preconditions {
 
@@ -42,16 +43,18 @@ final class Preconditions {
   }
 
   /**
-   * Checks every precondition of ni-rdf/1 §3.
+   * Checks conditions 1 to 4 of ni-rdf/1 §3: the base IRI, a non-empty graph, and RDF 1.1 terms
+   * only. Every term that passes is well-formed, so the caller can recreate it through its own
+   * term factory before {@link #checkGraph} runs the conditions that compare terms.
    *
    * @param base the base IRI
    * @param triples the input graph
    * @param reserved the reserved IRI
    * @return the IRI string of {@code base}
    * @throws IllegalArgumentException if {@code base} or {@code triples} is null, or for the
-   *         first precondition that does not hold
+   *         first of conditions 1 to 4 that does not hold
    */
-  static String check(IRI base, Collection<Triple> triples, String reserved) {
+  static String checkTerms(IRI base, Collection<Triple> triples, String reserved) {
     if (base == null) {
       throw new IllegalArgumentException("Base IRI cannot be null");
     }
@@ -74,10 +77,23 @@ final class Preconditions {
       throw failure(EMPTY_GRAPH, "The graph holds no triple");
     }
     rejectUnsupportedTerms(baseIri, triples);
-    rejectReservedIris(triples, reserved);
-    rejectForeignSubjects(triples, baseIri);
-    rejectUnreachable(triples, baseIri);
     return baseIri;
+  }
+
+  /**
+   * Checks conditions 5 to 8 of ni-rdf/1 §3 on a graph that has passed {@link #checkTerms}.
+   * Reachability compares subjects and objects by their resource strings, never by the
+   * {@code equals} of the term implementation.
+   *
+   * @param triples the input graph, its terms well-formed
+   * @param base the IRI string of the base IRI
+   * @param reserved the reserved IRI
+   * @throws IllegalArgumentException for the first of conditions 5 to 8 that does not hold
+   */
+  static void checkGraph(Collection<Triple> triples, String base, String reserved) {
+    rejectReservedIris(triples, reserved);
+    rejectForeignSubjects(triples, base);
+    rejectUnreachable(triples, base);
   }
 
   private static IllegalArgumentException failure(String code, String message) {
@@ -236,27 +252,33 @@ final class Preconditions {
    * contribute to no identifier, so two different graphs would silently share one.
    */
   private static void rejectUnreachable(Collection<Triple> triples, String base) {
-    Map<BlankNodeOrIRI, List<Triple>> bySubject = triples.stream().collect(Collectors.groupingBy(Triple::getSubject));
-    List<BlankNodeOrIRI> roots = bySubject.keySet().stream().filter(IRI.class::isInstance).toList();
+    Map<String, List<Triple>> bySubject = triples.stream()
+        .collect(Collectors.groupingBy(t -> Terms.resource(t.getSubject())));
+    List<String> roots = triples.stream()
+        .map(Triple::getSubject)
+        .filter(IRI.class::isInstance)
+        .map(Terms::resource)
+        .distinct()
+        .toList();
     if (roots.isEmpty()) {
       throw failure(NO_ROOT, "Graph holds no subject that is the base <" + base + "> or a fragment IRI of it");
     }
 
-    Set<BlankNodeOrIRI> visited = new HashSet<>();
-    Queue<BlankNodeOrIRI> toVisit = new ArrayDeque<>(roots);
+    Set<String> visited = new HashSet<>();
+    Queue<String> toVisit = new ArrayDeque<>(roots);
     while (!toVisit.isEmpty()) {
-      BlankNodeOrIRI current = toVisit.poll();
+      String current = toVisit.poll();
       if (!visited.add(current)) {
         continue;
       }
       for (Triple triple : bySubject.getOrDefault(current, List.of())) {
-        if (triple.getObject() instanceof BlankNode blankNode && !visited.contains(blankNode)) {
-          toVisit.add(blankNode);
+        if (triple.getObject() instanceof BlankNode blankNode && !visited.contains(Terms.blankNodeId(blankNode))) {
+          toVisit.add(Terms.blankNodeId(blankNode));
         }
       }
     }
 
-    List<Triple> unreachable = triples.stream().filter(t -> !visited.contains(t.getSubject())).toList();
+    List<Triple> unreachable = triples.stream().filter(t -> !visited.contains(Terms.resource(t.getSubject()))).toList();
     if (!unreachable.isEmpty()) {
       throw failure(UNREACHABLE,
           "Graph holds " + unreachable.size() + " triple(s) not reachable from any IRI subject, which would "
