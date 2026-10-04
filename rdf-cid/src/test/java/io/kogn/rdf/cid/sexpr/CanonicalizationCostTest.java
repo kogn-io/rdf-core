@@ -58,20 +58,11 @@ class CanonicalizationCostTest {
   }
 
   @Test
-  @DisplayName("an RDF list of equal values stays far below the limit, however long")
+  @DisplayName("an RDF list of equal values is cheap while short, 216 items cost 9 892 150, 217 are beyond the limit")
   void listOfEqualValues() {
-    IRI first = rdf.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#first");
-    IRI rest = rdf.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#rest");
-    List<Triple> triples = new ArrayList<>();
-    List<BlankNode> cells = nodes("l", 30);
-    triples.add(rdf.createTriple(root, member, cells.getFirst()));
-    for (int i = 0; i < cells.size(); i++) {
-      triples.add(rdf.createTriple(cells.get(i), first, rdf.createLiteral("5")));
-      triples.add(rdf.createTriple(cells.get(i), rest,
-          i + 1 < cells.size() ? cells.get(i + 1) : rdf.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")));
-    }
-
-    assertThat(cost(triples)).isLessThan(100_000L);
+    assertThat(cost(listOfEqualItems(30))).isLessThan(100_000L);
+    assertThat(cost(listOfEqualItems(216))).isEqualTo(9_892_150L);
+    assertThat(cost(listOfEqualItems(217))).isEqualTo(10_031_040L);
   }
 
   @Test
@@ -151,6 +142,20 @@ class CanonicalizationCostTest {
     BlankNode y = rdf.createBlankNode("y");
     return List.of(rdf.createTriple(root, member, x), rdf.createTriple(x, rdf.createIRI(EX + "knows"), x),
         rdf.createTriple(root, member, y), rdf.createTriple(y, rdf.createIRI(EX + "q"), rdf.createLiteral("v1")));
+  }
+
+  private List<Triple> listOfEqualItems(int items) {
+    IRI first = rdf.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#first");
+    IRI rest = rdf.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#rest");
+    List<Triple> triples = new ArrayList<>();
+    List<BlankNode> cells = nodes("l", items);
+    triples.add(rdf.createTriple(root, member, cells.getFirst()));
+    for (int i = 0; i < cells.size(); i++) {
+      triples.add(rdf.createTriple(cells.get(i), first, rdf.createLiteral("5")));
+      triples.add(rdf.createTriple(cells.get(i), rest,
+          i + 1 < cells.size() ? cells.get(i + 1) : rdf.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")));
+    }
+    return triples;
   }
 
   private long cost(List<Triple> triples) {
