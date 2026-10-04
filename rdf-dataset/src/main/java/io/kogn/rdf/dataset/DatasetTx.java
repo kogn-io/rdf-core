@@ -47,6 +47,11 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * {@link DatasetTransactor} for what its isolation guarantee does and does not
    * cover.</p>
    *
+   * <p>Unlike the inherited {@link #export(IRI) export}, {@link #select select} and
+   * {@link #construct construct}, which fail on an RDF 1.2 triple term (see
+   * {@link GraphStore} and {@link SparqlQuery}), this method returns only a boolean and is
+   * unaffected by one.</p>
+   *
    * @param namedGraph IRI identifying the named graph to search; must not be {@code null}
    * @param subject the subject to match, or {@code null} for any subject
    * @param predicate the predicate to match, or {@code null} for any predicate
