@@ -10,6 +10,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.Resource;
+import org.eclipse.rdf4j.model.impl.LinkedHashModel;
+import org.eclipse.rdf4j.model.util.Values;
+import org.eclipse.rdf4j.model.vocabulary.SHACL;
 import org.eclipse.rdf4j.sail.SailConnection;
 import org.eclipse.rdf4j.sail.SailException;
 import org.eclipse.rdf4j.sail.helpers.SailWrapper;
@@ -631,6 +636,140 @@ class ShaclValidationRdf4jTest {
     assertThat(result.path()).isEqualTo("<" + ex("knows").getIRIString() + ">/<" + ex("name").getIRIString() + ">");
   }
 
+  @Test
+  void alternativePathIsRenderedInSparqlPropertyPathSyntax() {
+    Graph shapes = rdf.createGraph();
+    BlankNode path = pathNode(shapes, "alternativePath", pathList(shapes, ex("knows"), ex("name")));
+
+    assertThat(resultPathOf(shapes, path)).isEqualTo(pathIri("knows") + "|" + pathIri("name"));
+  }
+
+  @Test
+  void alternativeInsideASequenceIsParenthesized() {
+    Graph shapes = rdf.createGraph();
+    BlankNode alternative = pathNode(shapes, "alternativePath", pathList(shapes, ex("b"), ex("c")));
+    BlankNode path = pathList(shapes, ex("a"), alternative);
+
+    assertThat(resultPathOf(shapes, path)).isEqualTo(pathIri("a") + "/(" + pathIri("b") + "|" + pathIri("c") + ")");
+  }
+
+  /*
+   * RDF4J's SHACL engine does not report a result for a violated shape whose sh:path is a repetition
+   * (sh:zeroOrMorePath, sh:oneOrMorePath, sh:zeroOrOnePath): the report conforms. These renderings are therefore pinned
+   * on the Model-level renderer, not end to end.
+   */
+  private static final String P = "https://example.org/p";
+
+  private static String render(Model model, Resource path) {
+    return ShaclValidationRdf4j.toPropertyPath(model, path);
+  }
+
+  @Test
+  void zeroOrMorePathIsRenderedInSparqlPropertyPathSyntax() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode();
+    model.add(path, SHACL.ZERO_OR_MORE_PATH, Values.iri(P));
+
+    assertThat(render(model, path)).isEqualTo("<" + P + ">*");
+  }
+
+  @Test
+  void oneOrMorePathIsRenderedInSparqlPropertyPathSyntax() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode();
+    model.add(path, SHACL.ONE_OR_MORE_PATH, Values.iri(P));
+
+    assertThat(render(model, path)).isEqualTo("<" + P + ">+");
+  }
+
+  @Test
+  void zeroOrOnePathIsRenderedInSparqlPropertyPathSyntax() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode();
+    model.add(path, SHACL.ZERO_OR_ONE_PATH, Values.iri(P));
+
+    assertThat(render(model, path)).isEqualTo("<" + P + ">?");
+  }
+
+  @Test
+  void sequenceUnderAModifierIsParenthesized() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode();
+    Resource second = Values.bnode();
+    Resource first = Values.bnode();
+    model.add(path, SHACL.ONE_OR_MORE_PATH, first);
+    model.add(first, org.eclipse.rdf4j.model.vocabulary.RDF.FIRST, Values.iri(P));
+    model.add(first, org.eclipse.rdf4j.model.vocabulary.RDF.REST, second);
+    model.add(second, org.eclipse.rdf4j.model.vocabulary.RDF.FIRST, Values.iri(P + "2"));
+    model.add(second, org.eclipse.rdf4j.model.vocabulary.RDF.REST, org.eclipse.rdf4j.model.vocabulary.RDF.NIL);
+
+    assertThat(render(model, path)).isEqualTo("(<" + P + ">/<" + P + "2>)+");
+  }
+
+  @Test
+  void modifierUnderAnInversionKeepsTheTreeShape() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode();
+    Resource inner = Values.bnode();
+    model.add(path, SHACL.INVERSE_PATH, inner);
+    model.add(inner, SHACL.ZERO_OR_MORE_PATH, Values.iri(P));
+
+    assertThat(render(model, path)).isEqualTo("^(<" + P + ">*)");
+  }
+
+  @Test
+  void inversionUnderAModifierIsParenthesized() {
+    Model model = new LinkedHashModel();
+    Resource path = Values.bnode();
+    Resource inner = Values.bnode();
+    model.add(path, SHACL.ZERO_OR_MORE_PATH, inner);
+    model.add(inner, SHACL.INVERSE_PATH, Values.iri(P));
+
+    assertThat(render(model, path)).isEqualTo("(^<" + P + ">)*");
+  }
+
+  @Test
+  void doubleInversionIsParenthesizedAndNeverRendersAsTwoCarets() {
+    Graph shapes = rdf.createGraph();
+    BlankNode path = pathNode(shapes, "inversePath", pathNode(shapes, "inversePath", ex("p")));
+
+    assertThat(resultPathOf(shapes, path)).isEqualTo("^(^" + pathIri("p") + ")");
+  }
+
+  @Test
+  void literalFocusNodeStaysALiteral() {
+    IRI shape = ex("NameShape");
+    Graph shapes = rdf.createGraph();
+    shapes.add(shape, a(), sh("NodeShape"));
+    shapes.add(shape, sh("targetObjectsOf"), ex("age"));
+    shapes.add(shape, sh("datatype"), xsdInteger());
+    Literal notANumber = rdf.createLiteral("old");
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), ex("age"), notANumber);
+
+    ShaclResult result = validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0);
+
+    assertThat(result.focusNode()).isEqualTo(notANumber);
+  }
+
+  @Test
+  void pathNodeWithoutAnOperatorIsRejectedInsteadOfRenderedEmpty() {
+    Model model = new LinkedHashModel();
+
+    assertThatThrownBy(() -> ShaclValidationRdf4j.toPropertyPath(model, Values.bnode("x")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("x");
+  }
+
+  @Test
+  void literalAsPathIsRejectedWithoutAClassCastException() {
+    Model model = new LinkedHashModel();
+
+    assertThatThrownBy(() -> ShaclValidationRdf4j.toPropertyPath(model, Values.literal("nope")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("nope");
+  }
+
   /**
    * Pins the null-argument contract of {@link ShaclValidation#validate} (issue #74): all three
    * parameters are rejected with a {@link NullPointerException}, matching the port's Javadoc.
@@ -975,12 +1114,43 @@ class ShaclValidationRdf4jTest {
     assertThat(report.conforms()).isTrue();
   }
 
+  private String pathIri(String local) {
+    return "<" + ex(local).getIRIString() + ">";
+  }
+
+  private BlankNode pathNode(Graph shapes, String operator, RDFTerm operand) {
+    BlankNode node = rdf.createBlankNode();
+    shapes.add(node, sh(operator), operand);
+    return node;
+  }
+
+  private BlankNode pathList(Graph shapes, RDFTerm... items) {
+    RDFTerm rest = rdfNil();
+    for (int i = items.length - 1; i >= 0; i--) {
+      BlankNode cell = rdf.createBlankNode();
+      shapes.add(cell, rdfFirst(), items[i]);
+      shapes.add(cell, rdfRest(), rest);
+      rest = cell;
+    }
+    return (BlankNode) rest;
+  }
+
+  private String resultPathOf(Graph shapes, RDFTerm path) {
+    addPersonShapeRequiringOneValueOf(shapes, path);
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+    return validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0).path();
+  }
+
   private BlankNode shapeProperty(Graph shapes) {
     return (BlankNode) shapes.stream(null, sh("property"), null).findFirst().orElseThrow().getObject();
   }
 
   private Graph personShapeRequiringOneValueOf(RDFTerm path) {
-    Graph shapes = rdf.createGraph();
+    return addPersonShapeRequiringOneValueOf(rdf.createGraph(), path);
+  }
+
+  private Graph addPersonShapeRequiringOneValueOf(Graph shapes, RDFTerm path) {
     IRI personShape = ex("PersonShape");
     BlankNode property = rdf.createBlankNode();
     shapes.add(personShape, a(), sh("NodeShape"));
