@@ -330,6 +330,30 @@
       "base": "http://example.org/a",
       "input": "<http://example.org/a> <http://example.org/vocab#p> \"x\" .\n_:y <http://example.org/vocab#about> <http://example.org/a> .\n",
       "failure": "UNREACHABLE"
+    },
+    {
+      "id": "supplementary-outside-literals",
+      "description": "Code points of U+10000 and above (four UTF-8 bytes each) outside a literal value: in an object IRI, a predicate, a datatype IRI and a fragment. Lengths count UTF-8 bytes, not code points or UTF-16 code units. A language tag cannot carry one: N-Triples restricts tags to ASCII.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p😀> <http://example.org/😀> .\n<http://example.org/a> <http://example.org/vocab#q> \"x\"^^<http://example.org/dt😀> .\n<http://example.org/a> <http://example.org/vocab#part> <http://example.org/a#😀> .\n<http://example.org/a#😀> <http://example.org/vocab#r> \"y\" .\n",
+      "name": "ni:///sha3-256;7n-45WIFKsogiUw17HnJrKq42Zc2hBF0D9u0YEBnmI8",
+      "hashed": "(8:ni-rdf/1(1:F4:😀1:I26:http://example.org/vocab#r1:L1:y1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I26:http://example.org/vocab#q1:L1:x1:I25:http://example.org/dt😀0:)(1:S1:I29:http://example.org/vocab#part1:F4:😀)(1:S1:I30:http://example.org/vocab#p😀1:I23:http://example.org/😀))"
+    },
+    {
+      "id": "unsigned-byte-order",
+      "description": "Four literals on one subject and predicate, two of 2 bytes and two of 4 bytes, each pair decided at the first byte of the value: 0x7E (~a) before 0xC3 (U+00E9), 0xEE (U+E000 and a) before 0xF0 (U+1F600). A signed-byte sort puts ~a last; a UTF-16 code unit sort puts U+1F600 before U+E000. No blank nodes occur, so the vector does not depend on the canonicalization library.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> \"~a\" .\n<http://example.org/a> <http://example.org/vocab#p> \"é\" .\n<http://example.org/a> <http://example.org/vocab#p> \"\\uE000a\" .\n<http://example.org/a> <http://example.org/vocab#p> \"😀\" .\n",
+      "name": "ni:///sha3-256;uHIrR6p0LrYcPPt0SkSpruMjUEDRLgFaKvsvczO35y8",
+      "hashed": "(8:ni-rdf/1(1:S1:I26:http://example.org/vocab#p1:L2:~a1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I26:http://example.org/vocab#p1:L2:é1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I26:http://example.org/vocab#p1:L4:a1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I26:http://example.org/vocab#p1:L4:😀1:I39:http://www.w3.org/2001/XMLSchema#string0:))"
+    },
+    {
+      "id": "base-as-datatype-of-blank-node-literal",
+      "description": "The base IRI as the datatype IRI of a literal in a blank node triple, and a fragment IRI of the base as another: §4.2 maps both before RDFC-1.0 sees them, so they appear as S and F in the blank node's literals.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> _:b .\n_:b <http://example.org/vocab#q> \"v\"^^<http://example.org/a> .\n_:b <http://example.org/vocab#q> \"w\"^^<http://example.org/a#t> .\n",
+      "name": "ni:///sha3-256;da4FFz0F0YzRmdCB7_IopjVchWuoI1Mo3UcBFPQlnG0",
+      "hashed": "(8:ni-rdf/1(1:B5:c14n01:I26:http://example.org/vocab#q1:L1:v1:S0:)(1:B5:c14n01:I26:http://example.org/vocab#q1:L1:w1:F1:t0:)(1:S1:I26:http://example.org/vocab#p1:B5:c14n0))"
     }
   ]
 }
