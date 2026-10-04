@@ -6,9 +6,13 @@ package io.kogn.rdf.rdf4j.shacl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.concurrent.TimeUnit;
+
 import org.eclipse.rdf4j.common.exception.RDF4JException;
 import org.eclipse.rdf4j.sail.shacl.ast.ShaclUnsupportedException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.Timeout.ThreadMode;
 
 import io.kogn.rdf.shacl.Severity;
 import io.kogn.rdf.shacl.ShaclMessage;
@@ -38,6 +42,7 @@ class ShaclValidationRdf4jTest {
   private static final String RDFS_NS = "http://www.w3.org/2000/01/rdf-schema#";
   private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
   private static final String RDF4J_SHACL_EXTENSIONS_NS = "http://rdf4j.org/shacl-extensions#";
+  private static final long LIST_GUARD_TIMEOUT_SECONDS = 10;
 
   private final RDF rdf = new SimpleRdf();
   private final ShaclValidationRdf4j validation = new ShaclValidationRdf4j();
@@ -64,6 +69,18 @@ class ShaclValidationRdf4jTest {
 
   private IRI xsdBoolean() {
     return rdf.createIRI(XSD_NS + "boolean");
+  }
+
+  private IRI rdfFirst() {
+    return rdf.createIRI(RDF_NS + "first");
+  }
+
+  private IRI rdfRest() {
+    return rdf.createIRI(RDF_NS + "rest");
+  }
+
+  private IRI rdfNil() {
+    return rdf.createIRI(RDF_NS + "nil");
   }
 
   private IRI rdf4jShaclExtension(String local) {
@@ -566,6 +583,105 @@ class ShaclValidationRdf4jTest {
 
     assertThatThrownBy(() -> validation.validate(data, shapes, null)).isInstanceOf(NullPointerException.class)
         .hasMessage("options must not be null");
+  }
+
+  /**
+   * A list-valued shape parameter that is not an RDF list at all must be rejected up front.
+   * RDF4J walks such a value with {@code rdf:rest} until it meets {@code rdf:nil}, which it
+   * never does, and appends to the list until the heap is gone; the timeout keeps the suite
+   * from hanging on that.
+   */
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void shapeParameterThatIsNoListSurfacesAsTheNeutralValidationException() {
+    Graph shapes = personShapeRequiringName();
+    shapes.add(ex("PersonShape"), sh("in"), ex("notAList"));
+
+    assertMalformedListIsRejected(shapes);
+  }
+
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void cyclicListInAShapeParameterSurfacesAsTheNeutralValidationException() {
+    Graph shapes = personShapeRequiringName();
+    BlankNode first = rdf.createBlankNode();
+    BlankNode second = rdf.createBlankNode();
+    shapes.add(ex("PersonShape"), sh("in"), first);
+    shapes.add(first, rdfFirst(), ex("a"));
+    shapes.add(first, rdfRest(), second);
+    shapes.add(second, rdfFirst(), ex("b"));
+    shapes.add(second, rdfRest(), first);
+
+    assertMalformedListIsRejected(shapes);
+  }
+
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void listWithoutATerminatingNilInAShapeParameterSurfacesAsTheNeutralValidationException() {
+    Graph shapes = personShapeRequiringName();
+    BlankNode cell = rdf.createBlankNode();
+    shapes.add(ex("PersonShape"), sh("in"), cell);
+    shapes.add(cell, rdfFirst(), ex("a"));
+    // no rdf:rest -> the list never reaches rdf:nil
+
+    assertMalformedListIsRejected(shapes);
+  }
+
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void cyclicSequencePathSurfacesAsTheNeutralValidationException() {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    BlankNode nameProperty = rdf.createBlankNode();
+    BlankNode sequence = rdf.createBlankNode();
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(personShape, sh("property"), nameProperty);
+    shapes.add(nameProperty, sh("path"), sequence);
+    shapes.add(nameProperty, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
+    shapes.add(sequence, rdfFirst(), ex("name"));
+    shapes.add(sequence, rdfRest(), sequence);
+
+    assertMalformedListIsRejected(shapes);
+  }
+
+  @Test
+  void wellFormedListInAShapeParameterIsStillHonoured() {
+    Graph shapes = rdf.createGraph();
+    IRI colourShape = ex("ColourShape");
+    BlankNode colourProperty = rdf.createBlankNode();
+    BlankNode first = rdf.createBlankNode();
+    BlankNode second = rdf.createBlankNode();
+    shapes.add(colourShape, a(), sh("NodeShape"));
+    shapes.add(colourShape, sh("targetClass"), ex("Thing"));
+    shapes.add(colourShape, sh("property"), colourProperty);
+    shapes.add(colourProperty, sh("path"), ex("colour"));
+    shapes.add(colourProperty, sh("in"), first);
+    shapes.add(first, rdfFirst(), ex("red"));
+    shapes.add(first, rdfRest(), second);
+    shapes.add(second, rdfFirst(), ex("green"));
+    shapes.add(second, rdfRest(), rdfNil());
+
+    Graph data = rdf.createGraph();
+    data.add(ex("apple"), a(), ex("Thing"));
+    data.add(ex("apple"), ex("colour"), ex("red"));
+    data.add(ex("sky"), a(), ex("Thing"));
+    data.add(ex("sky"), ex("colour"), ex("blue"));
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isFalse();
+    assertThat(report.results()).extracting(ShaclResult::focusNode).containsExactly(ex("sky").getIRIString());
+  }
+
+  private void assertMalformedListIsRejected(Graph shapes) {
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+    data.add(ex("bob"), ex("name"), rdf.createLiteral("Bob"));
+
+    assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasMessageContaining("RDF list");
   }
 
   private Graph personShapeRequiringName(Literal... messages) {
