@@ -81,6 +81,16 @@ minimal `IRIFactory` so callers that only mint IRIs need nothing more
 free of dependencies is a deliberate design goal
 ([ADR-0002](docs/adr/0002-terms-dependency-free-data-model.md)).
 
+The two `RDF` implementations, the dependency-free `SimpleRdf` and the RDF4J
+backend, hold one term contract: both reject the same invalid input (relative
+IRIs, `null`, unserializable IRIs, language tags and blank node labels), and
+`ntriplesString()` emits the same RDF 1.1 N-Triples in both, escaped, so a
+consumer that writes N-Triples from it gets valid output whichever backend
+produced the term. `SimpleRdf` is therefore no longer a lenient test double:
+code that passes against it does not fail on the RDF4J backend for input
+validity. One gap remains: `RDF4JFactory.createBlankNode` still accepts `null`
+and the empty label, which `SimpleRdf` rejects.
+
 ## The dataset ports (`rdf-dataset`)
 
 Small, single-purpose ports that cover what a dataset consumer needs, split by
@@ -94,7 +104,26 @@ concern:
   `MalformedSparqlException` for a string that does not parse,
   `SparqlEvaluationException` for a well-formed one the backend could not carry
   out (an unreachable `SERVICE` endpoint, a `LOAD` that cannot fetch its
-  source), each with the backend's own signal kept as cause.
+  source), each with the backend's own signal kept as cause. The graph
+  operations — `GraphStore`, hence `DatasetTx` too, plus `DatasetTx#contains`
+  and the commit in `DatasetTransactor#inTransaction` — have the same kind of
+  neutral type, `DatasetStorageException`: an I/O failure, a store that is shut
+  down or locked, a failed read, a failed commit that is not a lost race, with
+  the backend's signal as cause. What stays outside that translation are
+  defects of the call, which keep their own types and are not worth a retry: a
+  term that cannot be converted, a `NullPointerException` for a `null` argument,
+  and the `IllegalStateException` for an RDF 1.2 triple term in a stored graph
+  that the data model cannot represent. Every operation of a `DatasetTx` kept
+  past the end of its transaction, the SPARQL ones as well as the graph ones,
+  fails with an `IllegalStateException`, deliberately neither of the two neutral
+  types, so retry logic keyed to them does not retry a programming error.
+- **Update scope.** An update without a `GRAPH` clause or `WITH` lands in the
+  default graph, which none of the other ports can read back, so every update
+  names its target graph. The delete side is wider than the insert side: a
+  graph-less `DELETE DATA`, `DELETE WHERE` or `DELETE {…} WHERE {…}` template
+  removes every matching triple from each named graph that holds it (and from
+  the default graph). `GraphStore#count()` counts the default graph too, so it
+  can exceed the sum of `count(graph)` over the named graphs.
 - **`DatasetExport`** — serialization to a byte stream: the whole dataset (only
   in a quad-capable `RdfFormat` — TriG or N-Quads — since a triple-only format
   would flatten the named graphs and silently lose which statement came from
@@ -138,6 +167,11 @@ concern:
   adding disjoint triples to the same named graph conflict almost every time,
   a false conflict rather than a real one, since neither transaction read
   anything the other wrote ([ADR-0012](docs/adr/0012-per-triple-conflict-surface-for-add-remove.md)).
+  That holds for writers of *disjoint* triples. Two writers of the *same*
+  triple get whatever the backend's isolation gives them: both may commit and
+  both may report it inserted (or removed), so deltas of concurrent writers must
+  not be summed; the port promises neither a conflict nor an exact delta there
+  ([ADR-0020](docs/adr/0020-delta-and-conflict-promise-holds-for-disjoint-writers.md)).
 
 Every query and update method on `SparqlQuery`, `SparqlUpdate` and `DatasetTx`
 also has a `Map<String, RDFTerm>` bindings overload
@@ -294,6 +328,15 @@ Settled semantics worth knowing before consuming it:
   rethrows and leaves the identifier barred. It is a separate port rather than
   more methods on `DatasetLifecycle` so that no implementation outside this
   repository breaks, and a consumer that never runs maintenance never sees it.
+- **Storage that cannot be determined fails, it is not guessed.** `list()` and
+  `acquire` throw `UncheckedIOException` when the storage root or a dataset's
+  deletion mark cannot be read, rather than treat an unreadable directory as
+  new or as free of remains. `list()` skips directories under the storage root
+  that are not datasets (strict UTF-8 decoding, `DatasetId` validation and a
+  round trip back to the directory name); a foreign directory whose name
+  happens to be a valid encoded id is still listed, a documented limit.
+  `shutDownAll()` waits for a first creation that is still running, and the
+  instance stays usable afterwards.
 - **The opaque `DatasetId` is Base64url-encoded into a single directory
   segment**, so values like `"../etc"` cannot escape the storage root.
 
@@ -319,6 +362,15 @@ Settled semantics worth knowing before consuming it:
   decision and belongs where that context exists. The list order is a parse-order
   artifact of the shapes graph and carries no meaning — select by tag, not by
   position. Tags are lower-cased so that selection actually works.
+- **A result carries its terms as they are.** `ShaclResult.focusNode()` is an
+  `RDFTerm`, so a literal focus node keeps its kind and datatype and is not
+  confused with an IRI of the same text. `path()` is rendered in SPARQL property
+  path syntax (`<iri>`, `^`, `/`, `|`, `*`, `+`, `?`), not as a blank node
+  label, and is `null` for a shape without a path. `severity()` is the closed
+  `Severity` enum; `severityIri()` is the reported `sh:resultSeverity` IRI next
+  to it, so a custom severity can keep its identity on a backend that reports
+  it. The RDF4J backend reports a custom severity as `sh:Violation`, so there
+  `severityIri` is `sh:Violation` as well.
 - **RDFS subclass reasoning is opt-in** (`ValidationOptions.rdfsSubClassReasoning`,
   default off), and a silent no-op if no `rdfs:subClassOf` axioms are present in
   either graph.
