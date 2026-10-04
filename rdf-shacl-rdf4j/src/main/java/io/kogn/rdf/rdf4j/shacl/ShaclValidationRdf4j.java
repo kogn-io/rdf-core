@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import org.eclipse.rdf4j.common.exception.RDF4JException;
+import org.eclipse.rdf4j.model.BNode;
 import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Model;
@@ -128,8 +129,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link ShaclValidationException} before RDF4J sees it — RDF4J itself walks such a list
  * until the heap is exhausted.</p>
  *
- * <p>Likewise a path expression must not contain itself — {@code _:p sh:inversePath _:p}, or
- * a sequence path listing its own head. Such a shapes graph is rejected the same way: RDF4J
+ * <p>Likewise a blank-node path expression must not contain itself —
+ * {@code _:p sh:inversePath _:p}, or a sequence path listing its own head. An IRI is always a
+ * predicate path, so {@code ex:p sh:inversePath ex:p} is no cycle and stays allowed. Such a shapes graph is rejected the same way: RDF4J
  * recurses into it until the stack overflows.</p>
  *
  * <h2>Shapes-graph links are ignored</h2>
@@ -298,15 +300,16 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
   }
 
   /**
-   * Walks one path expression: a node carrying {@code rdf:first} or {@code rdf:rest} is a
-   * sequence path and must be a well-formed list; the operands of the path operators are
+   * Walks one path expression. Only a blank node is expanded, as RDF4J does: an IRI is
+   * always a predicate path, whatever triples it carries itself. A blank node carrying
+   * {@code rdf:first} or {@code rdf:rest} is a sequence path and must be a well-formed list; the operands of the path operators are
    * walked in turn. A path expression that contains itself is rejected: {@code enclosing}
    * holds the nodes the walk is currently inside of. A node reached twice without being its
    * own operand — the same path shared by two alternatives, say — is no cycle; {@code checked}
    * holds the nodes already walked in full, so such sharing is checked once.
    */
   private static void requireWellFormedPath(Model shapes, Value path, Set<Resource> enclosing, Set<Resource> checked) {
-    if (!(path instanceof Resource node) || checked.contains(node)) {
+    if (!(path instanceof BNode node) || checked.contains(node)) {
       return;
     }
     if (!enclosing.add(node)) {

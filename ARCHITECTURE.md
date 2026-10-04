@@ -343,8 +343,9 @@ Settled semantics worth knowing before consuming it:
 - **A run that yields no report at all fails with the port's neutral
   `ShaclValidationException`** — an unparsable shapes graph, a construct the
   backend does not support, a term it rejects. A malformed RDF list or a cyclic
-  path expression in the shapes graph is rejected the same way before RDF4J sees
-  it, since RDF4J would exhaust the heap or the stack on it. It is the counterpart to the
+  blank-node path expression in the shapes graph is rejected the same way before
+  RDF4J sees it, since RDF4J would exhaust the heap or the stack on it (an IRI is
+  always a predicate path, so `ex:p sh:inversePath ex:p` is no cycle). It is the counterpart to the
   dataset ports' `ConcurrencyConflictException`: the caller handles a broken
   input without naming a backend exception type, with the backend's own signal
   kept as `cause`. A *non-conforming* data graph is not this — that is a normal
