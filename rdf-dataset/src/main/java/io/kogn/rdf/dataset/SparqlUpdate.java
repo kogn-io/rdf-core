@@ -28,8 +28,9 @@ import io.kogn.rdf.terms.RDFTerm;
  * location none of the other dataset ports can read back. Every update must therefore
  * name its target graph explicitly.</p>
  *
- * <p><strong>The delete side is wider than the insert side.</strong> A {@code DELETE DATA}
- * or {@code DELETE WHERE} without a {@code GRAPH} clause is not confined to the default
+ * <p><strong>The delete side is wider than the insert side.</strong> A {@code DELETE DATA},
+ * a {@code DELETE WHERE} or a {@code DELETE {...} WHERE {...}} template (also combined with
+ * {@code INSERT}) without a {@code GRAPH} clause or {@code WITH} is not confined to the default
  * graph: it removes every matching triple from <em>each</em> named graph that holds it (and
  * from the default graph), following the union-default-graph semantics of the RDF4J
  * backend. A graph-less delete aimed at one named graph therefore silently removes the same
