@@ -19,7 +19,9 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -468,6 +470,31 @@ class DatasetLifecycleRdf4jTest {
 
       // rolled back: nothing left behind, and the retry re-runs onCreate over a fresh store
       // (only possible if the failed store's lock was released and its dir removed).
+      assertThat(lifecycle.list()).doesNotContain(id);
+      try (DatasetHandle ds = lifecycle.acquire(id)) {
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
+      assertThat(calls).hasValue(2);
+    }
+
+    @Test
+    @DisplayName("an Error from on-create rolls back too: no half dataset, Error propagates unchanged, retry seeds")
+    void onCreate_throwsError_rollsBackAndPropagatesUnchanged(@TempDir final Path tmp) {
+      final AtomicInteger calls = new AtomicInteger();
+      final AssertionError failure = new AssertionError("boom");
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
+          tmp.resolve("stores"), DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
+            if (calls.incrementAndGet() == 1) {
+              throw failure;
+            }
+            graphStore.add(GRAPH, singleTriple());
+          });
+      final DatasetId id = new DatasetId("rollback-error");
+
+      assertThatThrownBy(() -> lifecycle.acquire(id)).isSameAs(failure);
+
+      // same observable state as after a RuntimeException: not listed, lock released, storage
+      // removed so the retry is a genuine creation that runs onCreate again.
       assertThat(lifecycle.list()).doesNotContain(id);
       try (DatasetHandle ds = lifecycle.acquire(id)) {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
