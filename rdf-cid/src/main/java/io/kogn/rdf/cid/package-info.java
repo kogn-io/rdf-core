@@ -41,6 +41,13 @@
  * part of the content. The placeholder follows the fragment molecules of
  * <a href="https://openengiadina.codeberg.page/rdf-cbor/">RDF/CBOR</a>.</p>
  *
+ * <h2>Input and failures</h2>
+ * <p>The input is assumed to be valid RDF 1.1; ni-rdf/1 defines no result for anything else.
+ * Exceptions of the supplied graph and of the term factory pass through untranslated. Only the
+ * failures of the specification's §5 carry a leading {@code [CODE]} in their message; an
+ * {@link IllegalArgumentException} without it is a {@code null} argument or a factory
+ * rejection.</p>
+ *
  * <h2>Architecture role</h2>
  * <p>This is a backend-neutral port: {@link io.kogn.rdf.cid.ContentAddressedIriGenerator}
  * defines the contract, {@link io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr} is its
