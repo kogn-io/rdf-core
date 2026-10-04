@@ -59,6 +59,7 @@ public interface DatasetMaintenance {
    *
    * @param id the dataset identifier; must not be {@code null}
    * @return what was done under {@code id}; never {@code null}
+   * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if {@code id} names an intact dataset
    * @throws RuntimeException if clearing the remains fails
    */
