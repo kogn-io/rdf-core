@@ -1190,6 +1190,58 @@ class DatasetLifecycleRdf4jTest {
       }
     }
 
+    @Test
+    @DisplayName("R2-1: an unreadable directory of an intact dataset is not read as new; acquire fails, data stays")
+    void acquire_unreadableIntactDataset_doesNotDeleteIt() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final AtomicInteger seeded = new AtomicInteger();
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (i, graphStore) -> {
+            seeded.incrementAndGet();
+            graphStore.add(GRAPH, singleTriple());
+          });
+      final DatasetId id = new DatasetId("intact");
+      lifecycle.acquire(id).close();
+      lifecycle.shutDownAll();
+      final Path datasetDir = onlyChild(root);
+      final List<Path> dataFiles;
+      try (Stream<Path> files = Files.list(datasetDir)) {
+        dataFiles = files.toList();
+      }
+      assertThat(dataFiles).isNotEmpty();
+      // the directory cannot be listed (no r), and the store files are unreadable so that init() fails too
+      final Set<PosixFilePermission> original = Files.getPosixFilePermissions(datasetDir);
+      final Map<Path, Set<PosixFilePermission>> originalFilePermissions = new HashMap<>();
+      for (final Path file : dataFiles) {
+        originalFilePermissions.put(file, Files.getPosixFilePermissions(file));
+        Files.setPosixFilePermissions(file, Set.of());
+      }
+      Files.setPosixFilePermissions(datasetDir, PosixFilePermissions.fromString("-wx------"));
+      try {
+        assumeFalse(Files.isReadable(datasetDir), "running with privileges that ignore directory permissions");
+
+        assertThatThrownBy(() -> lifecycle.acquire(id)).isInstanceOf(UncheckedIOException.class);
+      } finally {
+        Files.setPosixFilePermissions(datasetDir, original);
+        originalFilePermissions.forEach((file, permissions) -> {
+          try {
+            Files.setPosixFilePermissions(file, permissions);
+          } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        });
+      }
+
+      // the failed attempt neither deleted nor marked the intact dataset: once readable again, it opens
+      // as it was, without running onCreate a second time
+      assertThat(dataFiles).allSatisfy(file -> assertThat(file).exists());
+      assertThat(datasetDir.resolve(".deleting")).doesNotExist();
+      try (DatasetHandle ds = lifecycle.acquire(id)) {
+        assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+      }
+      assertThat(seeded).hasValue(1);
+    }
+
     private static Path onlyChild(final Path root) throws IOException {
       try (Stream<Path> children = Files.list(root)) {
         return children.filter(Files::isDirectory).findFirst().orElseThrow();
