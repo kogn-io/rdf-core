@@ -86,10 +86,12 @@ final class Preconditions {
 
   /**
    * Rejects a term that is no RDF 1.1 IRI, blank node or literal — an RDF 1.2 triple term, for
-   * instance, or any other kind the term model may be extended with — and an IRI string that
-   * starts with {@code _:}: no absolute IRI does, and the quad API would read it as a blank node.
+   * instance, or any other kind the term model may be extended with —, a string holding an
+   * unpaired surrogate, and an IRI string that starts with {@code _:}: no absolute IRI does, and
+   * the quad API would read it as a blank node.
    */
   private static void rejectUnsupportedTerms(String base, Collection<Triple> triples) {
+    requireCodePoints(base, "base IRI", "IRI string");
     triples.forEach(Preconditions::requireWellFormed);
     Stream.concat(Stream.of(base), triples.stream().flatMap(Preconditions::irisOf))
         .filter(iri -> iri.startsWith(Terms.BLANK_NODE_PREFIX))
@@ -112,10 +114,10 @@ final class Preconditions {
   }
 
   /**
-   * Rejects a null triple, a null term, and a term whose accessors return null where the term
-   * contract promises a value. Terms of foreign implementations can break the contract; the
-   * caller is told so with the failure code instead of a derivation failure caused by a
-   * {@link NullPointerException} deep inside.
+   * Rejects a null triple, a null term, a term whose accessors return null where the term
+   * contract promises a value, and a term holding a string with an unpaired surrogate. Terms of
+   * foreign implementations can break the contract; the caller is told so with the failure code
+   * instead of a derivation failure caused by a {@link NullPointerException} deep inside.
    */
   private static void requireWellFormed(Triple triple) {
     if (triple == null) {
@@ -131,13 +133,14 @@ final class Preconditions {
       throw failure(UNSUPPORTED_TERM, "A triple has a null " + position);
     }
     switch (term) {
-    case IRI iri -> requireValue(iri.getIRIString(), "IRI string", position, term);
-    case BlankNode blankNode -> requireValue(blankNode.uniqueReference(), "unique reference", position, term);
+    case IRI iri -> requireString(iri.getIRIString(), "IRI string", position, term);
+    case BlankNode blankNode -> requireString(blankNode.uniqueReference(), "unique reference", position, term);
     case Literal literal -> {
-      requireValue(literal.getLexicalForm(), "lexical form", position, term);
+      requireString(literal.getLexicalForm(), "lexical form", position, term);
       requireValue(literal.getLanguageTag(), "language tag Optional", position, term);
+      literal.getLanguageTag().ifPresent(tag -> requireCodePoints(tag, position, "language tag"));
       if (literal.getDatatype() != null) {
-        requireValue(literal.getDatatype().getIRIString(), "datatype IRI string", position, term);
+        requireString(literal.getDatatype().getIRIString(), "datatype IRI string", position, term);
       }
     }
     default -> {
@@ -149,6 +152,30 @@ final class Preconditions {
     if (value == null) {
       throw failure(UNSUPPORTED_TERM, "The " + position + " is a " + term.getClass().getName() + " without " + accessor
           + ", which the RDF 1.1 term contract requires");
+    }
+  }
+
+  private static void requireString(String value, String accessor, String position, RDFTerm term) {
+    requireValue(value, accessor, position, term);
+    requireCodePoints(value, position, accessor);
+  }
+
+  /**
+   * Rejects a string holding an unpaired surrogate. Such a string is no sequence of Unicode code
+   * points (ni-rdf/1 §1.2), so the term holding it is no RDF 1.1 term; UTF-8 encoding would turn
+   * the surrogate into {@code ?} and the name would collide with that of valid content.
+   */
+  private static void requireCodePoints(String value, String position, String accessor) {
+    for (int i = 0; i < value.length(); i++) {
+      char c = value.charAt(i);
+      if (Character.isHighSurrogate(c) && i + 1 < value.length() && Character.isLowSurrogate(value.charAt(i + 1))) {
+        i++;
+        continue;
+      }
+      if (Character.isSurrogate(c)) {
+        throw failure(UNSUPPORTED_TERM, "The " + accessor + " of the " + position + " holds an unpaired surrogate "
+            + String.format("U+%04X", (int) c) + " at index " + i + ", so it is no sequence of Unicode code points");
+      }
     }
   }
 
