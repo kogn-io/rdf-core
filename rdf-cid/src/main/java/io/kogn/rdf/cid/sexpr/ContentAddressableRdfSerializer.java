@@ -36,7 +36,9 @@ import io.kogn.rdf.terms.Triple;
  *   <li>the preconditions of §3 are checked in order — the graph describes exactly the
  *       resource the base IRI names: every IRI subject is the base IRI or a fragment IRI
  *       {@code <base#f>} of it, and every other triple is a blank node triple reachable from
- *       one of them;</li>
+ *       one of them; once condition 4 has found every term to be a well-formed RDF 1.1 term,
+ *       the terms are recreated through the term factory, so no later step depends on the
+ *       {@code equals} of a foreign term implementation;</li>
  *   <li>language tags are lower-cased (§4.1);</li>
  *   <li>the base IRI and its fragment IRIs are mapped, in every position including datatype
  *       IRIs, onto the reserved IRI {@value #RESERVED_IRI} and its fragment IRIs (§4.2), so
@@ -136,14 +138,51 @@ public class ContentAddressableRdfSerializer {
    *         (titanium-rdf-canon#65)
    */
   public ContentAddressableResult serializeWithIri(IRI base, Collection<Triple> triples) {
-    String baseIri = Preconditions.check(base, triples, RESERVED_IRI);
+    String baseIri = Preconditions.checkTerms(base, triples, RESERVED_IRI);
+    List<Triple> input = triples.stream().map(this::recreated).toList();
+    Preconditions.checkGraph(input, baseIri, RESERVED_IRI);
 
-    List<Triple> mapped = triples.stream().map(t -> mapped(t, baseIri)).distinct().toList();
+    List<Triple> mapped = input.stream().map(t -> mapped(t, baseIri)).distinct().toList();
     Map<String, String> labels = canonicalizer.canonicalIdentifiers(mapped);
     byte[] hashed = document(mapped, labels);
 
     String name = NI_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(sha3256(hashed));
     return new ContentAddressableResult(rdf.createIRI(name), hashed);
+  }
+
+  /**
+   * Recreates a triple of well-formed RDF 1.1 terms through the term factory, so deduplication
+   * (§4.2) and the conditions of §3 that compare terms rely on the factory's value-based
+   * {@code equals}, not on that of a foreign term implementation, which may break the contract.
+   */
+  private Triple recreated(Triple triple) {
+    BlankNodeOrIRI subject = switch (triple.getSubject()) {
+    case IRI iri -> recreated(iri);
+    case BlankNode blankNode -> recreated(blankNode);
+    default -> throw unsupportedKind(triple.getSubject());
+    };
+    RDFTerm object = switch (triple.getObject()) {
+    case IRI iri -> recreated(iri);
+    case BlankNode blankNode -> recreated(blankNode);
+    case Literal literal -> literal.getLanguageTag().isPresent()
+        ? rdf.createLiteral(literal.getLexicalForm(), literal.getLanguageTag().get())
+        : rdf.createLiteral(literal.getLexicalForm(), rdf.createIRI(Terms.datatypeOf(literal)));
+    default -> throw unsupportedKind(triple.getObject());
+    };
+    return rdf.createTriple(subject, recreated(triple.getPredicate()), object);
+  }
+
+  private IRI recreated(IRI iri) {
+    return rdf.createIRI(iri.getIRIString());
+  }
+
+  private BlankNode recreated(BlankNode blankNode) {
+    return rdf.createBlankNode(blankNode.uniqueReference());
+  }
+
+  /** A term kind §3 condition 4 has already rejected; reaching this is a bug, not a caller error. */
+  private static IllegalStateException unsupportedKind(RDFTerm term) {
+    return new IllegalStateException("Unsupported term kind: " + term.getClass());
   }
 
   /**
@@ -233,7 +272,7 @@ public class ContentAddressableRdfSerializer {
       writeString(out, KIND_BLANK);
       writeString(out, label);
     }
-    default -> throw new IllegalStateException("Unsupported term kind: " + term.getClass());
+    default -> throw unsupportedKind(term);
     }
   }
 
