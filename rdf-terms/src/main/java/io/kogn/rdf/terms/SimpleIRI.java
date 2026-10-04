@@ -3,6 +3,8 @@
 
 package io.kogn.rdf.terms;
 
+import java.util.Objects;
+
 /**
  * Simple value-based implementation of {@link IRI}.
  *
@@ -10,24 +12,32 @@ package io.kogn.rdf.terms;
  * on any specific RDF backend (RDF4J, Jena, etc.). It is used internally by
  * {@link SimpleRdf} and vocabulary constants.</p>
  *
- * @param iri the IRI string; must be non-null and non-empty
+ * @param iri the IRI string; must be non-null and absolute
  */
 public record SimpleIRI(String iri) implements IRI {
 
   /**
    * Validates the IRI string.
    *
-   * @throws IllegalArgumentException if {@code iri} is null or empty
+   * @throws NullPointerException if {@code iri} is {@code null}
+   * @throws IllegalArgumentException if {@code iri} is not an absolute IRI (empty, or without a {@code :})
    */
   public SimpleIRI {
-    if (iri == null || iri.isEmpty()) {
-      throw new IllegalArgumentException("IRI string must not be null or empty");
+    Objects.requireNonNull(iri, "iri must not be null");
+    if (iri.indexOf(':') < 0) {
+      throw new IllegalArgumentException("Not a valid (absolute) IRI: " + iri);
     }
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * @throws IllegalArgumentException if the IRI string contains a character the N-Triples {@code IRIREF}
+   *     production forbids (space and control characters, {@code <>"{}|^`\})
+   */
   @Override
   public String ntriplesString() {
-    return "<" + iri + ">";
+    return NTriples.iri(iri);
   }
 
   @Override

@@ -20,6 +20,10 @@ import io.kogn.rdf.terms.vocab.VocabRdf;
  */
 public class SimpleRdf implements RDF {
 
+  private static final String XSD_STRING = "http://www.w3.org/2001/XMLSchema#string";
+  private static final String LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString";
+  private static final String DIR_LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString";
+
   /** Creates a new {@code SimpleRdf} factory. */
   public SimpleRdf() {
   }
@@ -31,13 +35,13 @@ public class SimpleRdf implements RDF {
 
   @Override
   public Literal createLiteral(String lexicalForm) {
-    return new SimpleLiteral(lexicalForm, new SimpleIRI("http://www.w3.org/2001/XMLSchema#string"), null);
+    return new SimpleLiteral(lexicalForm, new SimpleIRI(XSD_STRING), null);
   }
 
   @Override
   public Literal createLiteral(String lexicalForm, String languageTag) {
-    return new SimpleLiteral(lexicalForm, new SimpleIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"),
-        languageTag);
+    Objects.requireNonNull(languageTag, "languageTag must not be null");
+    return new SimpleLiteral(lexicalForm, new SimpleIRI(LANG_STRING), languageTag);
   }
 
   @Override
@@ -89,8 +93,9 @@ public class SimpleRdf implements RDF {
   record SimpleBlankNode(String identifier) implements BlankNode {
 
     SimpleBlankNode {
-      if (identifier == null || identifier.isEmpty()) {
-        throw new IllegalArgumentException("BlankNode identifier must not be null or empty");
+      Objects.requireNonNull(identifier, "blank node identifier must not be null");
+      if (identifier.isEmpty()) {
+        throw new IllegalArgumentException("BlankNode identifier must not be empty");
       }
     }
 
@@ -101,7 +106,7 @@ public class SimpleRdf implements RDF {
 
     @Override
     public String ntriplesString() {
-      return "_:" + identifier;
+      return NTriples.blankNode(identifier);
     }
 
     @Override
@@ -120,11 +125,26 @@ public class SimpleRdf implements RDF {
 
     @Override
     public String toString() {
-      return ntriplesString();
+      return "_:" + identifier;
     }
   }
 
   record SimpleLiteral(String lexicalForm, IRI datatype, String langTag) implements Literal {
+
+    SimpleLiteral {
+      Objects.requireNonNull(lexicalForm, "lexicalForm must not be null");
+      Objects.requireNonNull(datatype, "datatype must not be null");
+      if (langTag != null && langTag.isEmpty()) {
+        throw new IllegalArgumentException("Language tag must not be empty");
+      }
+      if (langTag == null && requiresLanguageTag(datatype)) {
+        throw new IllegalArgumentException("Datatype " + datatype.getIRIString() + " requires a language tag");
+      }
+    }
+
+    private static boolean requiresLanguageTag(final IRI datatype) {
+      return LANG_STRING.equals(datatype.getIRIString()) || DIR_LANG_STRING.equals(datatype.getIRIString());
+    }
 
     @Override
     public String getLexicalForm() {
@@ -143,10 +163,7 @@ public class SimpleRdf implements RDF {
 
     @Override
     public String ntriplesString() {
-      if (langTag != null) {
-        return "\"" + lexicalForm + "\"@" + langTag;
-      }
-      return "\"" + lexicalForm + "\"^^<" + datatype.getIRIString() + ">";
+      return NTriples.literal(lexicalForm, datatype.getIRIString(), langTag);
     }
 
     @Override
@@ -166,11 +183,21 @@ public class SimpleRdf implements RDF {
 
     @Override
     public String toString() {
-      return ntriplesString();
+      try {
+        return ntriplesString();
+      } catch (IllegalArgumentException e) {
+        return "\"" + lexicalForm + "\"" + (langTag == null ? "^^" + datatype : "@" + langTag);
+      }
     }
   }
 
   record SimpleTriple(BlankNodeOrIRI subject, IRI predicate, RDFTerm object) implements Triple {
+
+    SimpleTriple {
+      Objects.requireNonNull(subject, "subject must not be null");
+      Objects.requireNonNull(predicate, "predicate must not be null");
+      Objects.requireNonNull(object, "object must not be null");
+    }
 
     @Override
     public BlankNodeOrIRI getSubject() {

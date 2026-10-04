@@ -10,6 +10,11 @@ import java.util.List;
  *
  * <p>This is the main entry point for creating RDF objects. Implementations
  * provide the concrete backend (e.g., RDF4J, Apache Jena).</p>
+ *
+ * <p>Every implementation rejects the same arguments the same way: {@code null} with a
+ * {@link NullPointerException}, an empty or malformed value with an {@link IllegalArgumentException}
+ * (see the {@code @throws} of each factory method). A test backend must not accept more than production.
+ * Whether a term can be written as N-Triples is checked by {@link RDFTerm#ntriplesString()}, not here.</p>
  */
 public interface RDF extends IRIFactory {
 
@@ -18,6 +23,8 @@ public interface RDF extends IRIFactory {
    *
    * @param iri the IRI string
    * @return the IRI instance
+   * @throws NullPointerException if {@code iri} is {@code null}
+   * @throws IllegalArgumentException if {@code iri} is not an absolute IRI (empty, or without a {@code :})
    */
   @Override
   IRI createIRI(String iri);
@@ -25,8 +32,9 @@ public interface RDF extends IRIFactory {
   /**
    * Creates a new literal with a string value.
    *
-   * @param lexicalForm the string value
+   * @param lexicalForm the string value; the empty string is allowed
    * @return the literal instance
+   * @throws NullPointerException if {@code lexicalForm} is {@code null}
    */
   Literal createLiteral(String lexicalForm);
 
@@ -36,6 +44,8 @@ public interface RDF extends IRIFactory {
    * @param lexicalForm the string value
    * @param languageTag the language tag (e.g., "en", "de")
    * @return the literal instance
+   * @throws NullPointerException if {@code lexicalForm} or {@code languageTag} is {@code null}
+   * @throws IllegalArgumentException if {@code languageTag} is empty
    */
   Literal createLiteral(String lexicalForm, String languageTag);
 
@@ -43,8 +53,12 @@ public interface RDF extends IRIFactory {
    * Creates a new typed literal.
    *
    * @param lexicalForm the string value
-   * @param datatype the datatype IRI
+   * @param datatype the datatype IRI; {@code rdf:langString} and {@code rdf:dirLangString} are rejected,
+   *     they need a language tag (see {@link #createLiteral(String, String)})
    * @return the literal instance
+   * @throws NullPointerException if {@code lexicalForm} or {@code datatype} is {@code null}
+   * @throws IllegalArgumentException if {@code datatype} is {@code rdf:langString} or
+   *     {@code rdf:dirLangString}
    */
   Literal createLiteral(String lexicalForm, IRI datatype);
 
@@ -64,6 +78,8 @@ public interface RDF extends IRIFactory {
    *
    * @param identifier the identifier
    * @return the blank node instance
+   * @throws NullPointerException if {@code identifier} is {@code null}
+   * @throws IllegalArgumentException if {@code identifier} is empty
    */
   BlankNode createBlankNode(String identifier);
 
@@ -74,6 +90,7 @@ public interface RDF extends IRIFactory {
    * @param predicate the predicate
    * @param object the object
    * @return the triple instance
+   * @throws NullPointerException if {@code subject}, {@code predicate} or {@code object} is {@code null}
    */
   Triple createTriple(BlankNodeOrIRI subject, IRI predicate, RDFTerm object);
 
