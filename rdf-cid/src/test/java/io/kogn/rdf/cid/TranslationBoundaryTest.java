@@ -91,6 +91,23 @@ class TranslationBoundaryTest {
   }
 
   @Test
+  @DisplayName("a literal whose datatype has no IRI string is rejected as an unsupported term")
+  void literalWithNullDatatypeIriString() {
+    IRI datatype = new IRI() {
+      @Override
+      public String getIRIString() {
+        return null;
+      }
+
+      @Override
+      public String ntriplesString() {
+        return "foreign";
+      }
+    };
+    assertUnsupported(triple(base, predicate, new ForeignLiteral("v", Optional.empty(), datatype)));
+  }
+
+  @Test
   @DisplayName("a blank node without unique reference is rejected as an unsupported term")
   void blankNodeWithNullUniqueReference() {
     BlankNode first = new ForeignBlankNode();
