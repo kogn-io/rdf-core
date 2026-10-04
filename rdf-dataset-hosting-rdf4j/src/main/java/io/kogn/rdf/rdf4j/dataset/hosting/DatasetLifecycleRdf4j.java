@@ -650,9 +650,21 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     throw new UncheckedIOException(new IOException("cannot tell whether " + marker + " exists"));
   }
 
+  /**
+   * Whether {@code dir} holds no dataset yet: absent, or readable and empty. A directory that
+   * cannot be read is neither — it may well hold an intact dataset — so this fails instead of
+   * answering "new", which would let a failed {@code init} roll back (delete) the dataset.
+   */
   private static boolean isNewStore(final File dir) {
-    final String[] entries = dir.list();
-    return entries == null || entries.length == 0;
+    final Path path = dir.toPath();
+    if (Files.notExists(path)) {
+      return true;
+    }
+    try (Stream<Path> entries = Files.list(path)) {
+      return entries.findAny().isEmpty();
+    } catch (final IOException e) {
+      throw new UncheckedIOException("cannot tell whether the dataset storage " + path + " is new", e);
+    }
   }
 
   /**
