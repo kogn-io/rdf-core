@@ -28,10 +28,10 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * The resource limit of ni-rdf/1 §4.3 end to end: the cost bound {@code E} of small graphs
- * worked out by hand from the formula {@code W_C · |C| · (|C|² + T_C)}, summed over components,
+ * The resource limit of ni-rdf/1 section 4.3 end to end: the cost bound {@code E} of small graphs
+ * worked out by hand from the formula {@code W_C * |C| * (|C|^2 + T_C)}, summed over components,
  * independent of input order and blank node labels, with the limit decided on the <em>mapped</em>
- * graph (§4.1, §4.2) through {@link ContentAddressableRdfSerializer}.
+ * graph (section 4.1, section 4.2) through {@link ContentAddressableRdfSerializer}.
  */
 class ResourceLimitEndToEndTest {
 
@@ -98,7 +98,7 @@ class ResourceLimitEndToEndTest {
   }
 
   @Test
-  @DisplayName("§4.2: \"v\"@EN and \"v\"@en on a blank node are one triple before the cost is estimated")
+  @DisplayName("section 4.2: \"v\"@EN and \"v\"@en on a blank node are one triple before the cost is estimated")
   void caseVariantsCollapseBeforeTheEstimate() {
     // 2 hubs with 8 children each, every child holding one literal: 4 per hub tagged EN, 4 tagged en.
     List<Triple> raw = hubsWithTaggedChildren("EN", "en");
@@ -106,7 +106,8 @@ class ResourceLimitEndToEndTest {
 
     // Taken as written the children split into two groups of four (hub orders 4! * 4!):
     assertThat(CanonicalizationCost.estimate(raw, LIMIT)).isEqualTo(BigInteger.valueOf(1_016_064L));
-    // Mapped (§4.1) they are eight identical children (hub orders 8!, |C| = 9, T = 17): 2 * 40320 * 9 * (81 + 17)
+    // Mapped (section 4.1) they are eight identical children (hub orders 8!, |C| = 9, T = 17): 2 * 40320 * 9 * (81 +
+    // 17)
     assertThat(CanonicalizationCost.estimate(lowerCased, LIMIT)).isEqualTo(BigInteger.valueOf(71_124_480L));
 
     assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
@@ -115,7 +116,7 @@ class ResourceLimitEndToEndTest {
   }
 
   @Test
-  @DisplayName("§4.2: triples that become equal through lower-casing count once in T_C")
+  @DisplayName("section 4.2: triples that become equal through lower-casing count once in T_C")
   void collapsedDuplicatesCountOnceInTheEstimate() {
     // 35 hubs of 6 children (E = 9 878 400); each of the first 24 hubs also holds "v"@EN and "v"@en.
     // Collapsed: one extra triple per such hub, 24 * 7 * 720 = 120 960 more: E = 9 999 360, within the limit.
@@ -132,7 +133,7 @@ class ResourceLimitEndToEndTest {
   }
 
   @Test
-  @DisplayName("§4.2: the two spellings of a tag on a blank node hash like the one triple")
+  @DisplayName("section 4.2: the two spellings of a tag on a blank node hash like the one triple")
   void collapsedTriplesHashLikeOne() {
     BlankNode child = rdf.createBlankNode("c");
     IRI label = rdf.createIRI(EX + "label");

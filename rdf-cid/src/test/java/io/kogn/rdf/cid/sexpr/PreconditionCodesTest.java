@@ -25,7 +25,7 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * The failure codes of ni-rdf/1 §5 and the order of the §3 checks, driven through
+ * The failure codes of ni-rdf/1 section 5 and the order of the section 3 checks, driven through
  * {@link ContentAddressableRdfSerializer#serializeWithIri}: which code is reported when
  * several conditions fail at once, and that every code comes with its documented type and
  * a {@code [CODE]} message prefix.
@@ -89,7 +89,8 @@ class PreconditionCodesTest {
     String withFragment = BASE + "#a";
     return Stream.of(
         // condition 1 against every later one
-        args("1+2: '#' in a base whose base is the reserved IRI", "INVALID_BASE", RESERVED + "#a", List.of(fine())),
+        args("1 alone: fragment of the reserved IRI as base is INVALID_BASE (1+2 cannot co-occur)", "INVALID_BASE",
+            RESERVED + "#a", List.of(fine())),
         args("1+3: '#' in the base, empty graph", "INVALID_BASE", withFragment, List.of()),
         args("1+4: '#' in the base, unsupported term", "INVALID_BASE", withFragment, List.of(blankNodeLookingIri())),
         args("1+5: '#' in the base, reserved IRI in graph", "INVALID_BASE", withFragment, List.of(reservedIri())),
@@ -127,7 +128,7 @@ class PreconditionCodesTest {
             List.of(foreignSubject(), blankSubjectOnly())),
         // condition 7 before 8: a graph without IRI subject is unreachable throughout
         args("7+8: no IRI subject, so nothing is reachable either", "NO_ROOT", BASE, List.of(blankSubjectOnly())),
-        // §3 before the resource limit of §4.3
+        // section 3 before the resource limit of section 4.3
         args("1+limit: '#' in the base, graph over the cost limit", "INVALID_BASE", withFragment, overLimit()),
         args("2+limit: reserved base, graph over the cost limit", "RESERVED_IRI", RESERVED, overLimit()),
         args("4+limit: unsupported term, graph over the cost limit", "UNSUPPORTED_TERM", BASE,
@@ -170,13 +171,13 @@ class PreconditionCodesTest {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("doubleViolations")
-  @DisplayName("when several conditions fail, the first one in the order of §3 is reported")
+  @DisplayName("when several conditions fail, the first one in the order of section 3 is reported")
   void firstFailingConditionIsReported(String name, String code, String base, List<Triple> triples) {
     assertThatThrownBy(() -> serializer.serializeWithIri(iri(base), triples)).as(name)
         .hasMessageStartingWith("[" + code + "]");
   }
 
-  /** Every code of §5 with a way to provoke it alone, and the type its failure must have. */
+  /** Every code of section 5 with a way to provoke it alone, and the type its failure must have. */
   static Stream<Arguments> everyCode() {
     return Stream.of(code("INVALID_BASE", BASE + "#a", List.of(fine()), IllegalArgumentException.class),
         code("RESERVED_IRI", RESERVED, List.of(fine()), IllegalArgumentException.class),
@@ -196,14 +197,14 @@ class PreconditionCodesTest {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("everyCode")
-  @DisplayName("every §5 code is thrown with its documented type and starts the message in brackets")
+  @DisplayName("every section 5 code is thrown with its documented type and starts the message in brackets")
   void everyCodeHasItsTypeAndPrefix(String code, String base, List<Triple> triples, Class<? extends Throwable> type) {
     assertThatThrownBy(() -> serializer.serializeWithIri(iri(base), triples)).isExactlyInstanceOf(type)
         .hasMessageStartingWith("[" + code + "] ");
   }
 
   @Test
-  @DisplayName("the provoked codes are exactly the eight codes of §5")
+  @DisplayName("the provoked codes are exactly the eight codes of section 5")
   void allEightCodesAreCovered() {
     List<String> provoked = everyCode().map(a -> (String) a.get()[0]).distinct().toList();
 
