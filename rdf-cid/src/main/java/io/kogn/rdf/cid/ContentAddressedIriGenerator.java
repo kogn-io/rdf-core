@@ -82,12 +82,16 @@ public interface ContentAddressedIriGenerator {
    *
    * <p><strong>Valid RDF 1.1 is assumed.</strong> The method checks the conditions above, not
    * that every IRI is absolute or every term well-formed; for input that is not valid RDF 1.1
-   * ni-rdf/1 defines no result. Exceptions thrown by the supplied {@link ReadableGraph}, or by
-   * the term factory when the implementation builds its mapped terms (for instance for a
-   * datatype IRI the factory rejects as not absolute), pass through untranslated. The
-   * {@code [CODE]} prefix marks the failures of the specification's §5 only: an
-   * {@link IllegalArgumentException} without it is a {@code null} argument or such a factory
-   * rejection, not a precondition failure.</p>
+   * ni-rdf/1 defines no result. Where a term of a foreign implementation breaks the RDF 1.1
+   * term contract in a way the method can see (a {@code null} triple or term, a {@code null}
+   * IRI string, blank node reference or lexical form), it is rejected with
+   * {@code [UNSUPPORTED_TERM]}. Any other exception raised while reading the graph or its
+   * terms, and any raised by the term factory when it builds the mapped terms (for instance
+   * {@link IllegalArgumentException} for a datatype IRI the factory rejects as not absolute),
+   * passes through untranslated. The {@code [CODE]} prefix marks the failures of the
+   * specification's §5 only: an {@link IllegalArgumentException} without it is a {@code null}
+   * argument or a rejection by the graph or the term factory, not a precondition failure. A
+   * failure of the canonicalization itself is a {@link ContentAddressingException}.</p>
    *
    * <p><strong>Not every graph meeting those preconditions gets an identifier.</strong>
    * RDFC-1.0 runs in factorial time on blank nodes it cannot tell apart by their own triples
