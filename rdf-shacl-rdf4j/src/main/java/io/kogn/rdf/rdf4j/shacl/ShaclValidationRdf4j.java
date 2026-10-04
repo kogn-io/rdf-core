@@ -153,9 +153,10 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
   private static final List<IRI> LIST_PARAMETERS = List.of(SHACL.IN, SHACL.LANGUAGE_IN, SHACL.AND, SHACL.OR, SHACL.XONE,
       SHACL.IGNORED_PROPERTIES, SHACL.ALTERNATIVE_PATH, DASH.hasValueIn);
 
-  /** RDF4J's value for "no limit" on the number of validation results. */
+  /** Term factory for the port-side result terms. */
   private static final SimpleRdf TERMS = new SimpleRdf();
 
+  /** RDF4J's value for "no limit" on the number of validation results. */
   private static final long NO_LIMIT = -1;
 
   /** Path operators whose operand is itself a path expression. */
@@ -447,11 +448,13 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
    * operators are parenthesized wherever precedence requires it, so the output parses
    * back to the same path.
    */
-  private static String toPropertyPath(Model model, Value path) {
+  static String toPropertyPath(Model model, Value path) {
     if (path instanceof IRI iri) {
       return "<" + iri.stringValue() + ">";
     }
-    Resource node = (Resource) path;
+    if (!(path instanceof Resource node)) {
+      throw new IllegalStateException("sh:resultPath value is a literal, not a path expression: " + path);
+    }
     Optional<Value> inverse = firstObject(model, node, SHACL.INVERSE_PATH);
     if (inverse.isPresent()) {
       return "^" + operand(model, inverse.get());
@@ -473,21 +476,22 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     if (zeroOrOne.isPresent()) {
       return operand(model, zeroOrOne.get()) + "?";
     }
-    return String.join("/", listItems(model, node).stream().map(item -> sequenceItem(model, item)).toList());
+    List<Value> items = listItems(model, node);
+    if (items.isEmpty()) {
+      throw new IllegalStateException(
+          "sh:resultPath node " + node + " is neither a known path expression nor a non-empty list");
+    }
+    return String.join("/", items.stream().map(item -> sequenceItem(model, item)).toList());
   }
 
   private static String operand(Model model, Value path) {
     String rendered = toPropertyPath(model, path);
-    return path instanceof IRI || isInverse(model, path) ? rendered : "(" + rendered + ")";
+    return path instanceof IRI ? rendered : "(" + rendered + ")";
   }
 
   private static String sequenceItem(Model model, Value path) {
     String rendered = toPropertyPath(model, path);
     return isAlternative(model, path) ? "(" + rendered + ")" : rendered;
-  }
-
-  private static boolean isInverse(Model model, Value path) {
-    return path instanceof Resource node && firstObject(model, node, SHACL.INVERSE_PATH).isPresent();
   }
 
   private static boolean isAlternative(Model model, Value path) {
