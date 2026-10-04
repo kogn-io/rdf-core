@@ -44,9 +44,9 @@ final class Preconditions {
   /**
    * Checks every precondition of ni-rdf/1 §3.
    *
-   * @param base the base IRI {@code B}
-   * @param triples the graph {@code G}
-   * @param reserved the reserved IRI {@code R}
+   * @param base the base IRI
+   * @param triples the input graph
+   * @param reserved the reserved IRI
    * @return the IRI string of {@code base}
    * @throws IllegalArgumentException if {@code base} or {@code triples} is null, or for the
    *         first precondition that does not hold

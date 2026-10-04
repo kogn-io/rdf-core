@@ -37,7 +37,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Runs every test vector of the specification ni-rdf/1 ({@code docs/spec/ni-rdf/vectors/v1.json})
  * against {@link ContentAddressedIriGeneratorSexpr}: a vector expects either the name and the
- * hashed input {@code D}, or the failure code the message starts with.
+ * hashed input, or the failure code the message starts with.
  */
 class NiRdfVectorsTest {
 
