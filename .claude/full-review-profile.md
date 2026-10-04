@@ -151,7 +151,7 @@ New traps and rules:
 First audit of `rdf-cid` on the ni-rdf/1 state (after #142). Two reviewers (spec conformance
 clause by clause; hostile input, cost bound, exception translation, foreign term
 implementations), each finding list re-verified by a fresh adversarial verifier with its own
-repro. Result: 1 P1 (#172, a 0.4.0 blocker at the time, since fixed by #185 and #187) and 7 P3 (#173, #174); orchestration in #175.
+repro. Result: 1 P1 (#172, a 0.4.0 blocker at the time, since fixed by #185 and #187) and 7 P3 (#173, #174, both since closed); orchestration in #175.
 
 | Sweep | Found |
 |---|---|
