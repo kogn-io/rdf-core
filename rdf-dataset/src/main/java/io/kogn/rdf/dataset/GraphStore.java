@@ -109,11 +109,11 @@ public interface GraphStore {
    * default graph.
    *
    * <p>Shares the exactness behavior of {@link #count(IRI)}.</p>
-  *
-  * <p>Despite its description this count is not the sum of {@link #count(IRI)} over the named
-  * graphs: it also includes triples in the store's default graph, which no named-graph
-  * operation of this port can address (see {@link SparqlUpdate} for how they get there). A
-  * store with such statements reports a larger value than the sum.</p>
+   *
+   * <p>This count is therefore not the sum of {@link #count(IRI)} over the named
+   * graphs: it also includes triples in the store's default graph, which no named-graph
+   * operation of this port can address (see {@link SparqlUpdate} for how they get there). A
+   * store with such statements reports a larger value than the sum.</p>
    *
    * @return total triple count
    */
