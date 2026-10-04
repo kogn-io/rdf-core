@@ -116,6 +116,25 @@ class TranslationBoundaryTest {
   }
 
   @Test
+  @DisplayName("a base IRI without IRI string is rejected as an unsupported term")
+  void baseWithNullIriString() {
+    IRI foreign = new IRI() {
+      @Override
+      public String getIRIString() {
+        return null;
+      }
+
+      @Override
+      public String ntriplesString() {
+        return "foreign";
+      }
+    };
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> generator.generateIri(foreign, graphOf(triple(base, predicate, rdf.createLiteral("v")))))
+        .withMessageStartingWith(UNSUPPORTED_TERM);
+  }
+
+  @Test
   @DisplayName("an unsupported subject kind next to a lone-surrogate literal is still reported with its code")
   void unsupportedKindBesideLoneSurrogateLiteral() {
     BlankNodeOrIRI unknownKind = () -> "unsupported";

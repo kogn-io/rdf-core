@@ -59,6 +59,10 @@ final class Preconditions {
       throw new IllegalArgumentException("Graph cannot be null");
     }
     String baseIri = base.getIRIString();
+    if (baseIri == null) {
+      throw failure(UNSUPPORTED_TERM, "The base IRI is a " + base.getClass().getName() + " without IRI string, "
+          + "which the RDF 1.1 term contract requires");
+    }
     if (baseIri.indexOf(FRAGMENT_SEPARATOR) >= 0) {
       throw failure(INVALID_BASE,
           "A base IRI names the resource as a whole and carries no #fragment, but got <" + baseIri + ">");
