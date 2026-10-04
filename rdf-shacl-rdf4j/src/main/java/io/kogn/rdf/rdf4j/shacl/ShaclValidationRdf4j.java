@@ -461,8 +461,11 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     }
     Optional<Value> alternative = firstObject(model, node, SHACL.ALTERNATIVE_PATH);
     if (alternative.isPresent()) {
-      return String.join("|",
-          listItems(model, alternative.get()).stream().map(item -> toPropertyPath(model, item)).toList());
+      List<Value> alternatives = listItems(model, alternative.get());
+      if (alternatives.isEmpty()) {
+        throw new IllegalStateException("sh:alternativePath of node " + node + " is an empty list");
+      }
+      return String.join("|", alternatives.stream().map(item -> toPropertyPath(model, item)).toList());
     }
     Optional<Value> zeroOrMore = firstObject(model, node, SHACL.ZERO_OR_MORE_PATH);
     if (zeroOrMore.isPresent()) {
