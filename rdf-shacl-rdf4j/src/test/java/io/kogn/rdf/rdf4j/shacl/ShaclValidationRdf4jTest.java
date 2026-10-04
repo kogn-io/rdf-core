@@ -811,6 +811,52 @@ class ShaclValidationRdf4jTest {
     assertThat(shutDown).isTrue();
   }
 
+  @Test
+  @Timeout(value = LIST_GUARD_TIMEOUT_SECONDS, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+  void cyclicPathExpressionSurfacesAsTheNeutralValidationException() {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    BlankNode property = rdf.createBlankNode();
+    BlankNode path = rdf.createBlankNode();
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(personShape, sh("property"), property);
+    shapes.add(property, sh("path"), path);
+    shapes.add(path, sh("inversePath"), path);
+    shapes.add(property, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+
+    assertThatThrownBy(() -> validation.validate(data, shapes, ValidationOptions.defaults()))
+        .isInstanceOf(ShaclValidationException.class)
+        .hasMessageContaining("cyclic path");
+  }
+
+  @Test
+  void pathExpressionSharedByTwoPropertyShapesIsNoCycle() {
+    Graph shapes = rdf.createGraph();
+    IRI personShape = ex("PersonShape");
+    BlankNode sharedPath = rdf.createBlankNode();
+    shapes.add(personShape, a(), sh("NodeShape"));
+    shapes.add(personShape, sh("targetClass"), ex("Person"));
+    shapes.add(sharedPath, sh("inversePath"), ex("knows"));
+    for (int i = 0; i < 2; i++) {
+      BlankNode property = rdf.createBlankNode();
+      shapes.add(personShape, sh("property"), property);
+      shapes.add(property, sh("path"), sharedPath);
+      shapes.add(property, sh("minCount"), rdf.createLiteral("1", xsdInteger()));
+    }
+
+    Graph data = rdf.createGraph();
+    data.add(ex("bob"), a(), ex("Person"));
+    data.add(ex("alice"), ex("knows"), ex("bob"));
+
+    ShaclReport report = validation.validate(data, shapes, ValidationOptions.defaults());
+
+    assertThat(report.conforms()).isTrue();
+  }
+
   private void assertShapesStillApply(Graph shapes) {
     Graph data = rdf.createGraph();
     data.add(ex("bob"), a(), ex("Person"));
