@@ -82,11 +82,16 @@ free of dependencies is a deliberate design goal
 ([ADR-0002](docs/adr/0002-terms-dependency-free-data-model.md)).
 
 The two `RDF` implementations, the dependency-free `SimpleRdf` and the RDF4J
-backend, hold one term contract: both reject the same invalid input (relative
-IRIs, `null`, unserializable IRIs, language tags and blank node labels), and
-`ntriplesString()` emits the same RDF 1.1 N-Triples in both, escaped, so a
-consumer that writes N-Triples from it gets valid output whichever backend
-produced the term. `SimpleRdf` is therefore no longer a lenient test double:
+backend, hold one term contract in two places. Creation rejects the arguments
+the `@throws` of the `RDF` factory methods list (`null`, IRIs that are not
+absolute, empty language tags and blank node labels, `rdf:langString` and
+`rdf:dirLangString` as a plain datatype). `ntriplesString()` throws
+`IllegalArgumentException` for a term it cannot write as N-Triples (an IRI with
+a forbidden character, a malformed language tag or blank node label, an
+unpaired UTF-16 surrogate), and otherwise emits the same RDF 1.1 N-Triples in
+both, escaped, so a consumer that writes N-Triples from it gets valid output
+whichever backend produced the term. `SimpleRdf` is therefore no longer a
+lenient test double:
 code that passes against it does not fail on the RDF4J backend for input
 validity. One gap remains: `RDF4JFactory.createBlankNode` still accepts `null`
 and the empty label, which `SimpleRdf` rejects.
