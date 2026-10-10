@@ -53,10 +53,12 @@ public interface DatasetExport {
    * {@link #export(OutputStream, RdfFormat, IRI)} nor {@link GraphStore#export(IRI)} can
    * address a default graph, since both require a named-graph {@link IRI}.</p>
    *
-   * <p>This port makes no promise about RDF 1.2 triple terms, which a SPARQL update can store but
-   * the port data model cannot represent: unlike {@link GraphStore#export(IRI)}, it does not
-   * guarantee an {@link IllegalStateException} for such content, so a document produced from a
-   * store that holds one must not be assumed to be free of it or to be faithful to it.</p>
+   * <p>This port checks nothing against the RDF 1.1 data model (see {@link io.kogn.rdf.terms})
+   * and writes the store's content as it is. Under that precondition the document is RDF 1.1.
+   * If the store holds an RDF 1.2 triple term, which a SPARQL update stores unchecked, the
+   * document carries it in RDF 1.2 syntax, which an RDF 1.1-only reader does not understand;
+   * unlike {@link GraphStore#export(IRI)}, this port throws no {@link IllegalStateException} for
+   * such content.</p>
    *
    * <p>An empty dataset yields a document with no statements; depending on the format
    * that document may still carry a preamble such as namespace declarations.</p>
