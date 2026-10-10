@@ -87,8 +87,9 @@ public interface GraphStore {
    *
    * <p>Returns an empty graph if the named graph does not exist or is empty.</p>
    *
-   * <p>The graph is rejected, not truncated, if the store holds an RDF 1.2 triple term: a
-   * SPARQL update (see {@link SparqlUpdate}) can store one, the data model cannot represent it.</p>
+   * <p>The graph is rejected, not truncated, if the store holds an RDF 1.2 triple term, which
+   * lies outside the RDF 1.1 data model (see {@link io.kogn.rdf.terms}); a SPARQL update (see
+   * {@link SparqlUpdate}) stores one unchecked.</p>
    *
    * @param namedGraph IRI identifying the named graph to export; must not be {@code null}
    * @return a snapshot of all triples in the named graph

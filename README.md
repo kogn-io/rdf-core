@@ -27,6 +27,25 @@ These modules were extracted from a larger RDF stack; the `io.kogn.*` group id
 reflects that origin. The library itself is deliberately framework- and
 application-agnostic, with no ties to any specific product.
 
+## Data model: RDF 1.1
+
+The data model is [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/). The RDF 1.2
+extensions have no representation in `rdf-terms`:
+
+- triple terms `<<( s p o )>>`, including the ones the reification syntax
+  `<< s p o >>` produces;
+- directional language strings (`"…"@en--ltr`, `rdf:dirLangString`).
+
+A backend store may still accept such content. Keeping it out of the store is
+the caller's responsibility, not something the ports check on write; each
+implementation states what it enforces when it meets some. The `rdf-terms`
+factories reject `rdf:dirLangString` as a plain datatype. The read paths that
+convert into the data model — `GraphStore#export`, `SparqlQuery#select` and
+`#construct`, the same operations on `DatasetTx` — reject an RDF 1.2 triple term
+with an `IllegalStateException`. A SPARQL update that stores one is not
+rejected, and `DatasetExport` writes the store's content as it is, in RDF 1.2
+syntax if the store holds such a term.
+
 ## Consuming snapshots
 
 Releases (`vX.Y.Z`) are published to Maven Central and need no extra

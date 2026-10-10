@@ -483,6 +483,10 @@ and [CONTRIBUTING](CONTRIBUTING.md) for the day-to-day commands.
 ## Non-goals
 
 - No default graph / full RDF 1.1 dataset semantics (see above).
+- No RDF 1.2 extensions: the data model is RDF 1.1. Triple terms and
+  directional language strings have no representation; keeping them out of a
+  store is the caller's job, the read paths reject a triple term they meet, and
+  `DatasetExport` writes whatever the store holds.
 - No SPARQL `DESCRIBE`.
 - No object mapping, and no general reasoning or inference layer — this is a
   data-model and store-access abstraction, not a framework. The one exception is
