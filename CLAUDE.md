@@ -7,7 +7,7 @@ swappable RDF4J backend. Published under Apache-2.0.
 
 | Directory | Artifact | Role |
 |---|---|---|
-| `rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF data model (term interfaces, graph types, vocab). **Library-free** — no external dependencies. |
+| `rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF data model (term interfaces, graph types, vocab); **RDF 1.1** — the RDF 1.2 extensions (triple terms, directional language strings) have no representation, keeping them out of a store is the caller's job. **Library-free** — no external dependencies. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Backend-agnostic dataset content ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetExport` (serialize the dataset or one named graph to a stream, in an `RdfFormat`; non-transactional, see ADR-0013), `DatasetTransactor`, `DatasetTx`. Nothing here presumes the library hosts the store. |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the dataset content ports — store-agnostic wrappers over a caller-supplied `Repository`. |
 | `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` (open-or-create/close/delete/list/shut down all by opaque `DatasetId`, lease-protected; `acquire` returns a leased `DatasetHandle` — an access handle, not an RDF dataset), with `DatasetStoreConfig`; `DatasetMaintenance` (enumerate/clear the remains of a failed delete, never an intact dataset — a port of its own so `DatasetLifecycle` stays unchanged, ADR-0018) beside it. Depends on `rdf-dataset` for the content ports the handle exposes. |

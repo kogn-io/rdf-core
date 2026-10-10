@@ -36,10 +36,11 @@ import io.kogn.rdf.terms.RDFTerm;
  * backend. A graph-less delete aimed at one named graph therefore silently removes the same
  * triple from all the others.</p>
  *
- * <p><strong>RDF 1.2 triple terms.</strong> An update can store an RDF 1.2 triple term, which
- * the port data model cannot represent; the update itself is not rejected. Reading such
- * content back through {@link GraphStore#export(io.kogn.rdf.terms.IRI)} or {@link SparqlQuery}
- * fails with an {@link IllegalStateException}.</p>
+ * <p><strong>Content outside the RDF 1.1 data model is not checked.</strong> Keeping the store
+ * within the data model (see {@link io.kogn.rdf.terms}) is the caller's responsibility: an
+ * update that stores an RDF 1.2 triple term is not rejected. Reading such content back through
+ * {@link GraphStore#export(io.kogn.rdf.terms.IRI)} or {@link SparqlQuery} fails with an
+ * {@link IllegalStateException}; {@link DatasetExport} writes it out as it is.</p>
  */
 public interface SparqlUpdate {
 

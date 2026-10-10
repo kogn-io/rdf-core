@@ -6,6 +6,16 @@
  * <a href="https://commons.apache.org/proper/commons-rdf/apidocs/org/apache/commons/rdf/api/package-summary.html">Apache Commons RDF API</a>
  * but without any dependency on that library or any other framework.</p>
  *
+ * <h2>RDF 1.1</h2>
+ * <p>The data model is <a href="https://www.w3.org/TR/rdf11-concepts/">RDF 1.1</a>. The RDF 1.2
+ * extensions have no representation here: triple terms ({@code <<( s p o )>>}, including the
+ * ones the reification syntax {@code << s p o >>} produces) and directional language strings
+ * ({@code "…"@en--ltr}, {@code rdf:dirLangString}). A backend store may still accept such
+ * content. Keeping it out of the store is the caller's responsibility, not something the ports
+ * check on write; each implementation states what it enforces when it meets some. The factories
+ * of this module reject {@code rdf:dirLangString} as a plain datatype, see
+ * {@link io.kogn.rdf.terms.RDF#createLiteral(String, io.kogn.rdf.terms.IRI)}.</p>
+ *
  * <h2>Term types</h2>
  * <ul>
  *   <li>{@link io.kogn.rdf.terms.RDFTerm} — common supertype of all RDF terms</li>
