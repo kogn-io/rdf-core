@@ -15,6 +15,10 @@
  *   <li>{@link io.kogn.rdf.versioning.DraftSlice} and
  *       {@link io.kogn.rdf.versioning.RevisionToken} — a proxy IRI's draft slice and
  *       the opaque token for its next write</li>
+ *   <li>{@link io.kogn.rdf.versioning.PublishResult} and
+ *       {@link io.kogn.rdf.versioning.PublishDetails} — what a publish returns (the
+ *       history entry and next token of each proxy IRI) and the optional creator and
+ *       comment it records</li>
  *   <li>{@link io.kogn.rdf.versioning.RevisionConflictException} and
  *       {@link io.kogn.rdf.versioning.AmbiguousBlankNodeException} — a stale token; a
  *       blank node shared by two slices</li>
