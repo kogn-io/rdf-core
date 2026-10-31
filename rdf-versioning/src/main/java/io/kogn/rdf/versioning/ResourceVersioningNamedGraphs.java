@@ -4,10 +4,13 @@
 package io.kogn.rdf.versioning;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -199,6 +202,114 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return new PublishResult(entries, tokens);
   }
 
+  @Override
+  public ReadableGraph readPublished(final DatasetTx tx, final IRI proxyIri) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(proxyIri);
+    bindContentGraph(tx);
+    return sliceOf(tx.export(VersioningGraphs.PUBLISHED), proxyIri);
+  }
+
+  @Override
+  public Optional<ReadableGraph> readVersion(final DatasetTx tx, final IRI cid) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(cid);
+    bindContentGraph(tx);
+    return versionOf(tx, cid);
+  }
+
+  @Override
+  public Optional<ReadableGraph> readVersion(final DatasetTx tx, final IRI proxyIri, final long sequence) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(proxyIri);
+    if (sequence < 1) {
+      throw new IllegalArgumentException("sequence must be at least 1: " + sequence);
+    }
+    bindContentGraph(tx);
+    return entriesOf(tx, proxyIri).stream()
+        .filter(entry -> entry.sequence() == sequence)
+        .findFirst()
+        .flatMap(entry -> versionOf(tx, entry.content()));
+  }
+
+  @Override
+  public List<HistoryEntry> history(final DatasetTx tx, final IRI proxyIri) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(proxyIri);
+    bindContentGraph(tx);
+    final List<StoredEntry> entries = entriesOf(tx, proxyIri);
+    if (entries.isEmpty()) {
+      return List.of();
+    }
+    final ReadableGraph history = tx.export(VersioningGraphs.HISTORY);
+    return entries.stream().map(entry -> describe(history, entry)).toList();
+  }
+
+  @Override
+  public PublishState publishState(final DatasetTx tx, final IRI proxyIri) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(proxyIri);
+    bindContentGraph(tx);
+    final Optional<StoredEntry> last = lastEntry(tx, proxyIri);
+    if (last.isEmpty()) {
+      return PublishState.NEVER_PUBLISHED;
+    }
+    final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
+    if (slice.isEmpty()) {
+      return PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES;
+    }
+    return isUnchanged(last, generator.generateIri(proxyIri, slice))
+        ? PublishState.PUBLISHED_UNCHANGED
+        : PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES;
+  }
+
+  private static Optional<ReadableGraph> versionOf(final DatasetTx tx, final IRI cid) {
+    final Graph version = sliceOf(tx.export(VersioningGraphs.CONTENT_STORE), cid);
+    return version.isEmpty() ? Optional.empty() : Optional.of(version);
+  }
+
+  private static HistoryEntry describe(final ReadableGraph history, final StoredEntry stored) {
+    final RDFTerm created = single(history, stored.iri(), VocabDct.CREATED);
+    final Instant instant;
+    try {
+      if (!(created instanceof Literal literal && VocabXsd.DATETIME.equals(literal.getDatatype()))) {
+        throw new IllegalStateException("malformed history entry " + stored.iri().ntriplesString());
+      }
+      instant = Instant.parse(literal.getLexicalForm());
+    } catch (final DateTimeParseException e) {
+      throw new IllegalStateException("malformed history entry " + stored.iri().ntriplesString(), e);
+    }
+    final Optional<IRI> creator = optional(history, stored.iri(), VocabDct.CREATOR)
+        .map(term -> asIri(term, stored.iri()));
+    final Optional<String> comment = optional(history, stored.iri(), VocabDct.DESCRIPTION)
+        .map(term -> asLexicalForm(term, stored.iri()));
+    return new HistoryEntry(stored.iri(), stored.sequence(), stored.content(), stored.procedure(), instant, creator,
+        comment);
+  }
+
+  private static Optional<RDFTerm> optional(final ReadableGraph history, final IRI entry, final IRI predicate) {
+    final List<RDFTerm> found = history.stream(entry, predicate, null).map(Triple::getObject).toList();
+    if (found.size() > 1) {
+      throw new IllegalStateException(
+          "history entry " + entry.ntriplesString() + " holds " + found.size() + " " + predicate.ntriplesString());
+    }
+    return found.stream().findFirst();
+  }
+
+  private static IRI asIri(final RDFTerm term, final IRI entry) {
+    if (term instanceof IRI iri) {
+      return iri;
+    }
+    throw new IllegalStateException("malformed history entry " + entry.ntriplesString());
+  }
+
+  private static String asLexicalForm(final RDFTerm term, final IRI entry) {
+    if (term instanceof Literal literal) {
+      return literal.getLexicalForm();
+    }
+    throw new IllegalStateException("malformed history entry " + entry.ntriplesString());
+  }
+
   /** Everything read and derived for one proxy IRI; nothing is written while planning. */
   private PublishPlan planPublish(final DatasetTx tx, final RevisionToken token) {
     final IRI proxyIri = token.proxyIri();
@@ -209,10 +320,8 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     }
     final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
     final IRI cid = generator.generateIri(proxyIri, slice);
-    final Optional<HistoryEntry> last = lastEntry(tx, proxyIri);
-    final boolean unchanged = last.isPresent() && last.get().content().equals(cid)
-        && last.get().procedure().equals(generator.procedureTag());
-    return new PublishPlan(token, current, counter, slice, cid, last, unchanged);
+    final Optional<StoredEntry> last = lastEntry(tx, proxyIri);
+    return new PublishPlan(token, current, counter, slice, cid, last, isUnchanged(last, cid));
   }
 
   private IRI apply(final DatasetTx tx, final PublishPlan plan, final PublishDetails details) {
@@ -261,32 +370,44 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return tx.contains(VersioningGraphs.CONTENT_STORE, subject, null, null);
   }
 
+  /** Whether the latest entry names this CID, derived by the procedure in use. */
+  private boolean isUnchanged(final Optional<StoredEntry> last, final IRI cid) {
+    return last.isPresent() && last.get().content().equals(cid)
+        && last.get().procedure().equals(generator.procedureTag());
+  }
+
   /** The entry with the highest sequence number of the proxy IRI, if it has any. */
-  private static Optional<HistoryEntry> lastEntry(final DatasetTx tx, final IRI proxyIri) {
+  private static Optional<StoredEntry> lastEntry(final DatasetTx tx, final IRI proxyIri) {
+    final List<StoredEntry> entries = entriesOf(tx, proxyIri);
+    return entries.isEmpty() ? Optional.empty() : Optional.of(entries.getLast());
+  }
+
+  /** All entries of the proxy IRI by ascending sequence number, checked to be gapless from 1. */
+  private static List<StoredEntry> entriesOf(final DatasetTx tx, final IRI proxyIri) {
     if (!tx.contains(VersioningGraphs.HISTORY, proxyIri, VocabVersioning.ENTRY, null)) {
-      return Optional.empty();
+      return List.of();
     }
     final ReadableGraph history = tx.export(VersioningGraphs.HISTORY);
     final List<RDFTerm> linked = history.stream(proxyIri, VocabVersioning.ENTRY, null).map(Triple::getObject).toList();
-    HistoryEntry last = null;
+    final List<StoredEntry> entries = new ArrayList<>();
     for (final RDFTerm term : linked) {
       if (!(term instanceof IRI entry)) {
         throw new IllegalStateException(
             "entry of " + proxyIri.ntriplesString() + " is not an IRI: " + term.ntriplesString());
       }
-      final HistoryEntry read = readEntry(history, entry);
-      if (last == null || read.sequence() > last.sequence()) {
-        last = read;
+      entries.add(readEntry(history, entry));
+    }
+    entries.sort(Comparator.comparingLong(StoredEntry::sequence));
+    for (int i = 0; i < entries.size(); i++) {
+      if (entries.get(i).sequence() != i + 1) {
+        throw new IllegalStateException("history of " + proxyIri.ntriplesString() + " is not gapless: " + linked.size()
+            + " entries, sequence numbers " + entries.stream().map(StoredEntry::sequence).toList());
       }
     }
-    if (last.sequence() != linked.size()) {
-      throw new IllegalStateException("history of " + proxyIri.ntriplesString() + " is not gapless: " + linked.size()
-          + " entries, highest sequence number " + last.sequence());
-    }
-    return Optional.of(last);
+    return entries;
   }
 
-  private static HistoryEntry readEntry(final ReadableGraph history, final IRI entry) {
+  private static StoredEntry readEntry(final ReadableGraph history, final IRI entry) {
     final RDFTerm sequence = single(history, entry, VocabVersioning.SEQUENCE);
     final RDFTerm content = single(history, entry, VocabVersioning.CONTENT);
     final RDFTerm procedure = single(history, entry, VocabVersioning.PROCEDURE);
@@ -295,7 +416,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       try {
         final long number = Long.parseLong(literal.getLexicalForm());
         if (number >= 1) {
-          return new HistoryEntry(entry, number, contentIri, tag.getLexicalForm());
+          return new StoredEntry(entry, number, contentIri, tag.getLexicalForm());
         }
       } catch (final NumberFormatException e) {
         // falls through to the malformed-entry error
@@ -350,11 +471,11 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return copy;
   }
 
-  private record HistoryEntry(IRI iri, long sequence, IRI content, String procedure) {
+  private record StoredEntry(IRI iri, long sequence, IRI content, String procedure) {
   }
 
   private record PublishPlan(RevisionToken token, long current, Optional<Triple> counter, Graph slice, IRI cid,
-      Optional<HistoryEntry> last, boolean unchanged) {
+      Optional<StoredEntry> last, boolean unchanged) {
 
     IRI proxyIri() {
       return token.proxyIri();

@@ -19,6 +19,9 @@
  *       {@link io.kogn.rdf.versioning.PublishDetails} — what a publish returns (the
  *       history entry and next token of each proxy IRI) and the optional creator and
  *       comment it records</li>
+ *   <li>{@link io.kogn.rdf.versioning.HistoryEntry} and
+ *       {@link io.kogn.rdf.versioning.PublishState} — what the reads of the history and
+ *       of a draft's publish state return</li>
  *   <li>{@link io.kogn.rdf.versioning.RevisionConflictException} and
  *       {@link io.kogn.rdf.versioning.AmbiguousBlankNodeException} — a stale token; a
  *       blank node shared by two slices</li>
