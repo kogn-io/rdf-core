@@ -4,6 +4,8 @@
 package io.kogn.rdf.versioning;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.DatasetStorageException;
@@ -204,4 +206,149 @@ public interface ResourceVersioning {
    * @throws NullPointerException if an argument is {@code null}
    */
   PublishResult publish(DatasetTx tx, Collection<RevisionToken> expected, PublishDetails details);
+
+  /**
+   * Reads the published state of a proxy IRI: the copy of its current version in the
+   * {@link VersioningGraphs#PUBLISHED published view}, under the proxy IRI.
+   *
+   * <p>The slice is cut like the draft's (see {@link #readSlice}). It is empty if the
+   * proxy IRI was never published. Blank-node labels are the store's and not stable
+   * across reads, nor equal to those of the draft or of the stored version (ADR-0023),
+   * so compare by CID, not by triple. A reference to a proxy IRI inside the slice stays
+   * a reference to the proxy IRI and meets the target's current state when read later
+   * (ADR-0022). Reading may bind the dataset to the content graph, see
+   * {@link #bindContentGraph(DatasetTx)}.</p>
+   *
+   * @param tx the caller's open transaction; must not be {@code null}
+   * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
+   *     {@code #}
+   * @return the published slice, a copy the caller may keep; never {@code null}
+   * @throws ContentGraphMismatchException if the dataset is bound to another content
+   *     graph
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
+   * @throws IllegalStateException if {@code tx} has already ended
+   * @throws DatasetStorageException if the backend fails
+   * @throws NullPointerException if an argument is {@code null}
+   */
+  ReadableGraph readPublished(DatasetTx tx, IRI proxyIri);
+
+  /**
+   * Reads a version by its CID from the local {@link VersioningGraphs#CONTENT_STORE
+   * content store}.
+   *
+   * <p>The version is delivered with the CID as subject, as stored, and never differs
+   * between reads except in blank-node labels, which are the store's and not stable
+   * (ADR-0023). The CID must be in the canonical form {@code ni:///sha3-256;...}
+   * (ADR-0019); another spelling of the same name is not normalized and is not found.
+   * Stored references are not translated: a reference to a proxy IRI inside the version
+   * keeps naming the proxy IRI and meets the target's current state when read later
+   * (ADR-0022).
+   * The library does not resolve a CID it does not hold, and offers no read from a CID
+   * back to a proxy IRI: two proxy IRIs with identical content share one version
+   * (ADR-0022). Reading may bind the dataset to the content graph, see
+   * {@link #bindContentGraph(DatasetTx)}.</p>
+   *
+   * @param tx the caller's open transaction; must not be {@code null}
+   * @param cid the CID of the version; must not be {@code null} and must not contain a
+   *     {@code #}
+   * @return the version, a copy the caller may keep, or empty if the content store holds
+   *     none under {@code cid}
+   * @throws ContentGraphMismatchException if the dataset is bound to another content
+   *     graph
+   * @throws IllegalArgumentException if {@code cid} contains a {@code #}
+   * @throws IllegalStateException if {@code tx} has already ended
+   * @throws DatasetStorageException if the backend fails
+   * @throws NullPointerException if an argument is {@code null}
+   */
+  Optional<ReadableGraph> readVersion(DatasetTx tx, IRI cid);
+
+  /**
+   * Reads version <em>n</em> of a proxy IRI: the content its history entry with sequence
+   * number {@code sequence} names.
+   *
+   * <p>A join of the history and the content store, so that no consumer writes it. The
+   * result has the CID as subject, like {@link #readVersion(DatasetTx, IRI)}. A version
+   * whose content was removed from the store has an entry but no content: the result is
+   * empty then, as for an {@code sequence} the proxy IRI never reached. Reading may bind
+   * the dataset to the content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
+   *
+   * <p>Stored references are not translated: a reference to a proxy IRI inside the version
+   * keeps naming the proxy IRI and meets the target's current state when read later
+   * (ADR-0022).</p>
+   *
+   * @param tx the caller's open transaction; must not be {@code null}
+   * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
+   *     {@code #}
+   * @param sequence the sequence number of the entry, counted from 1; must be at least 1
+   * @return the version, a copy the caller may keep, or empty if there is no such entry
+   *     or the store holds no content for it
+   * @throws ContentGraphMismatchException if the dataset is bound to another content
+   *     graph
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
+   *     {@code sequence} is less than 1
+   * @throws IllegalStateException if {@code tx} has already ended, or the history of the
+   *     proxy IRI is malformed or not gapless
+   * @throws DatasetStorageException if the backend fails
+   * @throws NullPointerException if an argument is {@code null}
+   */
+  Optional<ReadableGraph> readVersion(DatasetTx tx, IRI proxyIri, long sequence);
+
+  /**
+   * Reads the history of one proxy IRI: its publishes, oldest first.
+   *
+   * <p>The list is empty for a proxy IRI that was never published. The sequence numbers
+   * run from 1 without gaps; the last entry names the current version. The history of
+   * several proxy IRIs in one call is not offered. Reading may bind the dataset to the
+   * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
+   *
+   * @param tx the caller's open transaction; must not be {@code null}
+   * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
+   *     {@code #}
+   * @return the entries by ascending sequence number; never {@code null}
+   * @throws ContentGraphMismatchException if the dataset is bound to another content
+   *     graph
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
+   * @throws IllegalStateException if {@code tx} has already ended, or the history of the
+   *     proxy IRI is malformed or not gapless
+   * @throws DatasetStorageException if the backend fails
+   * @throws NullPointerException if an argument is {@code null}
+   */
+  List<HistoryEntry> history(DatasetTx tx, IRI proxyIri);
+
+  /**
+   * Tells whether the draft of a proxy IRI was published and whether it differs from the
+   * latest version.
+   *
+   * <p>Decided by comparing the CID of the draft slice with the CID of the latest history
+   * entry, never triple by triple: blank-node labels may differ for equal content
+   * (ADR-0022). A proxy IRI without history is {@link PublishState#NEVER_PUBLISHED},
+   * whatever its draft holds, and no CID is derived. An <em>empty</em> draft of a
+   * published proxy IRI cannot equal a version (an empty draft is not publishable) and
+   * is {@link PublishState#PUBLISHED_WITH_UNPUBLISHED_CHANGES} without a derivation. If
+   * the latest entry was derived by another procedure than the one in use, the CIDs are
+   * not comparable and the answer is {@code PUBLISHED_WITH_UNPUBLISHED_CHANGES}, as a
+   * publish would publish again. Writes past this library are seen here, by content,
+   * though the revision token does not see them. Reading may bind the dataset to the
+   * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
+   *
+   * @param tx the caller's open transaction; must not be {@code null}
+   * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
+   *     {@code #}
+   * @return the state; never {@code null}
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}, or the CID
+   *     of the draft cannot be derived because it violates a precondition of
+   *     {@code ContentAddressedIriGenerator#generateIri}: a reserved IRI, a term outside
+   *     RDF 1.1
+   * @throws io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException if the draft
+   *     exceeds the cost limit of ni-rdf/1
+   * @throws io.kogn.rdf.cid.ContentAddressingException if the identifier of the draft
+   *     cannot be derived for another reason
+   * @throws ContentGraphMismatchException if the dataset is bound to another content
+   *     graph
+   * @throws IllegalStateException if {@code tx} has already ended, or the history of the
+   *     proxy IRI is malformed or not gapless
+   * @throws DatasetStorageException if the backend fails
+   * @throws NullPointerException if an argument is {@code null}
+   */
+  PublishState publishState(DatasetTx tx, IRI proxyIri);
 }
