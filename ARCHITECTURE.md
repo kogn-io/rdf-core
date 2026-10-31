@@ -30,10 +30,11 @@ data model          content ports             content adapter
     │            validation port       RDF4J adapter
     │            (no rdf4j)           (wraps ShaclValidator)
     │
-    └──────────  rdf-cid
-                 content-addressing port
-                 + its implementation
-                 (no rdf4j, no adapter)
+    └──────────  rdf-cid  ◄─────────────  rdf-versioning
+                 content-addressing port   versioning port
+                 + its implementation      + its implementation
+                 (no rdf4j, no adapter)    (also on rdf-dataset;
+                                            no rdf4j, no hosting)
 ```
 
 Dependencies point left only: `rdf-dataset` depends on `rdf-terms`;
@@ -57,6 +58,11 @@ optional write-path variant should join it. `rdf-cid` differs from the other two
 families in one respect: it has no adapter, because its algorithm is arithmetic
 over the data model rather than a call into a store (ADR-0014).
 
+`rdf-versioning` is the one module that combines two families: it depends on
+`rdf-dataset` and `rdf-cid` and nothing else of ours, runs inside the caller's
+`DatasetTx` on any backend, and knows nothing about hosting (ADR-0021). Like
+`rdf-cid` it carries its own implementation, as plain logic over those ports.
+
 | Module | Artifact | Role |
 |---|---|---|
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `NamedGraph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
@@ -67,6 +73,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
 | `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(base, graph)` over `ReadableGraph`, returning a deterministic RFC 6920 name `ni:///sha3-256;<digest>` (procedure ni-rdf/1) derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. No dependency on the dataset ports. |
+| `rdf-versioning` | `io.kogn.rdf:rdf-versioning` | Versioning of RDF resources over a `DatasetTx` (ADR-0021–0023): port `ResourceVersioning` with its implementation `ResourceVersioningNamedGraphs`, the fixed graph IRIs of the library (`VersioningGraphs`) and its own vocabulary (`VocabVersioning`). The caller names only its content graph, bound to the dataset on first use. Depends on `rdf-dataset` and `rdf-cid` only — no backend, no hosting. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
