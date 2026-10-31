@@ -1,0 +1,24 @@
+/**
+ * Versioning of RDF resources over a {@link io.kogn.rdf.dataset.DatasetTx}: a mutable
+ * draft per proxy IRI, immutable versions named by their CID, and a history of
+ * publishes (ADR-0021, ADR-0022, ADR-0023).
+ *
+ * <ul>
+ *   <li>{@link io.kogn.rdf.versioning.ResourceVersioning} — the port</li>
+ *   <li>{@link io.kogn.rdf.versioning.ResourceVersioningNamedGraphs} — its only
+ *       implementation, plain logic over the dataset ports</li>
+ *   <li>{@link io.kogn.rdf.versioning.VersioningGraphs} — the fixed IRIs of the
+ *       library's named graphs</li>
+ *   <li>{@link io.kogn.rdf.versioning.VocabVersioning} — the library's vocabulary</li>
+ *   <li>{@link io.kogn.rdf.versioning.ContentGraphMismatchException} — a dataset used
+ *       with a content graph other than the one it records</li>
+ * </ul>
+ *
+ * <h2>Backend-free</h2>
+ *
+ * <p>The module depends on {@code rdf-dataset} and {@code rdf-cid} only: no RDF4J, no
+ * hosting layer. It runs on any {@code DatasetTx}, including one over a repository the
+ * caller wraps itself, and port and implementation share the module, as in
+ * {@code rdf-cid}.</p>
+ */
+package io.kogn.rdf.versioning;
