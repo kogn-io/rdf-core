@@ -31,3 +31,4 @@ not a historical log of every change that led here.
 | [0020](0020-delta-and-conflict-promise-holds-for-disjoint-writers.md) | The delta and conflict promise of `add`/`remove` holds for disjoint writers only |
 | [0021](0021-resource-versioning-module.md) | Versioning of RDF resources as its own backend-free module over `DatasetTx` |
 | [0022](0022-draft-publish-versioning-per-proxy-iri.md) | Draft/publish versioning per proxy IRI over a library-owned slice |
+| [0023](0023-versioned-dataset-fixed-named-graphs.md) | A versioned dataset keeps views, versions and history as fixed named graphs in one dataset |
