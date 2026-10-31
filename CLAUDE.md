@@ -74,6 +74,9 @@ not *published*. Afterwards bump `<revision>` in the root POM to the next
 ## Conventions
 
 - **Conventional Commits** (`type(scope): subject`), **Semantic Versioning**.
+- **ADRs are Markdown files under `docs/adr/`** (index: `docs/adr/README.md`; number and
+  status live in the file; Proposed → Accepted in place; a correction is a successor ADR).
+  They are not kept in the arknet store — the arknet ADR skill is not responsible here.
 - **The project is called `kognio-rdf`** — that spelling, lowercase, everywhere a
   human-readable name appears (POM `<name>`s, README, docs, prose). The Maven
   coordinate `io.kogn.rdf` and the `io.kogn.rdf.*` packages are something else:
