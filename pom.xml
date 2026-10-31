@@ -42,6 +42,7 @@
 		<module>rdf-shacl</module>
 		<module>rdf-shacl-rdf4j</module>
 		<module>rdf-cid</module>
+		<module>rdf-versioning</module>
 	</modules>
 
 	<scm>
@@ -250,6 +251,11 @@
 			<dependency>
 				<groupId>io.kogn.rdf</groupId>
 				<artifactId>rdf-cid</artifactId>
+				<version>${revision}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.kogn.rdf</groupId>
+				<artifactId>rdf-versioning</artifactId>
 				<version>${revision}</version>
 			</dependency>
 		</dependencies>
