@@ -31,11 +31,6 @@ import io.kogn.rdf.terms.ReadableGraph;
  *
  * <h2>What the identifier is derived from</h2>
  *
- * <p>Hosts are not normalized: every term except the base IRI goes into the digest in full, so
- * a reference to {@code https://a.example/term/2} is part of the content, and another instance
- * referring to its own {@code https://b.example/term/2} has different content and gets a
- * different name. Choosing stable IRIs is the application's responsibility.</p>
- *
  * <p>The graph describes one resource, named by a <em>base IRI</em> (an IRI without a
  * {@code #}) that the caller passes alongside it: the identifier is that of a resource, not of
  * an arbitrary graph, and which resource is meant is the caller's to say, never inferred from
@@ -57,6 +52,11 @@ import io.kogn.rdf.terms.ReadableGraph;
  * same identifier, so a reader can verify it. Two graphs that describe the same thing under
  * different base IRIs are therefore the same content. Every other IRI the data uses is part of
  * the content.</p>
+ *
+ * <p>Hosts are not normalized: every term except the base IRI and its fragment IRIs goes into the digest in full, so
+ * a reference to {@code https://a.example/term/2} is part of the content, and another instance
+ * referring to its own {@code https://b.example/term/2} has different content and gets a
+ * different name. Choosing stable IRIs is the application's responsibility.</p>
  *
  * @see ReadableGraph
  * @see IRI
