@@ -1,6 +1,6 @@
 # Design note: versioning (#105)
 
-Status: agreed basis, open questions below | Date: 2026-10-31 (first version 2026-10-02) | Issue: #105
+Status: agreed basis, questions answered — next step: the ADRs | Date: 2026-10-31 (first version 2026-10-02) | Issue: #105
 
 This note is the agreed basis for implementing #105. It collects the decisions,
 the reasoning behind them and what is still open. It is not an ADR: once the
@@ -27,7 +27,7 @@ would not hold.
 | **Draft** | A *mutable* resource: the working state. | draft view | proxy IRI |
 | **Version** | An *immutable* resource. It has no history of its own. | content store | CID |
 | **Current version** | The version named by the proxy IRI's latest history entry (the highest sequence number). There is no separate pointer; "current" is read off the history. Its content is additionally copied into the published view. | content store; copy in the published view | CID; proxy IRI for the copy |
-| **History** | One entry per publish of a proxy IRI — sequence number, CID and the metadata of D8 — plus tombstones (D12). Each entry has an IRI of its own (Q12). | history | proxy IRI; entry IRI for the entries |
+| **History** | One entry per publish of a proxy IRI — sequence number, CID and the metadata of D8 — plus tombstones (D12), and the proxy IRI's revision counter (D10). Each entry has an IRI of its own, a `urn:uuid:` (Q12). | history | proxy IRI; entry IRI for the entries |
 | **Publish** | Turning the draft's current content into a version and appending an entry to the proxy IRI's history. | | |
 | **Sequence number** | Position of a publish in one proxy IRI's history; starts at 1, gapless. | | |
 | **CID** | The RFC 6920 name `ni:///sha3-256;…` derived by `rdf-cid` from a resource's content, with the resource's own IRI (and its `#fragment` IRIs) replaced by a placeholder (ADR-0016, ADR-0019). | | |
@@ -79,7 +79,11 @@ decision.
 After a successful publish the draft remains as the working state; at that
 moment its content equals the new version. Whether a draft holds unpublished
 changes is decided by deriving its CID and comparing it with the CID of the
-latest history entry (D6 offers this as one read).
+latest history entry (D6 offers this as one read). That comparison holds within
+one CID procedure only (Q11): when the entry was derived by another procedure
+version than the current one, the library derives the CID of the stored
+version's content under the current procedure and compares that instead. The
+entry's name does not change.
 
 - Publishing an unchanged draft creates **no** history entry and returns the
   current version.
@@ -140,8 +144,8 @@ RDF's own mechanism for "same IRI, different statements" is the named graph.
 
 What the store holds, by example — a SKOS concept `ex:baum` after two
 publishes and one tag. Any resource works the same; `kv:` stands in for the
-library's own history terms (the metadata use `dcterms`, Q7), `<entry-n>` for
-an entry IRI (Q12), prefixes are omitted and CIDs shortened:
+library's own history terms (the metadata use `dcterms`, Q7), prefixes are
+omitted, CIDs and UUIDs shortened:
 
 ```turtle
 # draft view (the caller's content graph): the working state
@@ -157,11 +161,12 @@ ex:baum  skos:prefLabel  "Baum"@de ;
 <ni:///sha3-256;…p2m>  skos:prefLabel  "Baum"@de ;
                        skos:definition "…" .
 
-# history: one entry per publish, each with an IRI of its own (D8);
-# the highest sequence number is the current version
-ex:baum    kv:entry  <entry-1> , <entry-2> .
-<entry-1>  kv:seq 1 ; kv:cid <ni:///sha3-256;…4kq> ; kv:at "…" .
-<entry-2>  kv:seq 2 ; kv:cid <ni:///sha3-256;…p2m> ; kv:at "…" .
+# history: one entry per publish, each with an IRI of its own (D8), plus the
+# revision counter of D10; the highest sequence number is the current version
+ex:baum    kv:entry  <urn:uuid:…a1> , <urn:uuid:…b2> ;
+           kv:rev    5 .
+<urn:uuid:…a1>  kv:seq 1 ; kv:cid <ni:///sha3-256;…4kq> ; kv:at "…" ; kv:proc "ni-rdf/1" .
+<urn:uuid:…b2>  kv:seq 2 ; kv:cid <ni:///sha3-256;…p2m> ; kv:at "…" ; kv:proc "ni-rdf/1" .
 
 # tag store: which version each proxy IRI meant when the tag was set
 ex:tag-2026-Q4  kv:entry  [ kv:proxy ex:baum ; kv:cid <ni:///sha3-256;…p2m> ] .
@@ -217,7 +222,9 @@ offers no single-valued reverse lookup.
 
 ### D8 — History records publishes only
 
-Per history entry: CID, sequence number, timestamp, optional creator, optional comment.
+Per history entry: CID, sequence number, timestamp, the version of the CID
+procedure that derived the CID (`ni-rdf/1`, Q11), optional creator, optional
+comment.
 Draft writes are **not** history entries; an application that needs a write
 audit keeps it itself. (Recording draft writes as switchable history entries was
 proposed and rejected.)
@@ -225,9 +232,12 @@ proposed and rejected.)
 Each entry has an **IRI of its own**, not a blank node (added 2026-10-31): a
 consumer attaches evidence to one publish — arknet links Git commits to it,
 n:m — and a CID is no unique target for that (D7; A → B → A names one CID
-twice). How the IRI is minted is Q12. The timestamp comes from the library
-through an injectable clock; the creator is an optional IRI the caller passes;
-the metadata vocabulary is `dcterms` (Q7).
+twice). The IRI is a random `urn:uuid:` minted by the library on publish and
+returned to the caller, so evidence can be attached at once; it is derived from
+nothing, so it survives an export and restore into another installation
+unchanged (Q12). The timestamp comes from the library through an injectable
+clock; the creator is an optional IRI the caller passes; the metadata vocabulary
+is `dcterms` (Q7).
 
 ### D9 — Tags
 
@@ -256,7 +266,19 @@ The token describes the state of the draft and history under the proxy IRI
 as the writer read it. The draft's CID alone is not enough: a publish in
 between leaves the draft's content as it is (D3), so a token that names only
 the draft would not see it, and the publish guard needs the history position as
-well. Shape open (Q3).
+well.
+
+The token is a **revision counter per proxy IRI** (Q3): the library raises it
+on every draft write, publish and delete, and keeps it as one bookkeeping
+triple in the history, beside the entries — it is not a history entry (D8).
+The token the caller holds is the proxy IRI with the counter value, opaque to
+the caller. A counter is always available, for an empty or a brand-new draft
+too, where a token derived from the draft's content is not (P6: `generateIri`
+refuses an empty draft and one over the cost limit) and would cost a
+canonicalization per read and per check. It covers writes made through the
+library only, which D1 requires anyway; a write past the slice operations is
+not seen by the token, while D3 still sees the content change. Stated in the
+API docs.
 
 ### D11 — Versions are delivered with their CID as subject; rebasing is a term operation
 
@@ -366,8 +388,8 @@ one set of library graphs per content graph.
   that an aborted `DatasetTx` leaves all of them unchanged.
 - **P4 — Blank nodes and deduplication.** The CID canonicalizes blank nodes, the
   store keeps whatever labels it is given; "store once per CID" therefore needs a
-  `contains` check by CID, not a triple-level comparison. Decide together with
-  Q2.
+  `contains` check by CID, not a triple-level comparison. Decided with Q2: blank
+  nodes stay blank nodes.
 - **P5 — Growth.** Every distinct version is stored in full. Unproblematic for
   small resources; measure before using it on large graphs.
 - **P6 — `generateIri` can refuse.** Publish, the D3 change check and
@@ -379,12 +401,19 @@ one set of library graphs per content graph.
 
 ## Open questions
 
-- **Q2 — Blank nodes in the content store:** stored as is, or skolemized?
-- **Q3 — Concurrency token shape:** a counter per proxy IRI, the draft's CID, or
-  something else? Narrowed 2026-10-31: the draft's CID alone misses a publish in
-  between (D10), so the token covers the draft and the history position; which
-  values, and whether the caller sees them, is open. arknet keeps its token
-  server-side and passes none to a client.
+- **Q2 — Blank nodes in the content store:** answered 2026-10-31 — stored as
+  blank nodes; their labels are the store's and not stable across reads, which
+  the API docs state. Skolemizing would break the verification ADR-0016 is for:
+  an IRI under the CID (`ni:…#b1`) enters the digest as a fragment, a foreign
+  one (`/.well-known/genid/…`) is rejected by `generateIri`, so the stored
+  version would no longer derive its own CID. Deduplication and forgetting work
+  by the CID as subject plus the blank-node closure (P4). arknet writes no
+  blank nodes, so the choice does not touch the first consumer.
+- **Q3 — Concurrency token shape:** answered 2026-10-31 — a revision counter
+  per proxy IRI, raised on every draft write, publish and delete, opaque to the
+  caller (D10). The draft's CID alone misses a publish in between, and a token
+  derived from content is unavailable for exactly the drafts `generateIri`
+  refuses (P6). arknet keeps its token server-side and passes none to a client.
 - **Q4 — Graph IRIs** of the library's graphs: answered by D4 — fixed IRIs of
   the library; the content graph is recorded in a config graph and checked.
 - **Q5 — Export/import:** all graph kinds must travel with a dataset export, or
@@ -411,18 +440,28 @@ one set of library graphs per content graph.
   is a fragment IRI of its parent and is versioned with it; a child with an IRI
   of its own is a resource of its own.
 - **Q10 — CID references on write:** answered: not checked, see P1.
-- **Q11 — A change of the CID procedure** (added 2026-10-31): "same content,
-  same name" holds within one procedure version only; the version sits in the
-  hashed bytes, not in the name (ADR-0019). Once an ni-rdf/2 exists, D3's
-  comparison of the draft's CID with the latest entry's CID compares a v2 name
-  against a v1 name and reports a change where the content did not change — an
-  unneeded version. Candidate: record the procedure version per history entry.
-  Not covered by Q8, which is about data that was never versioned.
-- **Q12 — The history entry's IRI** (added 2026-10-31, from D8): how is it
-  minted? Deriving it from the proxy IRI and the sequence number would be an
-  IRI translation (D5) and binds the entry to the proxy IRI's spelling. An
-  opaque IRI minted by the library is the tendency, and arknet agrees with it;
-  not decided.
+- **Q11 — A change of the CID procedure:** "same content, same name" holds
+  within one procedure version only; the version sits in the hashed bytes, not
+  in the name (ADR-0019). Once an ni-rdf/2 exists, D3's comparison of the
+  draft's CID with the latest entry's CID compares a v2 name against a v1 name
+  and reports a change where the content did not change — an unneeded version
+  per resource in every installation, and a publish-state read that is wrong
+  until then. Answered 2026-10-31: every history entry records the procedure
+  version that derived its CID (D8); on a mismatch D3 derives the stored
+  version's content under the current procedure and compares that. Names once
+  given are never rewritten — they circulate in CID references (P1), tags and
+  copies elsewhere (ADR-0019). The mismatch path is built once a second
+  procedure exists; what is needed now is the one literal per entry, and
+  `rdf-cid` exposing its procedure tag as a value. Not covered by Q8, which is
+  about data that was never versioned.
+- **Q12 — The history entry's IRI:** answered 2026-10-31 — a random `urn:uuid:`
+  minted by the library on publish (D8). Globally unique across installations,
+  which arknet needs because exports are restored elsewhere; dereferenceable it
+  need not be. Rejected: a fragment of the proxy IRI (part of the content slice
+  since D1, so it would be hashed), a fragment of the CID (not unique, A → B → A
+  names one CID twice, D7), and an IRI derived from proxy IRI and sequence
+  number (reproducible, but a translation of the proxy IRI's spelling, D5, that
+  nobody asked for).
 
 Out of scope: SHACL validation before publish is the application's business.
 
@@ -529,6 +568,21 @@ From the first consumer's answer (section *First consumer: arknet*):
 - **D6** notes the wish for a history read over several proxy IRIs.
 - New **Q11:** a change of the CID procedure makes D3 report a change where the
   content did not change.
+
+Decided the same day, after two facts from arknet (it writes no blank nodes;
+entry IRIs must stay unique across installations):
+
+- **Q2:** blank nodes are stored as blank nodes; skolemizing would break the
+  CID verification. P4 follows.
+- **Q3:** the token is a revision counter per proxy IRI, opaque; D10 states it
+  and why a content-derived token fails on the drafts `generateIri` refuses.
+- **Q11:** every history entry records its CID procedure version; D3 and D8
+  follow.
+- **Q12:** the entry IRI is a random `urn:uuid:` minted by the library; D8, the
+  D4 example and the glossary follow.
+- Status line: questions answered, next step the ADRs. Still deferred: the
+  import port (Q5), the origin stack's data (Q8), tags and forgetting for the
+  first cut.
 
 ## Prior art
 
