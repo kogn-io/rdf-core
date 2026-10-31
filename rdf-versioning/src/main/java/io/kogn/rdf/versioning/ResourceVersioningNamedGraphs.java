@@ -3,14 +3,25 @@
 
 package io.kogn.rdf.versioning;
 
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
+import io.kogn.rdf.cid.BaseRebaser;
+import io.kogn.rdf.cid.ContentAddressedIriGenerator;
+import io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -20,8 +31,10 @@ import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 import io.kogn.rdf.terms.SimpleGraph;
+import io.kogn.rdf.terms.SimpleIRI;
 import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
+import io.kogn.rdf.terms.vocab.VocabDct;
 import io.kogn.rdf.terms.vocab.VocabXsd;
 
 /**
@@ -36,10 +49,16 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
   private static final char FRAGMENT_SEPARATOR = '#';
 
+  private static final String ENTRY_IRI_PREFIX = "urn:uuid:";
+
   private final IRI contentGraph;
+  private final ContentAddressedIriGenerator generator;
+  private final Clock clock;
+  private final BaseRebaser rebaser = new BaseRebaser(new SimpleRdf());
 
   /**
-   * Creates the versioning of the dataset whose content graph is {@code contentGraph}.
+   * Creates the versioning of the dataset whose content graph is {@code contentGraph},
+   * with the {@code ni-rdf/1} generator and the system clock.
    *
    * <p>Nothing is read or written here; the binding is recorded or checked by the first
    * operation (see {@link #bindContentGraph(DatasetTx)}).</p>
@@ -50,7 +69,28 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
    * @throws IllegalArgumentException if {@code contentGraph} is a graph of the library
    */
   public ResourceVersioningNamedGraphs(final IRI contentGraph) {
+    this(contentGraph, new ContentAddressedIriGeneratorSexpr(), Clock.systemUTC());
+  }
+
+  /**
+   * Creates the versioning of the dataset whose content graph is {@code contentGraph},
+   * deriving CIDs with {@code generator} and stamping history entries from {@code clock}.
+   *
+   * <p>Nothing is read or written here. All instances working on one dataset must use the
+   * same procedure: the CIDs of its versions are compared with each other.</p>
+   *
+   * @param contentGraph the caller's content graph, the draft view; must not be
+   *     {@code null} and must not be one of {@link VersioningGraphs#ALL}
+   * @param generator derives the CID of a draft; must not be {@code null}
+   * @param clock the source of {@code dcterms:created}; must not be {@code null}
+   * @throws NullPointerException if an argument is {@code null}
+   * @throws IllegalArgumentException if {@code contentGraph} is a graph of the library
+   */
+  public ResourceVersioningNamedGraphs(final IRI contentGraph, final ContentAddressedIriGenerator generator,
+      final Clock clock) {
     Objects.requireNonNull(contentGraph, "contentGraph");
+    this.generator = Objects.requireNonNull(generator, "generator");
+    this.clock = Objects.requireNonNull(clock, "clock");
     if (VersioningGraphs.ALL.contains(contentGraph)) {
       throw new IllegalArgumentException(
           "content graph must not be a graph of the library: " + contentGraph.ntriplesString());
@@ -124,6 +164,158 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!copy.isEmpty()) {
       tx.add(contentGraph, copy);
     }
+    final long next = raiseCounter(tx, proxyIri, counter, current);
+    return new RevisionToken(proxyIri, next);
+  }
+
+  @Override
+  public PublishResult publish(final DatasetTx tx, final Collection<RevisionToken> expected,
+      final PublishDetails details) {
+    Objects.requireNonNull(tx, "tx");
+    Objects.requireNonNull(expected, "expected");
+    Objects.requireNonNull(details, "details");
+    bindContentGraph(tx);
+    final List<PublishPlan> plans = new ArrayList<>();
+    final Set<IRI> proxies = new HashSet<>();
+    for (final RevisionToken token : expected) {
+      Objects.requireNonNull(token, "expected must not hold null");
+      if (!proxies.add(token.proxyIri())) {
+        throw new IllegalArgumentException("two tokens for " + token.proxyIri().ntriplesString());
+      }
+      plans.add(planPublish(tx, token));
+    }
+    final Map<IRI, IRI> entries = new LinkedHashMap<>();
+    final Map<IRI, RevisionToken> tokens = new LinkedHashMap<>();
+    for (final PublishPlan plan : plans) {
+      if (plan.unchanged()) {
+        entries.put(plan.proxyIri(), plan.last().orElseThrow().iri());
+        tokens.put(plan.proxyIri(), plan.token());
+        continue;
+      }
+      final IRI entry = apply(tx, plan, details);
+      entries.put(plan.proxyIri(), entry);
+      tokens.put(plan.proxyIri(), new RevisionToken(plan.proxyIri(), plan.current() + 1));
+    }
+    return new PublishResult(entries, tokens);
+  }
+
+  /** Everything read and derived for one proxy IRI; nothing is written while planning. */
+  private PublishPlan planPublish(final DatasetTx tx, final RevisionToken token) {
+    final IRI proxyIri = token.proxyIri();
+    final Optional<Triple> counter = revisionOf(tx, proxyIri);
+    final long current = counter.map(ResourceVersioningNamedGraphs::revisionValue).orElse(0L);
+    if (current != token.revision()) {
+      throw new RevisionConflictException(proxyIri);
+    }
+    final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
+    final IRI cid = generator.generateIri(proxyIri, slice);
+    final Optional<HistoryEntry> last = lastEntry(tx, proxyIri);
+    final boolean unchanged = last.isPresent() && last.get().content().equals(cid)
+        && last.get().procedure().equals(generator.procedureTag());
+    return new PublishPlan(token, current, counter, slice, cid, last, unchanged);
+  }
+
+  private IRI apply(final DatasetTx tx, final PublishPlan plan, final PublishDetails details) {
+    final IRI proxyIri = plan.proxyIri();
+    final IRI cid = plan.cid();
+    final Graph version = rebaser.rebase(plan.slice(), proxyIri, cid);
+    if (!isStored(tx, version)) {
+      tx.add(VersioningGraphs.CONTENT_STORE, withFreshBlankNodes(version));
+    }
+    final Graph oldPublished = sliceOf(tx.export(VersioningGraphs.PUBLISHED), proxyIri);
+    if (!oldPublished.isEmpty()) {
+      tx.remove(VersioningGraphs.PUBLISHED, oldPublished);
+    }
+    tx.add(VersioningGraphs.PUBLISHED, withFreshBlankNodes(plan.slice()));
+
+    final SimpleRdf rdf = new SimpleRdf();
+    final long sequence = plan.last().map(entry -> entry.sequence() + 1).orElse(1L);
+    final IRI entry = new SimpleIRI(ENTRY_IRI_PREFIX + UUID.randomUUID());
+    final Graph written = new SimpleGraph();
+    written.add(proxyIri, VocabVersioning.ENTRY, entry);
+    written.add(entry, VocabVersioning.SEQUENCE, rdf.createLiteral(Long.toString(sequence), VocabXsd.INTEGER));
+    written.add(entry, VocabVersioning.CONTENT, cid);
+    written.add(entry, VocabVersioning.PROCEDURE, rdf.createLiteral(generator.procedureTag()));
+    written.add(entry, VocabDct.CREATED,
+        rdf.createLiteral(clock.instant().truncatedTo(ChronoUnit.MILLIS).toString(), VocabXsd.DATETIME));
+    details.creator().ifPresent(creator -> written.add(entry, VocabDct.CREATOR, creator));
+    details.comment().ifPresent(comment -> written.add(entry, VocabDct.DESCRIPTION, rdf.createLiteral(comment)));
+    tx.add(VersioningGraphs.HISTORY, written);
+    raiseCounter(tx, proxyIri, plan.counter(), plan.current());
+    return entry;
+  }
+
+  /**
+   * Whether the version is in the content store already. The same CID always means the same
+   * content, so one IRI subject of the version, found with {@code contains} (ADR-0008),
+   * proves the copy: the CID itself, or a fragment IRI of it when the draft has no triple
+   * on the proxy IRI.
+   */
+  private static boolean isStored(final DatasetTx tx, final Graph version) {
+    final IRI subject = version.stream()
+        .map(Triple::getSubject)
+        .filter(IRI.class::isInstance)
+        .map(IRI.class::cast)
+        .findFirst()
+        .orElseThrow();
+    return tx.contains(VersioningGraphs.CONTENT_STORE, subject, null, null);
+  }
+
+  /** The entry with the highest sequence number of the proxy IRI, if it has any. */
+  private static Optional<HistoryEntry> lastEntry(final DatasetTx tx, final IRI proxyIri) {
+    if (!tx.contains(VersioningGraphs.HISTORY, proxyIri, VocabVersioning.ENTRY, null)) {
+      return Optional.empty();
+    }
+    final ReadableGraph history = tx.export(VersioningGraphs.HISTORY);
+    final List<RDFTerm> linked = history.stream(proxyIri, VocabVersioning.ENTRY, null).map(Triple::getObject).toList();
+    HistoryEntry last = null;
+    for (final RDFTerm term : linked) {
+      if (!(term instanceof IRI entry)) {
+        throw new IllegalStateException(
+            "entry of " + proxyIri.ntriplesString() + " is not an IRI: " + term.ntriplesString());
+      }
+      final HistoryEntry read = readEntry(history, entry);
+      if (last == null || read.sequence() > last.sequence()) {
+        last = read;
+      }
+    }
+    if (last.sequence() != linked.size()) {
+      throw new IllegalStateException("history of " + proxyIri.ntriplesString() + " is not gapless: " + linked.size()
+          + " entries, highest sequence number " + last.sequence());
+    }
+    return Optional.of(last);
+  }
+
+  private static HistoryEntry readEntry(final ReadableGraph history, final IRI entry) {
+    final RDFTerm sequence = single(history, entry, VocabVersioning.SEQUENCE);
+    final RDFTerm content = single(history, entry, VocabVersioning.CONTENT);
+    final RDFTerm procedure = single(history, entry, VocabVersioning.PROCEDURE);
+    if (sequence instanceof Literal literal && VocabXsd.INTEGER.equals(literal.getDatatype())
+        && content instanceof IRI contentIri && procedure instanceof Literal tag) {
+      try {
+        final long number = Long.parseLong(literal.getLexicalForm());
+        if (number >= 1) {
+          return new HistoryEntry(entry, number, contentIri, tag.getLexicalForm());
+        }
+      } catch (final NumberFormatException e) {
+        // falls through to the malformed-entry error
+      }
+    }
+    throw new IllegalStateException("malformed history entry " + entry.ntriplesString());
+  }
+
+  private static RDFTerm single(final ReadableGraph history, final IRI entry, final IRI predicate) {
+    final List<RDFTerm> found = history.stream(entry, predicate, null).map(Triple::getObject).toList();
+    if (found.size() != 1) {
+      throw new IllegalStateException(
+          "history entry " + entry.ntriplesString() + " holds " + found.size() + " " + predicate.ntriplesString());
+    }
+    return found.getFirst();
+  }
+
+  /** Replaces the counter triple, if any, by the next value and returns that value. */
+  private static long raiseCounter(final DatasetTx tx, final IRI proxyIri, final Optional<Triple> counter,
+      final long current) {
     final long next = current + 1;
     counter.ifPresent(triple -> {
       final Graph previous = new SimpleGraph();
@@ -134,7 +326,39 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     final Literal value = new SimpleRdf().createLiteral(Long.toString(next), VocabXsd.INTEGER);
     raised.add(proxyIri, VocabVersioning.REVISION, value);
     tx.add(VersioningGraphs.HISTORY, raised);
-    return new RevisionToken(proxyIri, next);
+    return next;
+  }
+
+  /**
+   * Copies {@code graph} with every blank node replaced by a fresh one. Stores share blank
+   * node labels across the graphs of a dataset, so a version must not reuse the draft's
+   * nodes: two versions of one draft would merge their descriptions of the same node.
+   */
+  private static Graph withFreshBlankNodes(final ReadableGraph graph) {
+    final SimpleRdf rdf = new SimpleRdf();
+    final Map<BlankNode, BlankNode> fresh = new HashMap<>();
+    final Graph copy = new SimpleGraph();
+    for (final Triple triple : graph.stream().toList()) {
+      final BlankNodeOrIRI subject = triple.getSubject() instanceof BlankNode node
+          ? fresh.computeIfAbsent(node, n -> rdf.createBlankNode())
+          : triple.getSubject();
+      final RDFTerm object = triple.getObject() instanceof BlankNode node
+          ? fresh.computeIfAbsent(node, n -> rdf.createBlankNode())
+          : triple.getObject();
+      copy.add(subject, triple.getPredicate(), object);
+    }
+    return copy;
+  }
+
+  private record HistoryEntry(IRI iri, long sequence, IRI content, String procedure) {
+  }
+
+  private record PublishPlan(RevisionToken token, long current, Optional<Triple> counter, Graph slice, IRI cid,
+      Optional<HistoryEntry> last, boolean unchanged) {
+
+    IRI proxyIri() {
+      return token.proxyIri();
+    }
   }
 
   private static void requireProxy(final IRI proxyIri) {

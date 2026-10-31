@@ -3,6 +3,8 @@
 
 package io.kogn.rdf.versioning;
 
+import java.util.Collection;
+
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.DatasetStorageException;
 import io.kogn.rdf.dataset.DatasetTransactor;
@@ -143,4 +145,63 @@ public interface ResourceVersioning {
    * @throws NullPointerException if an argument is {@code null}
    */
   RevisionToken replaceSlice(DatasetTx tx, IRI proxyIri, ReadableGraph content, RevisionToken expected);
+
+  /**
+   * Publishes the drafts of one or more proxy IRIs: each becomes an immutable version
+   * under its CID, the published view shows it, and the history gets an entry.
+   *
+   * <p>For each proxy IRI the CID of its {@link #readSlice draft slice} is derived with
+   * the {@code rdf-cid} generator, the slice renamed from the proxy IRI to the CID is
+   * written to the {@link VersioningGraphs#CONTENT_STORE content store} unless that CID
+   * is already there (blank nodes stay blank nodes, with fresh labels), the proxy IRI's
+   * slice in the {@link VersioningGraphs#PUBLISHED published view} is replaced by the
+   * draft, and a history entry is written (ADR-0022, ADR-0023). The draft stays. The
+   * entry has a random {@code urn:uuid:} IRI, the next sequence number of the proxy IRI
+   * (from 1, gapless), the CID, the {@code procedureTag()} of the generator, and
+   * {@code dcterms:created} from the implementation's clock, plus creator and comment
+   * from {@code details} if given. The revision counter of the proxy IRI is raised.</p>
+   *
+   * <p><strong>Unchanged drafts.</strong> A draft whose CID equals the CID of the proxy
+   * IRI's latest entry, derived by the same procedure, is not published again: no entry
+   * is created, nothing is written and the counter stays; the result names that latest
+   * entry and returns the token that was passed in. So a repeated publish is idempotent.
+   * A draft that changes and returns (A, B, A) creates three entries; the third names
+   * the CID of the first, whose content is stored once. If the latest entry was derived
+   * by another procedure than the generator's, the CIDs are not comparable and the draft
+   * is published again.</p>
+   *
+   * <p><strong>All or nothing.</strong> Every token is checked and every CID derived
+   * before the first triple is written (apart from the binding of the content graph on first use), so a failure for any proxy IRI leaves the
+   * transaction as it was; if {@code tx} aborts, published view, content store, history
+   * and counters are unchanged. A stale token is reported, never retried. The first
+   * sequence number and the first copy of a CID are looked up with
+   * {@link DatasetTx#contains} (ADR-0008). Reading the draft may bind the dataset to the
+   * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
+   *
+   * @param tx the caller's open transaction; must not be {@code null}
+   * @param expected the token of each proxy IRI to publish, from its last read or write;
+   *     must not be {@code null}, hold no {@code null}, and at most one token per proxy
+   *     IRI; may be empty, which publishes nothing
+   * @param details creator and comment for the entries created; must not be {@code null}
+   * @return per proxy IRI the entry naming its current version, and its next token; never
+   *     {@code null}
+   * @throws RevisionConflictException if a token is not the current revision of its proxy
+   *     IRI
+   * @throws IllegalArgumentException if two tokens belong to the same proxy IRI, or the
+   *     CID of a draft cannot be derived because it violates a precondition of
+   *     {@code ContentAddressedIriGenerator#generateIri}: an empty draft, a reserved
+   *     IRI, a term outside RDF 1.1
+   * @throws io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException if a draft
+   *     exceeds the cost limit of ni-rdf/1
+   * @throws io.kogn.rdf.cid.ContentAddressingException if the identifier of a draft
+   *     cannot be derived for another reason
+   * @throws ContentGraphMismatchException if the dataset is bound to another content
+   *     graph
+   * @throws IllegalStateException if {@code tx} has already ended, or the history graph
+   *     is malformed: a revision counter or a latest entry of a proxy IRI that does not
+   *     read back
+   * @throws DatasetStorageException if the backend fails
+   * @throws NullPointerException if an argument is {@code null}
+   */
+  PublishResult publish(DatasetTx tx, Collection<RevisionToken> expected, PublishDetails details);
 }
