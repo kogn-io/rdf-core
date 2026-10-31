@@ -38,6 +38,7 @@ import io.kogn.rdf.terms.SimpleIRI;
 import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 import io.kogn.rdf.terms.vocab.VocabDct;
+import io.kogn.rdf.terms.vocab.VocabRdf;
 import io.kogn.rdf.terms.vocab.VocabXsd;
 
 /**
@@ -227,9 +228,10 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     }
     bindContentGraph(tx);
     return entriesOf(tx, proxyIri).stream()
-        .filter(entry -> entry.sequence() == sequence)
+        .filter(entry -> entry.sequence() == sequence && !entry.tombstone())
         .findFirst()
-        .flatMap(entry -> versionOf(tx, entry.content()));
+        .flatMap(StoredEntry::content)
+        .flatMap(cid -> versionOf(tx, cid));
   }
 
   @Override
@@ -254,6 +256,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (last.isEmpty()) {
       return PublishState.NEVER_PUBLISHED;
     }
+    if (last.get().tombstone()) {
+      return PublishState.DELETED;
+    }
     final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
     if (slice.isEmpty()) {
       return PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES;
@@ -261,6 +266,47 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return isUnchanged(last, generator.generateIri(proxyIri, slice))
         ? PublishState.PUBLISHED_UNCHANGED
         : PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES;
+  }
+
+  @Override
+  public DeleteResult delete(final DatasetTx tx, final IRI proxyIri, final RevisionToken expected,
+      final PublishDetails details) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(proxyIri);
+    Objects.requireNonNull(expected, "expected");
+    Objects.requireNonNull(details, "details");
+    if (!proxyIri.equals(expected.proxyIri())) {
+      throw new IllegalArgumentException(
+          "token belongs to " + expected.proxyIri().ntriplesString() + ", not to " + proxyIri.ntriplesString());
+    }
+    bindContentGraph(tx);
+    final Optional<Triple> counter = revisionOf(tx, proxyIri);
+    final long current = counter.map(ResourceVersioningNamedGraphs::revisionValue).orElse(0L);
+    if (current != expected.revision()) {
+      throw new RevisionConflictException(proxyIri);
+    }
+    final ReadableGraph stored = tx.export(contentGraph);
+    final Graph draft = sliceOf(stored, proxyIri);
+    requireNoSharedBlankNode(new SimpleGraph(), stored, draft, proxyIri);
+    final List<StoredEntry> entries = entriesOf(tx, proxyIri);
+    final Optional<StoredEntry> last = entries.isEmpty() ? Optional.empty() : Optional.of(entries.getLast());
+    if (draft.isEmpty() && last.isPresent() && last.get().tombstone()) {
+      return new DeleteResult(last.get().iri(), expected);
+    }
+    if (!draft.isEmpty()) {
+      tx.remove(contentGraph, draft);
+    }
+    final Graph published = sliceOf(tx.export(VersioningGraphs.PUBLISHED), proxyIri);
+    if (!published.isEmpty()) {
+      tx.remove(VersioningGraphs.PUBLISHED, published);
+    }
+    final Optional<StoredEntry> lastVersion = entries.reversed()
+        .stream()
+        .filter(e -> e.content().isPresent())
+        .findFirst();
+    final IRI entry = writeEntry(tx, last, proxyIri, EntryKind.TOMBSTONE, lastVersion.flatMap(StoredEntry::content),
+        lastVersion.flatMap(StoredEntry::procedure), details);
+    return new DeleteResult(entry, new RevisionToken(proxyIri, raiseCounter(tx, proxyIri, counter, current)));
   }
 
   private static Optional<ReadableGraph> versionOf(final DatasetTx tx, final IRI cid) {
@@ -283,8 +329,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
         .map(term -> asIri(term, stored.iri()));
     final Optional<String> comment = optional(history, stored.iri(), VocabDct.DESCRIPTION)
         .map(term -> asLexicalForm(term, stored.iri()));
-    return new HistoryEntry(stored.iri(), stored.sequence(), stored.content(), stored.procedure(), instant, creator,
-        comment);
+    return new HistoryEntry(stored.iri(), stored.sequence(),
+        stored.tombstone() ? EntryKind.TOMBSTONE : EntryKind.PUBLISH, stored.content(), stored.procedure(), instant,
+        creator, comment);
   }
 
   private static Optional<RDFTerm> optional(final ReadableGraph history, final IRI entry, final IRI predicate) {
@@ -337,20 +384,31 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     }
     tx.add(VersioningGraphs.PUBLISHED, withFreshBlankNodes(plan.slice()));
 
+    final IRI entry = writeEntry(tx, plan.last(), proxyIri, EntryKind.PUBLISH, Optional.of(cid),
+        Optional.of(generator.procedureTag()), details);
+    raiseCounter(tx, proxyIri, plan.counter(), plan.current());
+    return entry;
+  }
+
+  /** Writes the next history entry of the proxy IRI and returns its IRI. */
+  private IRI writeEntry(final DatasetTx tx, final Optional<StoredEntry> last, final IRI proxyIri, final EntryKind kind,
+      final Optional<IRI> content, final Optional<String> procedure, final PublishDetails details) {
     final SimpleRdf rdf = new SimpleRdf();
-    final long sequence = plan.last().map(entry -> entry.sequence() + 1).orElse(1L);
+    final long sequence = last.map(entry -> entry.sequence() + 1).orElse(1L);
     final IRI entry = new SimpleIRI(ENTRY_IRI_PREFIX + UUID.randomUUID());
     final Graph written = new SimpleGraph();
     written.add(proxyIri, VocabVersioning.ENTRY, entry);
+    if (kind == EntryKind.TOMBSTONE) {
+      written.add(entry, VocabRdf.TYPE, VocabVersioning.TOMBSTONE);
+    }
     written.add(entry, VocabVersioning.SEQUENCE, rdf.createLiteral(Long.toString(sequence), VocabXsd.INTEGER));
-    written.add(entry, VocabVersioning.CONTENT, cid);
-    written.add(entry, VocabVersioning.PROCEDURE, rdf.createLiteral(generator.procedureTag()));
+    content.ifPresent(cid -> written.add(entry, VocabVersioning.CONTENT, cid));
+    procedure.ifPresent(tag -> written.add(entry, VocabVersioning.PROCEDURE, rdf.createLiteral(tag)));
     written.add(entry, VocabDct.CREATED,
         rdf.createLiteral(clock.instant().truncatedTo(ChronoUnit.MILLIS).toString(), VocabXsd.DATETIME));
     details.creator().ifPresent(creator -> written.add(entry, VocabDct.CREATOR, creator));
     details.comment().ifPresent(comment -> written.add(entry, VocabDct.DESCRIPTION, rdf.createLiteral(comment)));
     tx.add(VersioningGraphs.HISTORY, written);
-    raiseCounter(tx, proxyIri, plan.counter(), plan.current());
     return entry;
   }
 
@@ -372,8 +430,8 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
   /** Whether the latest entry names this CID, derived by the procedure in use. */
   private boolean isUnchanged(final Optional<StoredEntry> last, final IRI cid) {
-    return last.isPresent() && last.get().content().equals(cid)
-        && last.get().procedure().equals(generator.procedureTag());
+    return last.isPresent() && !last.get().tombstone() && last.get().content().equals(Optional.of(cid))
+        && last.get().procedure().equals(Optional.of(generator.procedureTag()));
   }
 
   /** The entry with the highest sequence number of the proxy IRI, if it has any. */
@@ -409,14 +467,18 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
   private static StoredEntry readEntry(final ReadableGraph history, final IRI entry) {
     final RDFTerm sequence = single(history, entry, VocabVersioning.SEQUENCE);
-    final RDFTerm content = single(history, entry, VocabVersioning.CONTENT);
-    final RDFTerm procedure = single(history, entry, VocabVersioning.PROCEDURE);
-    if (sequence instanceof Literal literal && VocabXsd.INTEGER.equals(literal.getDatatype())
-        && content instanceof IRI contentIri && procedure instanceof Literal tag) {
+    final boolean tombstone = history.stream(entry, VocabRdf.TYPE, VocabVersioning.TOMBSTONE).findAny().isPresent();
+    final Optional<RDFTerm> content = optional(history, entry, VocabVersioning.CONTENT);
+    final Optional<RDFTerm> procedure = optional(history, entry, VocabVersioning.PROCEDURE);
+    // A publish names its version and the procedure; a tombstone names both or neither.
+    final boolean complete = content.isPresent() == procedure.isPresent() && (tombstone || content.isPresent());
+    if (complete && sequence instanceof Literal literal && VocabXsd.INTEGER.equals(literal.getDatatype())
+        && content.map(IRI.class::isInstance).orElse(true) && procedure.map(Literal.class::isInstance).orElse(true)) {
       try {
         final long number = Long.parseLong(literal.getLexicalForm());
         if (number >= 1) {
-          return new StoredEntry(entry, number, contentIri, tag.getLexicalForm());
+          return new StoredEntry(entry, number, tombstone, content.map(IRI.class::cast),
+              procedure.map(term -> ((Literal) term).getLexicalForm()));
         }
       } catch (final NumberFormatException e) {
         // falls through to the malformed-entry error
@@ -471,7 +533,8 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return copy;
   }
 
-  private record StoredEntry(IRI iri, long sequence, IRI content, String procedure) {
+  private record StoredEntry(IRI iri, long sequence, boolean tombstone, Optional<IRI> content,
+      Optional<String> procedure) {
   }
 
   private record PublishPlan(RevisionToken token, long current, Optional<Triple> counter, Graph slice, IRI cid,

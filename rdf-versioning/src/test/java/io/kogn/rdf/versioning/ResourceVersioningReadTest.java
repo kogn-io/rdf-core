@@ -247,10 +247,12 @@ class ResourceVersioningReadTest {
     final List<HistoryEntry> history = transactor.inTransaction(tx -> versioning.history(tx, A));
 
     assertThat(history).hasSize(2);
-    assertThat(history.get(0)).isEqualTo(new HistoryEntry(first, 1, generator.generateIri(A, one(A, "one")), "ni-rdf/1",
-        NOW, Optional.of(ALICE), Optional.of("first cut")));
-    assertThat(history.get(1)).isEqualTo(new HistoryEntry(second, 2, generator.generateIri(A, one(A, "two")),
-        "ni-rdf/1", NOW, Optional.empty(), Optional.empty()));
+    assertThat(history.get(0))
+        .isEqualTo(new HistoryEntry(first, 1, EntryKind.PUBLISH, Optional.of(generator.generateIri(A, one(A, "one"))),
+            Optional.of("ni-rdf/1"), NOW, Optional.of(ALICE), Optional.of("first cut")));
+    assertThat(history.get(1))
+        .isEqualTo(new HistoryEntry(second, 2, EntryKind.PUBLISH, Optional.of(generator.generateIri(A, one(A, "two"))),
+            Optional.of("ni-rdf/1"), NOW, Optional.empty(), Optional.empty()));
   }
 
   @Test
@@ -291,10 +293,16 @@ class ResourceVersioningReadTest {
   @Test
   void aHistoryEntryNeedsAPositiveSequenceNumberAndAllItsParts() {
     final IRI iri = new SimpleIRI("urn:uuid:00000000-0000-0000-0000-000000000009");
-    assertThatThrownBy(() -> new HistoryEntry(iri, 0, A, "ni-rdf/1", NOW, Optional.empty(), Optional.empty()))
-        .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new HistoryEntry(iri, 1, null, "ni-rdf/1", NOW, Optional.empty(), Optional.empty()))
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new HistoryEntry(iri, 0, EntryKind.PUBLISH, Optional.of(A), Optional.of("ni-rdf/1"), NOW,
+        Optional.empty(), Optional.empty())).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new HistoryEntry(iri, 1, EntryKind.PUBLISH, null, Optional.of("ni-rdf/1"), NOW,
+        Optional.empty(), Optional.empty())).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new HistoryEntry(iri, 1, null, Optional.of(A), Optional.of("ni-rdf/1"), NOW,
+        Optional.empty(), Optional.empty())).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new HistoryEntry(iri, 1, EntryKind.PUBLISH, Optional.empty(), Optional.empty(), NOW,
+        Optional.empty(), Optional.empty())).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new HistoryEntry(iri, 1, EntryKind.TOMBSTONE, Optional.of(A), Optional.empty(), NOW,
+        Optional.empty(), Optional.empty())).isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

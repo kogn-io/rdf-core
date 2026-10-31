@@ -60,8 +60,9 @@ public interface VocabVersioning {
    * The {@code versioning:sequence} property: the sequence number of a history entry.
    *
    * <p>Subject an entry, object a positive integer; numbers run from 1 per proxy IRI,
-   * without gaps. The entry with the highest number names the current version
-   * (ADR-0023).</p>
+   * without gaps. The entry with the highest number is the latest: if it is a
+   * publish it names the current version, if it is a {@link #TOMBSTONE} the proxy IRI is
+   * deleted (ADR-0023).</p>
    */
   IRI SEQUENCE = new SimpleIRI(NAMESPACE + "sequence");
 
@@ -82,6 +83,18 @@ public interface VocabVersioning {
    * keeps the comparison of CIDs sound once a second procedure exists (ADR-0022).</p>
    */
   IRI PROCEDURE = new SimpleIRI(NAMESPACE + "procedure");
+
+  /**
+   * The {@code versioning:Tombstone} class: marks a history entry as the deletion of a
+   * proxy IRI.
+   *
+   * <p>Object of {@code rdf:type} on an entry, in the history graph. A tombstone entry
+   * has an IRI, a sequence number and {@code dcterms:created} like a publish, and
+   * {@link #CONTENT} and {@link #PROCEDURE} naming the last version of the proxy IRI —
+   * both or neither: a proxy IRI that was never published has a tombstone with neither.
+   * An entry without this type is a publish.</p>
+   */
+  IRI TOMBSTONE = new SimpleIRI(NAMESPACE + "Tombstone");
 
   /**
    * The {@code versioning:contentGraph} property: the content graph a versioned dataset

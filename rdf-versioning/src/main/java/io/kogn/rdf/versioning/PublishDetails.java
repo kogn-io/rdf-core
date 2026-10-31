@@ -9,7 +9,7 @@ import java.util.Optional;
 import io.kogn.rdf.terms.IRI;
 
 /**
- * The optional metadata a publish records in each history entry it creates
+ * The optional metadata a publish or a delete records in each history entry it creates
  * ({@code dcterms:creator}, {@code dcterms:description}, ADR-0023).
  *
  * <p>The metadata is the same for every proxy IRI of one publish call. It does not enter

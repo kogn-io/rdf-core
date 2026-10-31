@@ -208,11 +208,58 @@ public interface ResourceVersioning {
   PublishResult publish(DatasetTx tx, Collection<RevisionToken> expected, PublishDetails details);
 
   /**
+   * Deletes a proxy IRI: removes its draft slice and its slice in the
+   * {@link VersioningGraphs#PUBLISHED published view}, and records a tombstone in the
+   * history (ADR-0022).
+   *
+   * <p>The tombstone is a history entry of its own with an {@code urn:uuid:} IRI, the next
+   * sequence number of the proxy IRI (gapless) and {@code dcterms:created}, creator and
+   * comment from {@code details} if given, typed {@link EntryKind#TOMBSTONE}. It names the
+   * CID and the procedure of the last version of the proxy IRI, or neither if the proxy
+   * IRI was never published. The revision counter is raised.</p>
+   *
+   * <p><strong>History and versions stay.</strong> Every earlier entry and every version in
+   * the {@link VersioningGraphs#CONTENT_STORE content store} remains, so
+   * {@link #readVersion(DatasetTx, IRI)} still finds the last version by its CID;
+   * {@link #readVersion(DatasetTx, IRI, long)} of the tombstone's own sequence number is
+   * empty, as a tombstone is no version. {@link #readPublished} is empty from now on and
+   * {@link #publishState} is {@link PublishState#DELETED}. Publishing a draft written
+   * later makes a publish entry again, even if its CID equals the deleted version's.
+   * Forgetting a version is not offered.</p>
+   *
+   * <p><strong>Deleting twice.</strong> A proxy IRI whose latest entry is a tombstone and
+   * whose draft is empty is deleted already: nothing is written, the counter stays, and
+   * the result names that tombstone and returns the token passed in. A proxy IRI that was
+   * never known gets a tombstone with neither CID nor procedure.</p>
+   *
+   * @param tx the caller's open transaction; must not be {@code null}
+   * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
+   *     {@code #}
+   * @param expected the token from the last read or write of this proxy IRI; must not
+   *     be {@code null}
+   * @param details creator and comment for the tombstone; must not be {@code null}
+   * @return the tombstone entry and the next token; never {@code null}
+   * @throws RevisionConflictException if {@code expected} is not the current revision
+   * @throws AmbiguousBlankNodeException if a blank node of the draft slice is also used by
+   *     a triple of the content graph outside this slice
+   * @throws ContentGraphMismatchException if the dataset is bound to another content
+   *     graph
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
+   *     {@code expected} belongs to another proxy IRI
+   * @throws IllegalStateException if {@code tx} has already ended, or the history graph
+   *     is malformed: a revision counter or an entry of the proxy IRI that does not read
+   *     back
+   * @throws DatasetStorageException if the backend fails
+   * @throws NullPointerException if an argument is {@code null}
+   */
+  DeleteResult delete(DatasetTx tx, IRI proxyIri, RevisionToken expected, PublishDetails details);
+
+  /**
    * Reads the published state of a proxy IRI: the copy of its current version in the
    * {@link VersioningGraphs#PUBLISHED published view}, under the proxy IRI.
    *
    * <p>The slice is cut like the draft's (see {@link #readSlice}). It is empty if the
-   * proxy IRI was never published. Blank-node labels are the store's and not stable
+   * proxy IRI was never published or was deleted since. Blank-node labels are the store's and not stable
    * across reads, nor equal to those of the draft or of the stored version (ADR-0023),
    * so compare by CID, not by triple. A reference to a proxy IRI inside the slice stays
    * a reference to the proxy IRI and meets the target's current state when read later
@@ -222,7 +269,8 @@ public interface ResourceVersioning {
    * @param tx the caller's open transaction; must not be {@code null}
    * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
    *     {@code #}
-   * @return the published slice, a copy the caller may keep; never {@code null}
+   * @return the published slice, a copy the caller may keep; empty after a
+   *     {@link #delete delete}; never {@code null}
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
@@ -267,7 +315,7 @@ public interface ResourceVersioning {
    * number {@code sequence} names.
    *
    * <p>A join of the history and the content store, so that no consumer writes it. The
-   * result has the CID as subject, like {@link #readVersion(DatasetTx, IRI)}. A version
+   * result has the CID as subject, like {@link #readVersion(DatasetTx, IRI)}. A tombstone is no version: the result is empty for its sequence number. A version
    * whose content was removed from the store has an entry but no content: the result is
    * empty then, as for an {@code sequence} the proxy IRI never reached. Reading may bind
    * the dataset to the content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
@@ -280,8 +328,8 @@ public interface ResourceVersioning {
    * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
    *     {@code #}
    * @param sequence the sequence number of the entry, counted from 1; must be at least 1
-   * @return the version, a copy the caller may keep, or empty if there is no such entry
-   *     or the store holds no content for it
+   * @return the version, a copy the caller may keep, or empty if there is no such entry,
+   *     it is a tombstone, or the store holds no content for it
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
@@ -294,10 +342,13 @@ public interface ResourceVersioning {
   Optional<ReadableGraph> readVersion(DatasetTx tx, IRI proxyIri, long sequence);
 
   /**
-   * Reads the history of one proxy IRI: its publishes, oldest first.
+   * Reads the history of one proxy IRI: its publishes and tombstones, oldest first.
    *
-   * <p>The list is empty for a proxy IRI that was never published. The sequence numbers
-   * run from 1 without gaps; the last entry names the current version. The history of
+   * <p>The list is empty for a proxy IRI that was neither published nor deleted. The
+   * sequence numbers run from 1 without gaps; tombstones of {@link #delete} are entries
+   * of {@link EntryKind#TOMBSTONE}. The last entry names the current version if it is a
+   * publish; if it is a tombstone, the proxy IRI is deleted and the entry names the version
+   * that was current before. The history of
    * several proxy IRIs in one call is not offered. Reading may bind the dataset to the
    * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
    *
@@ -322,7 +373,8 @@ public interface ResourceVersioning {
    * <p>Decided by comparing the CID of the draft slice with the CID of the latest history
    * entry, never triple by triple: blank-node labels may differ for equal content
    * (ADR-0022). A proxy IRI without history is {@link PublishState#NEVER_PUBLISHED},
-   * whatever its draft holds, and no CID is derived. An <em>empty</em> draft of a
+   * whatever its draft holds, and no CID is derived. A proxy IRI whose latest entry is a
+   * tombstone is {@link PublishState#DELETED}, also without a derivation. An <em>empty</em> draft of a
    * published proxy IRI cannot equal a version (an empty draft is not publishable) and
    * is {@link PublishState#PUBLISHED_WITH_UNPUBLISHED_CHANGES} without a derivation. If
    * the latest entry was derived by another procedure than the one in use, the CIDs are

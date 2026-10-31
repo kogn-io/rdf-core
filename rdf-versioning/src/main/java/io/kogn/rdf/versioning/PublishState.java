@@ -23,5 +23,12 @@ public enum PublishState {
    * empty, or the latest entry was derived by another procedure than the one in use, so
    * the CIDs are not comparable (the same call a publish makes).
    */
-  PUBLISHED_WITH_UNPUBLISHED_CHANGES
+  PUBLISHED_WITH_UNPUBLISHED_CHANGES,
+
+  /**
+   * The latest history entry is a tombstone: the proxy IRI was deleted and has no
+   * published version. A draft written since is not published; publishing it ends this
+   * state.
+   */
+  DELETED
 }
