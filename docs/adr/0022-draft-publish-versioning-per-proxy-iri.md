@@ -1,6 +1,6 @@
 # ADR-0022: Draft/publish versioning per proxy IRI over a library-owned slice
 
-Status: Proposed
+Status: Accepted (2026-10-31) — accepted with the merge of the implementation (#201–#206)
 
 ## Context
 
@@ -90,10 +90,12 @@ a publish of several proxy IRIs must land together or not at all.
   Publish returns the IRI of the entry it created, so the caller can attach
   evidence to that publish at once. The entry's timestamp comes from an
   injectable clock.
-- **Deleting a proxy IRI** removes its draft slice and records a tombstone in
+- **Deleting a proxy IRI** removes its draft slice and its slice in the
+  published view, and records a tombstone in
   the history naming the CID of the last version, or the fact alone if the
   proxy IRI was never published. History and versions stay. Forgetting a
-  version is not part of this record.
+  version is not part of this record. *Corrected when accepted: the record
+  named the draft slice only; the published slice goes too.*
 - **No version is lost as a side effect.** No operation of the library that
   clears a whole graph removes versions with it; a version leaves the content
   store only through an explicit forgetting. This is a promise about the
@@ -101,9 +103,11 @@ a publish of several proxy IRIs must land together or not at all.
   content store of ADR-0023 is what makes it keepable, but a format cannot
   promise what an operation does.
 - **Reads** are offered separately: the draft, the published state, a version
-  by CID, version *n* of a proxy IRI, the history, and the three-valued publish
-  state of a draft (never published; published without unpublished changes;
-  published with unpublished changes). A rule such as "return the draft if
+  by CID, version *n* of a proxy IRI, the history, and the four-valued publish
+  state of a proxy IRI (never published; published without unpublished changes;
+  published with unpublished changes; deleted). *Corrected when accepted: the
+  record said "three-valued", written before the tombstone read (`DELETED`)
+  existed.* A rule such as "return the draft if
   present, else the current version" is the application's, built on these.
 - **No reverse lookup.** A CID identifies content, not a proxy IRI: two proxy
   IRIs with identical content share one version, so the port offers no
@@ -117,8 +121,9 @@ a publish of several proxy IRIs must land together or not at all.
 - **Rebasing.** A protocol that needs another subject gets it from the
   application, by replacing the base IRI and its fragment IRIs on RDF terms as
   ni-rdf/1 §6 defines; the rebased content still verifies against the CID
-  (ADR-0016). The library offers a `rebase` term operation for this; which
-  module carries it is left to the implementation.
+  (ADR-0016). The `rdf-cid` module offers this as `BaseRebaser.rebase`, a term
+  operation beside the generator. *Corrected when accepted: the record left
+  the carrying module open.*
 - **No resolution of a CID.** The read by CID works on the local content store
   only ([ADR-0019](0019-content-addressed-iri-as-ni-name.md)).
 - Where `generateIri` refuses (an empty draft, a foreign subject in the slice,

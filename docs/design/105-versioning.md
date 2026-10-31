@@ -1,9 +1,9 @@
 # Design note: versioning (#105)
 
-Status: agreed basis, questions answered — next step: the ADRs | Date: 2026-10-31 (first version 2026-10-02) | Issue: #105
+Status: historical background — superseded by [ADR-0021](../adr/0021-resource-versioning-module.md), [ADR-0022](../adr/0022-draft-publish-versioning-per-proxy-iri.md), [ADR-0023](../adr/0023-versioned-dataset-fixed-named-graphs.md) and the `rdf-versioning` module; where they differ, they win | Date: 2026-10-31 (first version 2026-10-02) | Issue: #105
 
-This note is the agreed basis for implementing #105. It collects the decisions,
-the reasoning behind them and what is still open. It is not an ADR: once the
+This note was the agreed basis for implementing #105 (at the time of writing).
+It collects the decisions, the reasoning behind them and what was still open. It is not an ADR: once the
 implementation starts, each architecturally significant decision below becomes
 its own ADR (one decision per record, see `docs/adr/README.md`), and this note is
 then removed or kept as background.

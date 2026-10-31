@@ -72,8 +72,8 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
-| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(base, graph)` over `ReadableGraph`, returning a deterministic RFC 6920 name `ni:///sha3-256;<digest>` (procedure ni-rdf/1) derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. `BaseRebaser` renames the base and its fragments (spec §6). No dependency on the dataset ports. |
-| `rdf-versioning` | `io.kogn.rdf:rdf-versioning` | Versioning of RDF resources over a `DatasetTx` (ADR-0021–0023): port `ResourceVersioning` with its implementation `ResourceVersioningNamedGraphs`, the fixed graph IRIs of the library (`VersioningGraphs`) and its own vocabulary (`VocabVersioning`). The caller names only its content graph, bound to the dataset on first use. Depends on `rdf-dataset` and `rdf-cid` only — no backend, no hosting. |
+| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(base, graph)` over `ReadableGraph`, returning a deterministic RFC 6920 name `ni:///sha3-256;<digest>` (procedure ni-rdf/1, whose tag `procedureTag()` returns as a value) derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. `BaseRebaser` renames the base and its fragments (spec §6). No dependency on the dataset ports. |
+| `rdf-versioning` | `io.kogn.rdf:rdf-versioning` | Versioning of RDF resources over the caller's `DatasetTx` (ADR-0021–0023): a mutable draft per proxy IRI, immutable versions named by their CID, and a history of publishes and deletions, kept in fixed named graphs of the library beside the caller's content graph. Port `ResourceVersioning` with its sole implementation `ResourceVersioningNamedGraphs`: `readSlice`/`replaceSlice` read and write a proxy IRI's draft slice (`DraftSlice`) under an optimistic `RevisionToken` (`RevisionConflictException`, `AmbiguousBlankNodeException`); `publish` turns drafts into versions, atomically over several proxy IRIs (`PublishDetails`, `PublishResult`); `readPublished`, `readVersion` (by CID or by sequence number), `history` (`HistoryEntry`, `EntryKind` `PUBLISH`/`TOMBSTONE`) and `publishState` (`PublishState`: never published, published unchanged, published with unpublished changes, deleted) read back; `delete` removes the draft and the published slice and records a tombstone (`DeleteResult`, `versioning:Tombstone`) while history and versions stay. The caller names only its content graph, bound on first use (`ContentGraphMismatchException` on a different one). The graph IRIs (`VersioningGraphs`) and the module's own vocabulary (`VocabVersioning`) live only here, never in `rdf-terms`. Depends on `rdf-dataset` and `rdf-cid` only — no backend, no hosting. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
@@ -487,6 +487,34 @@ code points from U+10000 up with ones from U+E000..U+FFFF is rejected
 (`ContentAddressingException`) until that is fixed, rather than named wrongly;
 the expected value of the vector `code-point-order` follows the specification,
 not the library.
+
+## Versioning (`rdf-versioning`)
+
+`ResourceVersioning` versions RDF resources inside the caller's open `DatasetTx`
+([ADR-0021](docs/adr/0021-resource-versioning-module.md)); it never opens a
+transaction of its own. The unit is the subject-bounded slice of a *proxy IRI*
+(its `#fragment` IRIs and blank-node closure), written only through
+`replaceSlice` under an opaque `RevisionToken` per proxy IRI, so a stale writer
+gets a `RevisionConflictException` instead of a silent overwrite. `publish`
+derives the CID of each draft with `rdf-cid` and stores the slice renamed to
+that CID once in the content store, copies the draft into the published view
+and appends a history entry, for several proxy IRIs atomically; the draft stays,
+and publishing an unchanged draft is a no-op
+([ADR-0022](docs/adr/0022-draft-publish-versioning-per-proxy-iri.md)). `delete`
+removes the draft and the published slice and appends a tombstone entry;
+versions and earlier entries stay. `publishState` reports one of four values:
+never published, published unchanged, published with unpublished changes,
+deleted.
+
+A versioned dataset keeps the caller's content graph (the draft view) beside
+four fixed graphs of the library — published view, content store, history and
+config — named by `VersioningGraphs` and described by the vocabulary
+`VocabVersioning`
+([ADR-0023](docs/adr/0023-versioned-dataset-fixed-named-graphs.md)). A query
+without `FROM` / `GRAPH` runs over the union of all named graphs of the dataset
+and so sees duplicates and CID subjects; consumers name their graphs. The design discussion behind the three
+records is kept as historical background in
+[`docs/design/105-versioning.md`](docs/design/105-versioning.md).
 
 ## Build & release
 
