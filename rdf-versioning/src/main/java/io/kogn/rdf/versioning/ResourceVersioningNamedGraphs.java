@@ -3,15 +3,26 @@
 
 package io.kogn.rdf.versioning;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import io.kogn.rdf.dataset.DatasetTx;
+import io.kogn.rdf.terms.BlankNode;
+import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDFTerm;
+import io.kogn.rdf.terms.ReadableGraph;
 import io.kogn.rdf.terms.SimpleGraph;
+import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
+import io.kogn.rdf.terms.vocab.VocabXsd;
 
 /**
  * The implementation of {@link ResourceVersioning}: plain logic over a {@link DatasetTx},
@@ -22,6 +33,8 @@ import io.kogn.rdf.terms.Triple;
  * concurrency control is the transaction's.</p>
  */
 public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
+
+  private static final char FRAGMENT_SEPARATOR = '#';
 
   private final IRI contentGraph;
 
@@ -68,6 +81,179 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
         .toList();
     if (recorded.size() != 1 || !contentGraph.equals(recorded.getFirst())) {
       throw new ContentGraphMismatchException(contentGraph, recorded);
+    }
+  }
+
+  @Override
+  public DraftSlice readSlice(final DatasetTx tx, final IRI proxyIri) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(proxyIri);
+    bindContentGraph(tx);
+    final long revision = revisionOf(tx, proxyIri).map(ResourceVersioningNamedGraphs::revisionValue).orElse(0L);
+    final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
+    return new DraftSlice(proxyIri, slice, new RevisionToken(proxyIri, revision));
+  }
+
+  @Override
+  public RevisionToken replaceSlice(final DatasetTx tx, final IRI proxyIri, final ReadableGraph content,
+      final RevisionToken expected) {
+    Objects.requireNonNull(tx, "tx");
+    requireProxy(proxyIri);
+    Objects.requireNonNull(content, "content");
+    Objects.requireNonNull(expected, "expected");
+    if (!proxyIri.equals(expected.proxyIri())) {
+      throw new IllegalArgumentException(
+          "token belongs to " + expected.proxyIri().ntriplesString() + ", not to " + proxyIri.ntriplesString());
+    }
+    bindContentGraph(tx);
+    final Optional<Triple> counter = revisionOf(tx, proxyIri);
+    final long current = counter.map(ResourceVersioningNamedGraphs::revisionValue).orElse(0L);
+    if (current != expected.revision()) {
+      throw new RevisionConflictException(proxyIri);
+    }
+    final Graph copy = copyOf(content);
+    requireSlice(copy, proxyIri);
+
+    final ReadableGraph stored = tx.export(contentGraph);
+    final Graph old = sliceOf(stored, proxyIri);
+    requireNoSharedBlankNode(copy, stored, old, proxyIri);
+
+    if (!old.isEmpty()) {
+      tx.remove(contentGraph, old);
+    }
+    if (!copy.isEmpty()) {
+      tx.add(contentGraph, copy);
+    }
+    final long next = current + 1;
+    counter.ifPresent(triple -> {
+      final Graph previous = new SimpleGraph();
+      previous.add(triple);
+      tx.remove(VersioningGraphs.HISTORY, previous);
+    });
+    final Graph raised = new SimpleGraph();
+    final Literal value = new SimpleRdf().createLiteral(Long.toString(next), VocabXsd.INTEGER);
+    raised.add(proxyIri, VocabVersioning.REVISION, value);
+    tx.add(VersioningGraphs.HISTORY, raised);
+    return new RevisionToken(proxyIri, next);
+  }
+
+  private static void requireProxy(final IRI proxyIri) {
+    Objects.requireNonNull(proxyIri, "proxyIri");
+    if (proxyIri.getIRIString().indexOf(FRAGMENT_SEPARATOR) >= 0) {
+      throw new IllegalArgumentException("proxy IRI must not contain a fragment: " + proxyIri.ntriplesString());
+    }
+  }
+
+  /** The counter triple of the proxy IRI, read through {@code contains} first (ADR-0008). */
+  private static Optional<Triple> revisionOf(final DatasetTx tx, final IRI proxyIri) {
+    if (!tx.contains(VersioningGraphs.HISTORY, proxyIri, VocabVersioning.REVISION, null)) {
+      return Optional.empty();
+    }
+    final List<Triple> found = tx.export(VersioningGraphs.HISTORY)
+        .stream(proxyIri, VocabVersioning.REVISION, null)
+        .toList();
+    if (found.size() != 1) {
+      throw new IllegalStateException(
+          "history graph holds " + found.size() + " revision counters for " + proxyIri.ntriplesString());
+    }
+    return Optional.of(found.getFirst());
+  }
+
+  private static long revisionValue(final Triple counter) {
+    if (counter.getObject() instanceof Literal literal && VocabXsd.INTEGER.equals(literal.getDatatype())) {
+      try {
+        final long value = Long.parseLong(literal.getLexicalForm());
+        if (value >= 0) {
+          return value;
+        }
+      } catch (final NumberFormatException e) {
+        // falls through to the malformed-counter error
+      }
+    }
+    throw new IllegalStateException("malformed revision counter: " + counter.getObject().ntriplesString());
+  }
+
+  private static boolean isMember(final BlankNodeOrIRI subject, final String proxy) {
+    if (!(subject instanceof IRI iri)) {
+      return false;
+    }
+    final String text = iri.getIRIString();
+    return text.equals(proxy) || text.startsWith(proxy + FRAGMENT_SEPARATOR);
+  }
+
+  /** The slice of {@code proxyIri} in {@code graph}: members, plus the blank-node closure. */
+  private static Graph sliceOf(final ReadableGraph graph, final IRI proxyIri) {
+    final String proxy = proxyIri.getIRIString();
+    final Graph slice = new SimpleGraph();
+    final Deque<BlankNode> pending = new ArrayDeque<>();
+    final Set<BlankNode> seen = new HashSet<>();
+    for (final Triple triple : graph.stream().filter(t -> isMember(t.getSubject(), proxy)).toList()) {
+      slice.add(triple);
+      enqueue(triple.getObject(), seen, pending);
+    }
+    while (!pending.isEmpty()) {
+      final BlankNode node = pending.poll();
+      for (final Triple triple : graph.stream(node, null, null).toList()) {
+        slice.add(triple);
+        enqueue(triple.getObject(), seen, pending);
+      }
+    }
+    return slice;
+  }
+
+  private static void enqueue(final RDFTerm object, final Set<BlankNode> seen, final Deque<BlankNode> pending) {
+    if (object instanceof BlankNode node && seen.add(node)) {
+      pending.add(node);
+    }
+  }
+
+  private static Graph copyOf(final ReadableGraph content) {
+    final Graph copy = new SimpleGraph();
+    for (final Triple triple : content.stream().toList()) {
+      copy.add(triple);
+    }
+    return copy;
+  }
+
+  private static void requireSlice(final Graph content, final IRI proxyIri) {
+    final Graph slice = sliceOf(content, proxyIri);
+    if (slice.size() == content.size()) {
+      return;
+    }
+    final Triple stray = content.stream().filter(t -> !slice.contains(t)).findFirst().orElseThrow();
+    throw new IllegalArgumentException(
+        "triple is not part of the slice of " + proxyIri.ntriplesString() + ": " + stray.getSubject().ntriplesString()
+            + " " + stray.getPredicate().ntriplesString() + " " + stray.getObject().ntriplesString());
+  }
+
+  private static void requireNoSharedBlankNode(final Graph content, final ReadableGraph stored, final Graph old,
+      final IRI proxyIri) {
+    final Set<BlankNode> nodes = new HashSet<>();
+    collectBlankNodes(content, nodes);
+    collectBlankNodes(old, nodes);
+    if (nodes.isEmpty()) {
+      return;
+    }
+    for (final Triple triple : stored.stream().toList()) {
+      if (old.contains(triple)) {
+        continue;
+      }
+      if (nodes.contains(triple.getSubject()) || nodes.contains(triple.getObject())) {
+        throw new AmbiguousBlankNodeException("blank node of the slice of " + proxyIri.ntriplesString()
+            + " is also used outside it, in " + triple.getSubject().ntriplesString() + " "
+            + triple.getPredicate().ntriplesString() + " " + triple.getObject().ntriplesString());
+      }
+    }
+  }
+
+  private static void collectBlankNodes(final ReadableGraph graph, final Set<BlankNode> nodes) {
+    for (final Triple triple : graph.stream().toList()) {
+      if (triple.getSubject() instanceof BlankNode node) {
+        nodes.add(node);
+      }
+      if (triple.getObject() instanceof BlankNode node) {
+        nodes.add(node);
+      }
     }
   }
 }
