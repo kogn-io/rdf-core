@@ -64,4 +64,13 @@ public interface VocabDct {
    * @see <a href="http://purl.org/dc/terms/isVersionOf">dct:isVersionOf</a>
    */
   IRI IS_VERSION_OF = VocabIriFactory.createIRI(NAMESPACE, "isVersionOf");
+
+  /**
+   * The {@code dct:description} property.
+   *
+   * <p>An account of the resource.</p>
+   *
+   * @see <a href="http://purl.org/dc/terms/description">dct:description</a>
+   */
+  IRI DESCRIPTION = VocabIriFactory.createIRI(NAMESPACE, "description");
 }
