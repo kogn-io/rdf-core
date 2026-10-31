@@ -15,8 +15,13 @@ import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
+import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
+import io.kogn.rdf.terms.RDFTerm;
+import io.kogn.rdf.terms.SimpleGraph;
 import io.kogn.rdf.terms.SimpleIRI;
+import io.kogn.rdf.terms.SimpleRdf;
 
 /**
  * The content-graph binding of a versioned dataset (ADR-0023), run against a real
@@ -80,6 +85,31 @@ class ResourceVersioningNamedGraphsTest {
   }
 
   @Test
+  void aConfigGraphRecordingTwoContentGraphsIsRejectedEvenForOneOfThem() {
+    record(CONTENT, OTHER);
+    final ResourceVersioning versioning = new ResourceVersioningNamedGraphs(CONTENT);
+
+    assertThatThrownBy(() -> bind(versioning)).isInstanceOfSatisfying(ContentGraphMismatchException.class, e -> {
+      assertThat(e.requested()).isEqualTo(CONTENT);
+      assertThat(e.recorded()).containsExactlyInAnyOrder(CONTENT, OTHER);
+    });
+    assertThat(configCount()).isEqualTo(2);
+  }
+
+  @Test
+  void aConfigGraphRecordingALiteralIsRejected() {
+    final Literal literal = new SimpleRdf().createLiteral(CONTENT.getIRIString());
+    record(literal);
+    final ResourceVersioning versioning = new ResourceVersioningNamedGraphs(CONTENT);
+
+    assertThatThrownBy(() -> bind(versioning)).isInstanceOfSatisfying(ContentGraphMismatchException.class, e -> {
+      assertThat(e.requested()).isEqualTo(CONTENT);
+      assertThat(e.recorded()).containsExactly(literal);
+    });
+    assertThat(configCount()).isEqualTo(1);
+  }
+
+  @Test
   void bindingWithinTheSameTransactionIsVisibleToALaterCheck() {
     final ResourceVersioning versioning = new ResourceVersioningNamedGraphs(CONTENT);
     final ResourceVersioning other = new ResourceVersioningNamedGraphs(OTHER);
@@ -132,6 +162,15 @@ class ResourceVersioningNamedGraphsTest {
       versioning.bindContentGraph(tx);
       return null;
     });
+  }
+
+  /** Writes content-graph records past the library, as in a corrupted config graph. */
+  private void record(final RDFTerm... values) {
+    final Graph config = new SimpleGraph();
+    for (final RDFTerm value : values) {
+      config.add(VersioningGraphs.CONFIG, VocabVersioning.CONTENT_GRAPH, value);
+    }
+    transactor.inTransaction(tx -> tx.add(VersioningGraphs.CONFIG, config));
   }
 
   private long configCount() {
