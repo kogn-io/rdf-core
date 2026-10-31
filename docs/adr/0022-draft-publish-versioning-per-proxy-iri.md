@@ -58,13 +58,15 @@ a publish of several proxy IRIs must land together or not at all.
   ([ADR-0011](0011-datasettx-composes-content-ports.md)) and never opens one of
   its own; an aborted transaction leaves nothing behind. A conflict is
   reported; retrying is the caller's decision.
-- **Guards** (next sequence number, the token) read through that `DatasetTx`.
-  Conflicts on data already in the store are carried by the isolation promise
-  of `DatasetTransactor`. In the first-insert cases — first sequence number of a
-  proxy IRI, first counter, first use of the library's graphs — the guard reads
-  with `DatasetTx#contains`, not with a SPARQL `ASK`, because only `contains`
-  is conflict-protected for IRIs the store does not hold yet
-  ([ADR-0008](0008-datasettx-contains-guard.md), Context).
+- **Guards** (next sequence number, the token) read through that `DatasetTx`
+  and rely on the isolation promise of `DatasetTransactor`, which the port
+  states for any read-then-write guard, `ASK` included. The RDF4J
+  implementation does not reliably keep that promise for a guard against IRIs
+  the store does not hold yet. The first-insert cases — first sequence number
+  of a proxy IRI, first counter, first use of the library's graphs — therefore
+  read with `DatasetTx#contains`, as
+  [ADR-0008](0008-datasettx-contains-guard.md) (Decision) requires of
+  first-insert uniqueness guards, so the module stays correct on that backend.
   [ADR-0020](0020-delta-and-conflict-promise-holds-for-disjoint-writers.md)
   restricts the delta of `add`/`remove`, not guard reads; it does not touch
   these guards.
@@ -92,6 +94,12 @@ a publish of several proxy IRIs must land together or not at all.
   the history naming the CID of the last version, or the fact alone if the
   proxy IRI was never published. History and versions stay. Forgetting a
   version is not part of this record.
+- **No version is lost as a side effect.** No operation of the library that
+  clears a whole graph removes versions with it; a version leaves the content
+  store only through an explicit forgetting. This is a promise about the
+  library's operations, so it belongs to the port contract. The separate
+  content store of ADR-0023 is what makes it keepable, but a format cannot
+  promise what an operation does.
 - **Reads** are offered separately: the draft, the published state, a version
   by CID, version *n* of a proxy IRI, the history, and the three-valued publish
   state of a draft (never published; published without unpublished changes;
