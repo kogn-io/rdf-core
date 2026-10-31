@@ -1,6 +1,6 @@
 # ADR-0021: Versioning of RDF resources as its own backend-free module over `DatasetTx`
 
-Status: Proposed
+Status: Accepted (2026-10-31) — accepted with the merge of the implementation (#201–#206)
 
 ## Context
 
@@ -42,8 +42,10 @@ or on RDF4J. Its port and the port's only implementation share the module.
   that `DatasetTx`; how they stay conflict-protected is part of the port
   contract ([ADR-0022](0022-draft-publish-versioning-per-proxy-iri.md)).
 - Port and implementation in one module follow `rdf-cid` and `rdf-shacl`.
-- The module table in `CLAUDE.md` and the README gain the module when it is
-  built, not with this record.
+- The module tables in `CLAUDE.md`, the README and `ARCHITECTURE.md` list the
+  module; they gained it when it was built, not with this record. *Corrected when accepted: the record said the
+  tables gain the module when it is built; `ARCHITECTURE.md` was added to
+  the list.*
 - What the port promises is
   [ADR-0022](0022-draft-publish-versioning-per-proxy-iri.md); how a versioned
   dataset keeps its data is

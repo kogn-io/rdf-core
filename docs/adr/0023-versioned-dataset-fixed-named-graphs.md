@@ -1,6 +1,6 @@
 # ADR-0023: A versioned dataset keeps views, versions and history as fixed named graphs in one dataset
 
-Status: Proposed
+Status: Accepted (2026-10-31) — accepted with the merge of the implementation (#201–#206)
 
 ## Context
 
@@ -83,7 +83,9 @@ under the CID enters the digest as a fragment, and a foreign one is rejected by
 - A dataset export over all graphs takes the library's graphs along, but it is
   no consistent snapshot ([ADR-0013](0013-standalone-dataset-export-port.md)).
   An import port does not exist yet.
-- The concrete namespace and graph IRIs are chosen before the implementation;
-  this record fixes only that they are fixed and the library's.
+- This record fixes only that the graph IRIs are fixed and the library's; the
+  concrete namespace and IRIs are `VocabVersioning` and `VersioningGraphs` in
+  `rdf-versioning`. *Corrected when accepted: the record said they
+  were chosen before the implementation.*
 - Every distinct version is stored in full. Unproblematic for small resources;
   to be measured before use on large graphs.
