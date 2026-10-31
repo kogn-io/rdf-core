@@ -29,3 +29,4 @@ not a historical log of every change that led here.
 | [0018](0018-dataset-maintenance-port.md) | Clearing up after a failed delete is a port of its own |
 | [0019](0019-content-addressed-iri-as-ni-name.md) | The content-addressed IRI is an RFC 6920 `ni:` name over a specified input |
 | [0020](0020-delta-and-conflict-promise-holds-for-disjoint-writers.md) | The delta and conflict promise of `add`/`remove` holds for disjoint writers only |
+| [0021](0021-resource-versioning-module.md) | Versioning of RDF resources as its own backend-free module over `DatasetTx` |
