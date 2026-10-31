@@ -67,11 +67,12 @@ under the CID enters the digest as a fragment, and a foreign one is rejected by
   one content graph. Deduplication covers the whole dataset, the same unit as
   the transaction.
 - **History form.** Each entry is a subject of its own with a random
-  `urn:uuid:` IRI minted by the library on publish, carrying sequence number
-  (from 1, gapless), CID, timestamp, the procedure version that derived the CID
-  (`ni-rdf/1`), and optionally a creator IRI and a comment, in `dcterms`. Being
-  derived from nothing, the entry IRI survives an export and a restore into
-  another installation unchanged.
+  `urn:uuid:` IRI minted by the library on publish. Sequence number (from 1,
+  gapless), CID and the procedure version that derived the CID (`ni-rdf/1`) are
+  terms of the library's own vocabulary. The metadata — timestamp, and
+  optionally a creator IRI and a comment — use `dcterms`. Being derived from
+  nothing, the entry IRI survives an export and a restore into another
+  installation unchanged.
 - The revision counter of ADR-0022 is one bookkeeping triple per proxy IRI in
   the history, beside the entries; it is not an entry.
 - Blank-node labels in the content store are the store's and not stable across
