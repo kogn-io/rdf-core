@@ -51,8 +51,14 @@
  * among them the factory's rejection of a datatype IRI that is not absolute or of an empty
  * blank node reference. Only the failures of the specification's §5
  * carry a leading {@code [CODE]} in their message; an {@link IllegalArgumentException} without
- * it is a {@code null} argument or a rejection by the graph or the factory. A failure of the
+ * it is a {@code null} argument, a rejection by the graph or the factory, or the refusal of
+ * {@link io.kogn.rdf.cid.BaseRebaser} to rename a graph that already uses the new base. A failure of the
  * canonicalization itself is a {@link io.kogn.rdf.cid.ContentAddressingException}.</p>
+ *
+ * <h2>Renaming to the identifier</h2>
+ * <p>{@link io.kogn.rdf.cid.BaseRebaser} replaces the base IRI and its fragment IRIs by another
+ * base, on terms in every position (ni-rdf/1 §6): the step that turns a description under a
+ * provisional base into one that carries its own identifier and verifies against it.</p>
  *
  * <h2>Architecture role</h2>
  * <p>This is a backend-neutral port: {@link io.kogn.rdf.cid.ContentAddressedIriGenerator}
