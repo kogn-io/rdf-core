@@ -12,6 +12,12 @@
  *   <li>{@link io.kogn.rdf.versioning.VocabVersioning} — the library's vocabulary</li>
  *   <li>{@link io.kogn.rdf.versioning.ContentGraphMismatchException} — a dataset used
  *       with a content graph other than the one it records</li>
+ *   <li>{@link io.kogn.rdf.versioning.DraftSlice} and
+ *       {@link io.kogn.rdf.versioning.RevisionToken} — a proxy IRI's draft slice and
+ *       the opaque token for its next write</li>
+ *   <li>{@link io.kogn.rdf.versioning.RevisionConflictException} and
+ *       {@link io.kogn.rdf.versioning.AmbiguousBlankNodeException} — a stale token; a
+ *       blank node shared by two slices</li>
  * </ul>
  *
  * <h2>Backend-free</h2>
