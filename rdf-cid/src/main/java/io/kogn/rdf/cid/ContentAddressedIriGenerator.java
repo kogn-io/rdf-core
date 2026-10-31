@@ -15,7 +15,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  *
  * <p>This is useful for:</p>
  * <ul>
- *   <li>Federation with content deduplication</li>
+ *   <li>Federation: identical triples yield the same name on every instance, so a version
+ *       fetched from any server verifies against its name. Hosts are <em>not</em> normalized
+ *       (see below)</li>
  *   <li>Verifiable data integrity</li>
  *   <li>Content-addressed storage systems</li>
  * </ul>
@@ -28,6 +30,11 @@ import io.kogn.rdf.terms.ReadableGraph;
  * content.</p>
  *
  * <h2>What the identifier is derived from</h2>
+ *
+ * <p>Hosts are not normalized: every term except the base IRI goes into the digest in full, so
+ * a reference to {@code https://a.example/term/2} is part of the content, and another instance
+ * referring to its own {@code https://b.example/term/2} has different content and gets a
+ * different name. Choosing stable IRIs is the application's responsibility.</p>
  *
  * <p>The graph describes one resource, named by a <em>base IRI</em> (an IRI without a
  * {@code #}) that the caller passes alongside it: the identifier is that of a resource, not of
