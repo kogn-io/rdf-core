@@ -12,9 +12,11 @@
  * <p>Content addressing creates identifiers based on the actual content rather than
  * location or random assignment. This enables:</p>
  * <ul>
- *   <li><strong>Federation:</strong> When the same graph is published on different
- *       instances, content-addressed identifiers let peers recognize identical content
- *       regardless of the originating server.</li>
+ *   <li><strong>Federation:</strong> Identical triples yield the same identifier on every
+ *       instance, so peers recognize identical content and a version fetched from any server
+ *       verifies against its identifier. Hosts are not normalized: a reference to another
+ *       host's IRI is part of the content, and choosing stable IRIs is the application's
+ *       responsibility.</li>
  *   <li><strong>Import deduplication:</strong> Re-importing the same external dataset
  *       produces the same CIDs, so duplicate imports are detected without additional
  *       bookkeeping.</li>
