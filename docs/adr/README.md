@@ -30,3 +30,4 @@ not a historical log of every change that led here.
 | [0019](0019-content-addressed-iri-as-ni-name.md) | The content-addressed IRI is an RFC 6920 `ni:` name over a specified input |
 | [0020](0020-delta-and-conflict-promise-holds-for-disjoint-writers.md) | The delta and conflict promise of `add`/`remove` holds for disjoint writers only |
 | [0021](0021-resource-versioning-module.md) | Versioning of RDF resources as its own backend-free module over `DatasetTx` |
+| [0022](0022-draft-publish-versioning-per-proxy-iri.md) | Draft/publish versioning per proxy IRI over a library-owned slice |
