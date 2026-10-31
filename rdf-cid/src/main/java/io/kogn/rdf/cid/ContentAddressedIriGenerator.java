@@ -131,4 +131,17 @@ public interface ContentAddressedIriGenerator {
    *         canonicalizer would order wrongly (titanium-rdf-canon#65)
    */
   IRI generateIri(IRI base, ReadableGraph graph);
+
+  /**
+   * Returns the tag of the procedure by which this generator derives its identifiers.
+   *
+   * <p>A name is only comparable with names of the same procedure: the tag sits in the hashed
+   * bytes, so another procedure gives another name for the same content. A caller that stores
+   * an identifier records this tag beside it, to know later which procedure derived it. The
+   * value is constant for the life of the generator; for ni-rdf/1 it is the identifier of the
+   * specification, {@code ni-rdf/1} ({@code docs/spec/ni-rdf/v1.md}).</p>
+   *
+   * @return the procedure tag, for example {@code ni-rdf/1}; never null or empty
+   */
+  String procedureTag();
 }

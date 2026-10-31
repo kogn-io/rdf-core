@@ -54,6 +54,12 @@ class ContentAddressedIriGeneratorSexprTest {
     generator = new ContentAddressedIriGeneratorSexpr(rdf);
   }
 
+  @Test
+  @DisplayName("the procedure tag is the specification's identifier ni-rdf/1")
+  void procedureTagIsTheSpecificationIdentifier() {
+    assertThat(generator.procedureTag()).isEqualTo("ni-rdf/1").isEqualTo(ContentAddressableRdfSerializer.PROCEDURE_TAG);
+  }
+
   @Nested
   @DisplayName("different content gets different identifiers")
   class Distinctness {

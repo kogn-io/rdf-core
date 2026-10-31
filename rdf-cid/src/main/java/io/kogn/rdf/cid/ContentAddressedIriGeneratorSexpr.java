@@ -60,6 +60,11 @@ public class ContentAddressedIriGeneratorSexpr implements ContentAddressedIriGen
   }
 
   @Override
+  public String procedureTag() {
+    return ContentAddressableRdfSerializer.PROCEDURE_TAG;
+  }
+
+  @Override
   public IRI generateIri(IRI base, ReadableGraph graph) {
     if (graph == null) {
       throw new IllegalArgumentException("Graph cannot be null");
