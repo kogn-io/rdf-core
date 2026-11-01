@@ -187,6 +187,15 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
+  void aStaleTokenIsAConcurrencyConflictSoOneCatchCoversEveryLostRace() {
+    final RevisionToken stale = read(A).token();
+    write(A, graph(), stale);
+
+    assertThatThrownBy(() -> write(A, graph(), stale)).isInstanceOf(ConcurrencyConflictException.class)
+        .isNotInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
   void aTokenOfAnotherProxyIriIsRejected() {
     final RevisionToken tokenOfB = read(B).token();
 
