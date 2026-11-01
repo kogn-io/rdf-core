@@ -218,6 +218,26 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
+  void aVersionReadByCidUnitesTheFragmentsOfEveryEntryNamingIt() {
+    final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
+    draft(A, contentOfA);
+    final IRI entryOfA = transactor
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE))
+        .entries()
+        .get(A);
+    final IRI cid = generator.generateIri(A, contentOfA);
+    final Graph recorded = new SimpleGraph();
+    recorded.add(entryOfA, VocabVersioning.VERSION_FRAGMENT, new SimpleIRI(cid.getIRIString() + "#x"));
+    transactor.inTransaction(tx -> tx.remove(VersioningGraphs.HISTORY, recorded));
+    draft(B, graph(triple(B, "same"), triple(B_X, "part")));
+    publish(B);
+
+    final ReadableGraph version = read(tx -> versioning.readVersion(tx, cid).orElseThrow());
+
+    assertThat(version.size()).isEqualTo(2);
+  }
+
+  @Test
   void aVersionFragmentOutsideTheEntrysCidIsRejectedAsMalformed() {
     draft(A, graph(triple(A, "one"), triple(A_X, "x")));
     final IRI entry = transactor

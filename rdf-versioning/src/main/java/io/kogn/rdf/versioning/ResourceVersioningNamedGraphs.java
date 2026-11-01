@@ -338,23 +338,23 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
   }
 
   /**
-   * The fragment IRIs of the version {@code cid}, as recorded on a history entry naming it.
-   * Every entry that names a CID carries its fragments, so any one of them answers.
+   * The fragment IRIs of the version {@code cid}: the union of those recorded on every history
+   * entry naming it. Each entry the library writes carries all of them; the union keeps the
+   * result complete and independent of the order of the entries where one lacks them.
    */
   private static Set<IRI> recordedVersionFragments(final DatasetTx tx, final IRI cid) {
-    final Optional<BlankNodeOrIRI> naming = tx.match(VersioningGraphs.HISTORY, null, VocabVersioning.CONTENT, cid)
+    final Set<IRI> fragments = new LinkedHashSet<>();
+    for (final Triple naming : tx.match(VersioningGraphs.HISTORY, null, VocabVersioning.CONTENT, cid)
         .stream()
-        .map(Triple::getSubject)
-        .findFirst();
-    if (naming.isEmpty()) {
-      return Set.of();
+        .toList()) {
+      if (!(naming.getSubject() instanceof IRI entry)) {
+        throw new IllegalStateException(
+            "history entry naming " + cid.ntriplesString() + " is not an IRI: " + naming.getSubject().ntriplesString());
+      }
+      fragments.addAll(versionFragments(
+          tx.match(VersioningGraphs.HISTORY, entry, VocabVersioning.VERSION_FRAGMENT, null), entry, Optional.of(cid)));
     }
-    if (!(naming.get() instanceof IRI entry)) {
-      throw new IllegalStateException(
-          "history entry naming " + cid.ntriplesString() + " is not an IRI: " + naming.get().ntriplesString());
-    }
-    return versionFragments(tx.match(VersioningGraphs.HISTORY, entry, VocabVersioning.VERSION_FRAGMENT, null), entry,
-        Optional.of(cid));
+    return fragments;
   }
 
   /**
