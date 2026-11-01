@@ -21,7 +21,8 @@ import io.kogn.rdf.terms.SimpleIRI;
  *
  * <pre>{@code
  * ex:tree  versioning:entry     <urn:uuid:5b1f0c9e-3a52-4c1e-9d0a-7f2e6a1c4b88> ;
- *          versioning:revision  5 .
+ *          versioning:revision  5 ;
+ *          versioning:draftFragment <https://example.org/tree#root> .
  * <urn:uuid:5b1f0c9e-3a52-4c1e-9d0a-7f2e6a1c4b88>
  *          versioning:sequence  7 ;
  *          versioning:content   <ni:///sha3-256;...> ;
@@ -105,4 +106,36 @@ public interface VocabVersioning {
    * every later use (ADR-0023).</p>
    */
   IRI CONTENT_GRAPH = new SimpleIRI(NAMESPACE + "contentGraph");
+
+  /**
+   * The {@code versioning:draftFragment} property: a fragment IRI that is a subject of the
+   * draft slice of a proxy IRI.
+   *
+   * <p>Subject a proxy IRI, object one of its {@code #fragment} IRIs, in the history graph.
+   * One triple per fragment subject of the draft as the library last wrote it; replaced on
+   * every draft write, removed on delete. A bookkeeping triple like {@link #REVISION}, not
+   * an entry: a fragment IRI cannot be found by a statement pattern, so the library records
+   * the ones it wrote and reads the slice subject by subject.</p>
+   */
+  IRI DRAFT_FRAGMENT = new SimpleIRI(NAMESPACE + "draftFragment");
+
+  /**
+   * The {@code versioning:publishedFragment} property: a fragment IRI that is a subject of
+   * the slice of a proxy IRI in the {@link VersioningGraphs#PUBLISHED published view}.
+   *
+   * <p>Subject a proxy IRI, object one of its {@code #fragment} IRIs, in the history graph.
+   * Replaced on every publish that writes the published view, removed on delete. A
+   * bookkeeping triple like {@link #DRAFT_FRAGMENT}.</p>
+   */
+  IRI PUBLISHED_FRAGMENT = new SimpleIRI(NAMESPACE + "publishedFragment");
+
+  /**
+   * The {@code versioning:versionFragment} property: a fragment IRI that is a subject of a
+   * version in the {@link VersioningGraphs#CONTENT_STORE content store}.
+   *
+   * <p>Subject a CID, object one of its {@code #fragment} IRIs, in the history graph.
+   * Written once, when the version enters the content store, and never changed, like the
+   * version itself. A bookkeeping triple like {@link #DRAFT_FRAGMENT}.</p>
+   */
+  IRI VERSION_FRAGMENT = new SimpleIRI(NAMESPACE + "versionFragment");
 }

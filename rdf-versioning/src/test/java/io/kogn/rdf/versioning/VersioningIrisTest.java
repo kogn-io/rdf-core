@@ -27,11 +27,15 @@ class VersioningIrisTest {
   @Test
   void vocabularyIris() {
     assertThat(new IRI[] {VocabVersioning.ENTRY, VocabVersioning.REVISION, VocabVersioning.SEQUENCE,
-        VocabVersioning.CONTENT, VocabVersioning.PROCEDURE, VocabVersioning.CONTENT_GRAPH})
+        VocabVersioning.CONTENT, VocabVersioning.PROCEDURE, VocabVersioning.CONTENT_GRAPH,
+        VocabVersioning.DRAFT_FRAGMENT, VocabVersioning.PUBLISHED_FRAGMENT, VocabVersioning.VERSION_FRAGMENT})
         .extracting(IRI::getIRIString)
         .containsExactly("https://w3id.org/kognio/rdf/versioning#entry",
             "https://w3id.org/kognio/rdf/versioning#revision", "https://w3id.org/kognio/rdf/versioning#sequence",
             "https://w3id.org/kognio/rdf/versioning#content", "https://w3id.org/kognio/rdf/versioning#procedure",
-            "https://w3id.org/kognio/rdf/versioning#contentGraph");
+            "https://w3id.org/kognio/rdf/versioning#contentGraph",
+            "https://w3id.org/kognio/rdf/versioning#draftFragment",
+            "https://w3id.org/kognio/rdf/versioning#publishedFragment",
+            "https://w3id.org/kognio/rdf/versioning#versionFragment");
   }
 }
