@@ -196,8 +196,8 @@ public interface ResourceVersioning {
    * entry and returns the token that was passed in. So a repeated publish is idempotent.
    * A draft that changes and returns (A, B, A) creates three entries; the third names
    * the CID of the first, whose content is stored once. If the latest entry was derived
-   * by another procedure than the generator's, the stored CID is for now compared as is,
-   * so the draft is published again; once a second procedure exists, the stored version
+   * by another procedure than the generator's, for now a differing procedure counts as a
+   * change on its own, so the draft is published again; once a second procedure exists, the stored version
    * is derived again under the current procedure and that is compared, and a change of
    * procedure alone creates no version (ADR-0022).</p>
    *
@@ -406,8 +406,8 @@ public interface ResourceVersioning {
    * tombstone is {@link PublishState#DELETED}, also without a derivation. An <em>empty</em> draft of a
    * published proxy IRI cannot equal a version (an empty draft is not publishable) and
    * is {@link PublishState#PUBLISHED_WITH_UNPUBLISHED_CHANGES} without a derivation. If
-   * the latest entry was derived by another procedure than the one in use, the stored CID
-   * is for now compared as is and the answer is {@code PUBLISHED_WITH_UNPUBLISHED_CHANGES},
+   * the latest entry was derived by another procedure than the one in use, for now a differing
+   * procedure counts as a change on its own and the answer is {@code PUBLISHED_WITH_UNPUBLISHED_CHANGES},
    * as a publish would publish again; once a second procedure exists, the stored version
    * is derived again under the current procedure and compared (ADR-0022). Writes past this library are seen here, by content,
    * though the revision token does not see them. Reading may bind the dataset to the
