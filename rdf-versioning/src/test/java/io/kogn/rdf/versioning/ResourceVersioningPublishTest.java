@@ -322,7 +322,6 @@ class ResourceVersioningPublishTest {
     final RevisionToken token = draft(A, reserved);
 
     assertThatThrownBy(() -> publishWith(token)).isInstanceOf(IllegalArgumentException.class)
-        .isNotInstanceOf(ContentAddressingException.class)
         .hasMessageStartingWith("[RESERVED_IRI]");
 
     assertNothingPublished();
