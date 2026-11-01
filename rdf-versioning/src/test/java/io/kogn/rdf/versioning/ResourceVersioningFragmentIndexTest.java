@@ -48,6 +48,7 @@ class ResourceVersioningFragmentIndexTest {
   private static final IRI A = new SimpleIRI("https://example.org/res/A");
   private static final IRI A_X = new SimpleIRI("https://example.org/res/A#x");
   private static final IRI A_Y = new SimpleIRI("https://example.org/res/A#y");
+  private static final IRI A_Z = new SimpleIRI("https://example.org/res/A#z");
   private static final IRI B = new SimpleIRI("https://example.org/res/B");
   private static final IRI B_X = new SimpleIRI("https://example.org/res/B#x");
   private static final IRI P = new SimpleIRI("https://example.org/vocab/p");
@@ -110,6 +111,21 @@ class ResourceVersioningFragmentIndexTest {
     assertThat(holdsSubject(CONTENT, A_Y)).isFalse();
     assertThat(countIn(CONTENT)).isEqualTo(2);
     assertThat(indexed(A, VocabVersioning.DRAFT_FRAGMENT)).containsExactly(A_X);
+  }
+
+  @Test
+  void aWriteThatNamesAFragmentForTheFirstTimeReplacesWhatWasWrittenOnItPastTheLibrary() {
+    final Graph foreign = graph(triple(A_Z, "old"));
+    transactor.inTransaction(tx -> tx.add(CONTENT, foreign));
+    final Graph content = graph(triple(A, "one"), triple(A_Z, "new"));
+
+    draft(A, content);
+
+    final ReadableGraph slice = read(tx -> versioning.readSlice(tx, A).triples());
+    assertThat(slice.size()).isEqualTo(2);
+    assertThat(slice.contains(triple(A_Z, "new"))).isTrue();
+    assertThat(slice.contains(triple(A_Z, "old"))).isFalse();
+    assertThat(countIn(CONTENT)).isEqualTo(2);
   }
 
   @Test

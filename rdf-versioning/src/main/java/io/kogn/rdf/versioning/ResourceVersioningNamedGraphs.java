@@ -169,7 +169,12 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     requireSlice(copy, proxyIri);
 
     final Set<IRI> oldFragments = indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT);
-    final Graph old = draftOf(tx, proxyIri, oldFragments);
+    final Set<IRI> newFragments = fragmentsOf(copy, proxyIri);
+    // A fragment the new content names for the first time is replaced as a whole, including
+    // triples written on it past the library.
+    final Set<IRI> replaced = new LinkedHashSet<>(oldFragments);
+    replaced.addAll(newFragments);
+    final Graph old = draftOf(tx, proxyIri, replaced);
     requireNoSharedBlankNode(tx, copy, old, proxyIri);
 
     if (!old.isEmpty()) {
@@ -178,7 +183,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!copy.isEmpty()) {
       tx.add(contentGraph, copy);
     }
-    reindexFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT, oldFragments, fragmentsOf(copy, proxyIri));
+    reindexFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT, oldFragments, newFragments);
     final long next = raiseCounter(tx, proxyIri, counter, current);
     return new RevisionToken(proxyIri, next);
   }
