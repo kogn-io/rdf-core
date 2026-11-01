@@ -154,7 +154,7 @@ class StorageErrorsTest {
 
   @ParameterizedTest
   @MethodSource("backendFailures")
-  @DisplayName("every graph operation of a DatasetTx, contains included, surfaces a backend failure as the neutral"
+  @DisplayName("every graph operation of a DatasetTx, contains and match included, surfaces a backend failure as the neutral"
       + " DatasetStorageException")
   void datasetTx_backendFailure_isTranslated(final RuntimeException failure) {
     final DatasetTransactorRdf4j transactor = new DatasetTransactorRdf4j(failingWith(failure));
@@ -162,7 +162,8 @@ class StorageErrorsTest {
 
     for (final Consumer<DatasetTx> operation : java.util.List.<Consumer<DatasetTx>>of(tx -> tx.add(GRAPH, triples),
         tx -> tx.remove(GRAPH, triples), tx -> tx.clear(GRAPH), tx -> tx.export(GRAPH), tx -> tx.count(GRAPH),
-        DatasetTx::count, tx -> tx.contains(GRAPH, SUBJECT, PREDICATE, OBJECT))) {
+        DatasetTx::count, tx -> tx.contains(GRAPH, SUBJECT, PREDICATE, OBJECT),
+        tx -> tx.match(GRAPH, SUBJECT, PREDICATE, OBJECT))) {
       assertThatThrownBy(() -> transactor.inTransaction(tx -> {
         operation.accept(tx);
         return null;
@@ -233,8 +234,8 @@ class StorageErrorsTest {
 
     for (final Consumer<DatasetTx> operation : java.util.List.<Consumer<DatasetTx>>of(t -> t.add(GRAPH, triples),
         t -> t.remove(GRAPH, triples), t -> t.clear(GRAPH), t -> t.export(GRAPH), t -> t.count(GRAPH), DatasetTx::count,
-        t -> t.contains(GRAPH, SUBJECT, PREDICATE, OBJECT), t -> t.update("CLEAR ALL"),
-        t -> t.update("CLEAR ALL", Map.of()), t -> t.select("SELECT * WHERE { ?s ?p ?o }"),
+        t -> t.contains(GRAPH, SUBJECT, PREDICATE, OBJECT), t -> t.match(GRAPH, SUBJECT, PREDICATE, OBJECT),
+        t -> t.update("CLEAR ALL"), t -> t.update("CLEAR ALL", Map.of()), t -> t.select("SELECT * WHERE { ?s ?p ?o }"),
         t -> t.select("SELECT * WHERE { ?s ?p ?o }", Map.of()), t -> t.ask("ASK { ?s ?p ?o }"),
         t -> t.ask("ASK { ?s ?p ?o }", Map.of()), t -> t.construct("CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }"),
         t -> t.construct("CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }", Map.of()))) {

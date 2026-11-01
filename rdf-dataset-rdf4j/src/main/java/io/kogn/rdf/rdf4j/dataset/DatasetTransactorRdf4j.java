@@ -61,10 +61,10 @@ import io.kogn.rdf.dataset.DatasetTx;
  *
  * <p><strong>What counts as an "observed pattern" differs by operation.</strong> Reads through
  * {@link DatasetTx#contains(io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.BlankNodeOrIRI,
- * io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.RDFTerm) contains}, {@code count}, {@code export},
- * {@code ask} and {@code select} observe exactly the pattern (or, for a wildcard {@code count}
- * / {@code export}, the whole named graph) they read, and participate in conflict detection
- * accordingly — that is what makes them usable as optimistic-concurrency guards.
+ * io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.RDFTerm) contains}, {@code match}, {@code count},
+ * {@code export}, {@code ask} and {@code select} observe exactly the pattern (or, for a wildcard
+ * {@code count} / {@code export}, the whole named graph) they read, and participate in conflict
+ * detection accordingly — that is what makes them usable as optimistic-concurrency guards.
  * {@link DatasetTx#add add} and {@link DatasetTx#remove remove}, by contrast, observe only the
  * triples they themselves touch: each is checked and mutated one triple at a time, so a
  * concurrent writer of a <em>different</em> triple in the same named graph does not conflict
