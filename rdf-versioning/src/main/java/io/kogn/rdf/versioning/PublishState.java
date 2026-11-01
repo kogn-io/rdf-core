@@ -20,8 +20,10 @@ public enum PublishState {
 
   /**
    * The draft differs from the latest published version: its CID is another, the draft is
-   * empty, or the latest entry was derived by another procedure than the one in use, so
-   * the CIDs are not comparable (the same call a publish makes).
+   * empty, or the latest entry was derived by another procedure than the one in use. For
+   * now a differing procedure counts as a change on its own (the same call a
+   * publish makes); once a second procedure exists, the stored version is derived again
+   * under the current procedure and compared (ADR-0022).
    */
   PUBLISHED_WITH_UNPUBLISHED_CHANGES,
 
