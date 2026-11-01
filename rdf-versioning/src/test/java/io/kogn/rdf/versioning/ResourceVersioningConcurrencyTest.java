@@ -163,6 +163,19 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
+  void twoFirstOperationsOnAnUnboundDatasetDoNotBothCommitEvenForTheSameContentGraph() throws InterruptedException {
+    repository.shutDown();
+    repository = new SailRepository(new MemoryStore());
+    repository.init();
+    transactor = new DatasetTransactorRdf4j(repository);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readSlice(tx, A),
+        () -> transactor.inTransaction(tx -> versioning.readSlice(tx, B)));
+
+    assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+  }
+
+  @RepeatedTest(RUNS)
   void writersOfTheSameProxyIriDoNotBothCommit() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 

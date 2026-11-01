@@ -52,7 +52,9 @@ import io.kogn.rdf.terms.vocab.VocabXsd;
  *
  * <p>Every read goes through {@link DatasetTx#match} or {@link DatasetTx#contains} with a
  * bound subject or object, never through {@link DatasetTx#export}, so an operation observes
- * the patterns of its own proxy IRI (or CID) and nothing else of the graphs it reads. A
+ * the patterns of its own proxy IRI (or CID) and the content-graph binding, and nothing
+ * else of the graphs it reads. Until the binding is committed, the first operations on a
+ * dataset all read it as absent and write it, so they conflict with each other. A
  * slice is read subject by subject: the proxy IRI, each of its fragment IRIs, then the
  * blank-node closure node by node. A fragment IRI cannot be found by a statement pattern,
  * so the library records the fragment subjects of every slice it writes in the history
