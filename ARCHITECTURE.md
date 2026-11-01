@@ -515,7 +515,9 @@ IRIs and the blank nodes of its slice — and never exports a graph. On a backen
 that tracks what a transaction read (RDF4J under `SERIALIZABLE`), operations on
 disjoint proxy IRIs therefore commit side by side, and the read cost follows the
 slice and the history of the one proxy IRI, not the dataset. Two writers of the
-same proxy IRI, and two publishes that store the same new CID, still conflict.
+same proxy IRI, two publishes that store the same new CID, and the first
+operations on a dataset not yet bound to its content graph (each writes the
+binding) still conflict.
 Fragment IRIs cannot be found by a pattern, so the library records the fragment
 subjects of every slice it writes as bookkeeping triples in the history graph,
 beside the revision counter; a fragment subject written past the library on a
