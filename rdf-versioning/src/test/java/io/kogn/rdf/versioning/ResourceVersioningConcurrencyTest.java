@@ -37,8 +37,9 @@ import io.kogn.rdf.terms.SimpleRdf;
  * Races between transactions on one versioned dataset, run against a disk-backed
  * {@code NativeStore}, beside the {@code MemoryStore} the other tests use. These are
  * end-state and race regression tests, not a pin of the {@code contains} guard of ADR-0008:
- * replacing that guard with an {@code ASK} left the first-write, follow-up-write and bind races green (1000 runs each). Each race is held by latches, not by timing: the slow transaction has read
- * (and for some races written) before the competitor commits, and commits afterwards.
+ * replacing that guard with an {@code ASK} left the first-write, follow-up-write and bind races green (1000 runs each). Each race is held by latches, not by timing: the slow transaction has read and written
+ * before the competitor commits, and commits afterwards (in {@code ResourceVersioningSliceTest} the slow
+ * write only comes after the competitor's commit).
  *
  * <p>Only invariants of the same proxy IRI and of equal content are pinned; no race here
  * claims that transactions on disjoint proxy IRIs conflict.</p>
@@ -48,7 +49,7 @@ class ResourceVersioningConcurrencyTest {
 
   /**
    * Repetitions per race. The latches force the overlap, so a run does not depend on lucky timing;
-   * the repetitions only guard against residual scheduling effects. 20 keeps CI near 12 s.
+   * the repetitions only guard against residual scheduling effects. 20 keeps CI about 15 s.
    */
   private static final int REPETITIONS = 20;
 
