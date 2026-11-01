@@ -190,6 +190,26 @@ class ResourceVersioningReadTest {
     assertThat(published.contains(rdf.createTriple(A, Q, A))).isTrue();
   }
 
+  @Test
+  void aSelfReferenceBecomesTheCidInAVersionAndStaysTheProxyIriInThePublishedState() {
+    final Graph draft = one(A, "one");
+    draft.add(A, Q, A);
+    draft(A, draft);
+    publish(A);
+    final IRI cid = generator.generateIri(A, draft);
+
+    final ReadableGraph byCid = transactor.inTransaction(tx -> copy(versioning.readVersion(tx, cid).orElseThrow()));
+    final ReadableGraph bySequence = transactor
+        .inTransaction(tx -> copy(versioning.readVersion(tx, A, 1).orElseThrow()));
+    final ReadableGraph published = transactor.inTransaction(tx -> copy(versioning.readPublished(tx, A)));
+
+    for (final ReadableGraph version : List.of(byCid, bySequence)) {
+      assertThat(version.contains(rdf.createTriple(cid, Q, cid))).isTrue();
+      assertThat(version.contains(rdf.createTriple(cid, Q, A))).isFalse();
+    }
+    assertThat(published.contains(rdf.createTriple(A, Q, A))).isTrue();
+  }
+
   // --- readVersion by sequence number
 
   @Test
