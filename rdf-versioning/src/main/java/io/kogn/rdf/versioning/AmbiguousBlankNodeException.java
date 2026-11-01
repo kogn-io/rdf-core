@@ -10,6 +10,11 @@ package io.kogn.rdf.versioning;
  * <p>A blank node reachable from two proxy IRIs makes both slices ambiguous, so the
  * write is refused and nothing changes. Give the shared node an IRI of its own, or a
  * fragment IRI of one proxy IRI, or copy it per proxy IRI.</p>
+ *
+ * <p>The usual cause is a label shared by accident: blank-node identity is the label,
+ * and a parser that numbers labels per document ({@code _:b0}, {@code _:b1}, ...) reuses
+ * them across documents, so slices parsed separately collide. Use labels that are unique
+ * across the content graph, or write back the nodes {@code readSlice} returned.</p>
  */
 public class AmbiguousBlankNodeException extends IllegalArgumentException {
 

@@ -136,6 +136,12 @@ public interface ResourceVersioning {
    * stays known and the counter rises like for any write. {@code expected} is checked
    * first; if it is stale, no triple is changed.</p>
    *
+   * <p>Blank-node identity is the label. A parser that numbers its labels per document
+   * ({@code _:b0}, {@code _:b1}, ...) reuses them across documents, so slices parsed
+   * from separate documents collide in the content graph and the second write is
+   * rejected with {@link AmbiguousBlankNodeException}. Use labels that are unique across
+   * the content graph, or write back the nodes {@link #readSlice} returned.</p>
+   *
    * <p>The write runs in {@code tx}, opens no transaction and, if {@code tx} aborts,
    * leaves neither triples nor a new counter behind. A stale token is reported, never
    * retried. The first counter of a proxy IRI is looked up with {@link DatasetTx#contains} (ADR-0008). The token
