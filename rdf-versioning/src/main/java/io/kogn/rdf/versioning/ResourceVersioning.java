@@ -179,7 +179,10 @@ public interface ResourceVersioning {
    * <p>For each proxy IRI the CID of its {@link #readSlice draft slice} is derived with
    * the {@code rdf-cid} generator, the slice renamed from the proxy IRI to the CID is
    * written to the {@link VersioningGraphs#CONTENT_STORE content store} unless that CID
-   * is already there (blank nodes stay blank nodes, with fresh labels), the proxy IRI's
+   * is already there (ADR-0023 looks it up by the CID as subject; the implementation
+   * probes the first IRI subject of the renamed version, which may be {@code cid#fragment},
+   * equivalent because the same CID means the same fragment set; blank nodes stay blank
+   * nodes, with fresh labels), the proxy IRI's
    * slice in the {@link VersioningGraphs#PUBLISHED published view} is replaced by the
    * draft, and a history entry is written (ADR-0022, ADR-0023). The draft stays. The
    * entry has a random {@code urn:uuid:} IRI, the next sequence number of the proxy IRI
@@ -193,8 +196,10 @@ public interface ResourceVersioning {
    * entry and returns the token that was passed in. So a repeated publish is idempotent.
    * A draft that changes and returns (A, B, A) creates three entries; the third names
    * the CID of the first, whose content is stored once. If the latest entry was derived
-   * by another procedure than the generator's, the CIDs are not comparable and the draft
-   * is published again.</p>
+   * by another procedure than the generator's, the stored CID is for now compared as is,
+   * so the draft is published again; once a second procedure exists, the stored version
+   * is derived again under the current procedure and that is compared, and a change of
+   * procedure alone creates no version (ADR-0022).</p>
    *
    * <p><strong>All or nothing.</strong> Every token is checked and every CID derived
    * before the first triple is written (apart from the binding of the content graph on first use), so a failure for any proxy IRI leaves the
@@ -401,9 +406,10 @@ public interface ResourceVersioning {
    * tombstone is {@link PublishState#DELETED}, also without a derivation. An <em>empty</em> draft of a
    * published proxy IRI cannot equal a version (an empty draft is not publishable) and
    * is {@link PublishState#PUBLISHED_WITH_UNPUBLISHED_CHANGES} without a derivation. If
-   * the latest entry was derived by another procedure than the one in use, the CIDs are
-   * not comparable and the answer is {@code PUBLISHED_WITH_UNPUBLISHED_CHANGES}, as a
-   * publish would publish again. Writes past this library are seen here, by content,
+   * the latest entry was derived by another procedure than the one in use, the stored CID
+   * is for now compared as is and the answer is {@code PUBLISHED_WITH_UNPUBLISHED_CHANGES},
+   * as a publish would publish again; once a second procedure exists, the stored version
+   * is derived again under the current procedure and compared (ADR-0022). Writes past this library are seen here, by content,
    * though the revision token does not see them. Reading may bind the dataset to the
    * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
    *

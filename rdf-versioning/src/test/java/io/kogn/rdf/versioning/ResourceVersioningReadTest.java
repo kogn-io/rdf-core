@@ -382,6 +382,8 @@ class ResourceVersioningReadTest {
     assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES);
   }
 
+  // Pins interim behaviour, not the contract: ADR-0022 re-derives the stored version under the
+  // current procedure once a second procedure exists (#228).
   @Test
   void aLatestEntryOfAnotherProcedureCountsAsChanged() {
     draft(A, one(A, "one"));
