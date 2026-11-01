@@ -327,6 +327,18 @@ class ResourceVersioningPublishTest {
   }
 
   @Test
+  void aDraftWithATermOutsideRdf11IsRejectedByTheGeneratorAndNothingIsWritten() {
+    final Graph unpairedSurrogate = new SimpleGraph();
+    unpairedSurrogate.add(A, P, rdf.createLiteral("x\uD800y"));
+    final RevisionToken token = draft(A, unpairedSurrogate);
+
+    assertThatThrownBy(() -> publishWith(token)).isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("[UNSUPPORTED_TERM]");
+
+    assertNothingPublished();
+  }
+
+  @Test
   void aFailureToDeriveTheIdentifierIsReportedAndNothingIsWritten() {
     final ResourceVersioning failing = new ResourceVersioningNamedGraphs(CONTENT, new Failing(),
         Clock.fixed(NOW, ZoneOffset.UTC));

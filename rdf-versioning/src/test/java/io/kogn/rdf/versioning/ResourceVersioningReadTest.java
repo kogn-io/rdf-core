@@ -173,10 +173,11 @@ class ResourceVersioningReadTest {
   void aReferenceToAnotherProxyIriInsideAVersionKeepsNamingTheProxyIriOnEveryReadPath() {
     final Graph draft = one(A, "one");
     draft.add(A, Q, B);
-    draft.add(A, Q, A);
     draft(A, draft);
-    publish(A);
+    draft(B, one(B, "b"));
+    publish(A, B);
     final IRI cid = generator.generateIri(A, draft);
+    final IRI cidB = generator.generateIri(B, one(B, "b"));
 
     final ReadableGraph byCid = transactor.inTransaction(tx -> copy(versioning.readVersion(tx, cid).orElseThrow()));
     final ReadableGraph bySequence = transactor
@@ -185,9 +186,9 @@ class ResourceVersioningReadTest {
 
     for (final ReadableGraph version : List.of(byCid, bySequence)) {
       assertThat(version.contains(rdf.createTriple(cid, Q, B))).isTrue();
+      assertThat(version.contains(rdf.createTriple(cid, Q, cidB))).isFalse();
     }
     assertThat(published.contains(rdf.createTriple(A, Q, B))).isTrue();
-    assertThat(published.contains(rdf.createTriple(A, Q, A))).isTrue();
   }
 
   @Test
