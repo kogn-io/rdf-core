@@ -520,7 +520,9 @@ backend indexes each pattern. The shared-blank-node check of `replaceSlice` and
 unbound; `MemoryStore` and a `NativeStore` built by the hosting module
 (`spoc,posc,cosp`) index that, a `NativeStore` with RDF4J's default `spoc,posc`
 scans the content graph for it. Two writers of the
-same proxy IRI, two publishes that store the same new CID, and the first
+same proxy IRI, two publishes that store the same new CID, a read of a version
+by its CID and a publish of a draft with that CID (a new history entry names the
+CID even when the version is stored already), and the first
 operations on a dataset not yet bound to its content graph (each writes the
 binding) still conflict.
 Fragment IRIs cannot be found by a pattern, so the library records the fragment
