@@ -210,6 +210,19 @@ class ResourceVersioningPublishTest {
   }
 
   @Test
+  void theResultHoldsItsProxyIrisInTheOrderTheyWerePassed() {
+    final IRI c = new SimpleIRI("https://example.org/res/C");
+    draft(A, literalTriples(A, "a"));
+    draft(B, literalTriples(B, "b"));
+    draft(c, literalTriples(c, "c"));
+
+    final PublishResult result = publish(PublishDetails.NONE, c, A, B);
+
+    assertThat(List.copyOf(result.entries().keySet())).containsExactly(c, A, B);
+    assertThat(List.copyOf(result.tokens().keySet())).containsExactly(c, A, B);
+  }
+
+  @Test
   void aStaleTokenOfOneProxyIriPublishesNone() {
     final RevisionToken a = draft(A, literalTriples(A, "one"));
     final RevisionToken staleB = readToken(B);
@@ -296,6 +309,30 @@ class ResourceVersioningPublishTest {
     final RevisionToken token = draft(A, dense);
 
     assertThatThrownBy(() -> publishWith(token)).isInstanceOf(CanonicalizationResourceLimitExceededException.class);
+
+    assertNothingPublished();
+  }
+
+  @Test
+  void aDraftWithTheReservedIriIsRejectedByTheGeneratorAndNothingIsWritten() {
+    final Graph reserved = literalTriples(A, "one");
+    reserved.add(A, Q, new SimpleIRI("urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1"));
+    final RevisionToken token = draft(A, reserved);
+
+    assertThatThrownBy(() -> publishWith(token)).isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("[RESERVED_IRI]");
+
+    assertNothingPublished();
+  }
+
+  @Test
+  void aDraftWithATermOutsideRdf11IsRejectedByTheGeneratorAndNothingIsWritten() {
+    final Graph unpairedSurrogate = new SimpleGraph();
+    unpairedSurrogate.add(A, P, rdf.createLiteral("x\uD800y"));
+    final RevisionToken token = draft(A, unpairedSurrogate);
+
+    assertThatThrownBy(() -> publishWith(token)).isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("[UNSUPPORTED_TERM]");
 
     assertNothingPublished();
   }

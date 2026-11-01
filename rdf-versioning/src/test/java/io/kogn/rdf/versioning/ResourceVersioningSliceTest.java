@@ -6,6 +6,7 @@ package io.kogn.rdf.versioning;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -111,6 +112,23 @@ class ResourceVersioningSliceTest {
     write(AB, other, read(AB).token());
 
     assertThat(read(A).triples().isEmpty()).isTrue();
+  }
+
+  @Test
+  void aSubjectIsInTheSliceOnlyByTheSameSpellingOfTheProxyIri() {
+    final List<IRI> spellings = List.of(new SimpleIRI("HTTPS://example.org/res/A"),
+        new SimpleIRI("https://EXAMPLE.org/res/A"), new SimpleIRI("https://example.org/res/a"),
+        new SimpleIRI("https://example.org/res/%41"));
+    for (final IRI spelling : spellings) {
+      final Graph content = graph();
+      content.add(spelling, P, rdf.createLiteral("other"));
+      write(spelling, content, read(spelling).token());
+    }
+
+    assertThat(read(A).triples().isEmpty()).isTrue();
+    for (final IRI spelling : spellings) {
+      assertThat(read(spelling).triples().size()).isEqualTo(1);
+    }
   }
 
   @Test
