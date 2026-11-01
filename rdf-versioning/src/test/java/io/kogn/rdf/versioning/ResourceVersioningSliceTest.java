@@ -114,6 +114,22 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
+  void aSubjectIsInTheSliceOnlyByTheSameSpellingOfTheProxyIri() {
+    final IRI lowerCase = new SimpleIRI("https://example.org/res/a");
+    final IRI percentEncoded = new SimpleIRI("https://example.org/res/%41");
+    final Graph lower = graph();
+    lower.add(lowerCase, P, rdf.createLiteral("lower"));
+    write(lowerCase, lower, read(lowerCase).token());
+    final Graph encoded = graph();
+    encoded.add(percentEncoded, P, rdf.createLiteral("encoded"));
+    write(percentEncoded, encoded, read(percentEncoded).token());
+
+    assertThat(read(A).triples().isEmpty()).isTrue();
+    assertThat(read(lowerCase).triples().size()).isEqualTo(1);
+    assertThat(read(percentEncoded).triples().size()).isEqualTo(1);
+  }
+
+  @Test
   void replacingASliceLeavesOtherSlicesAlone() {
     final Graph first = graph();
     first.add(A, P, rdf.createLiteral("a"));
