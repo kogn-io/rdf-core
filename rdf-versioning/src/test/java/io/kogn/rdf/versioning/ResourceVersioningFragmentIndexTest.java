@@ -143,25 +143,27 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void aDeleteClearsTheDraftAndPublishedIndexButKeepsTheVersionIndex() {
+  void aDeleteClearsTheDraftAndPublishedIndexAndItsTombstoneCarriesTheVersionFragments() {
     final Graph content = graph(triple(A, "one"), triple(A_X, "x"));
     draft(A, content);
     publish(A);
     final IRI cid = generator.generateIri(A, content);
 
-    transactor.inTransaction(tx -> versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE));
+    final IRI tombstone = transactor.inTransaction(
+        tx -> versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE).entry());
 
     assertThat(indexed(A, VocabVersioning.DRAFT_FRAGMENT)).isEmpty();
     assertThat(indexed(A, VocabVersioning.PUBLISHED_FRAGMENT)).isEmpty();
     assertThat(countIn(CONTENT)).isZero();
     assertThat(countIn(VersioningGraphs.PUBLISHED)).isZero();
-    assertThat(indexed(cid, VocabVersioning.VERSION_FRAGMENT))
+    assertThat(indexed(tombstone, VocabVersioning.VERSION_FRAGMENT))
         .containsExactly(new SimpleIRI(cid.getIRIString() + "#x"));
     assertThat(read(tx -> versioning.readVersion(tx, cid).orElseThrow()).size()).isEqualTo(2);
+    assertThat(read(tx -> versioning.readVersion(tx, A, 1).orElseThrow()).size()).isEqualTo(2);
   }
 
   @Test
-  void aPublishOfContentAlreadyStoredWritesNoVersionFragment() {
+  void aPublishOfContentAlreadyStoredRecordsTheVersionFragmentsOnItsOwnEntry() {
     final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
     final Graph contentOfB = graph(triple(B, "same"), triple(B_X, "part"));
     draft(A, contentOfA);
@@ -175,12 +177,28 @@ class ResourceVersioningFragmentIndexTest {
       versioning.publish(recording, List.of(versioning.readSlice(recording, B).token()), PublishDetails.NONE);
       return recording;
     });
+    final IRI entryOfB = read(tx -> versioning.history(tx, B).getLast().iri());
 
-    assertThat(recorded.addedTo(VersioningGraphs.HISTORY))
-        .noneMatch(t -> t.getPredicate().equals(VocabVersioning.VERSION_FRAGMENT));
     assertThat(recorded.addedTo(VersioningGraphs.CONTENT_STORE)).isEmpty();
-    assertThat(indexed(cid, VocabVersioning.VERSION_FRAGMENT))
+    assertThat(indexed(entryOfB, VocabVersioning.VERSION_FRAGMENT))
         .containsExactly(new SimpleIRI(cid.getIRIString() + "#x"));
+    assertThat(read(tx -> tx.match(VersioningGraphs.HISTORY, cid, null, null)).isEmpty()).isTrue();
+    assertThat(read(tx -> versioning.readVersion(tx, B, 1).orElseThrow()).size()).isEqualTo(2);
+  }
+
+  @Test
+  void aVersionFragmentOutsideTheEntrysCidIsRejectedAsMalformed() {
+    draft(A, graph(triple(A, "one"), triple(A_X, "x")));
+    final IRI entry = transactor
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE))
+        .entries()
+        .get(A);
+    final Graph foreign = new SimpleGraph();
+    foreign.add(entry, VocabVersioning.VERSION_FRAGMENT, B_X);
+    transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, foreign));
+
+    assertThatThrownBy(() -> read(tx -> versioning.history(tx, A))).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("malformed history entry");
   }
 
   @Test

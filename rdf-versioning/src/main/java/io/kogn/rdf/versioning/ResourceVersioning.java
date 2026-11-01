@@ -210,7 +210,9 @@ public interface ResourceVersioning {
    * slice in the {@link VersioningGraphs#PUBLISHED published view} is replaced by the
    * draft, and a history entry is written (ADR-0022, ADR-0023). The draft stays. The
    * entry has a random {@code urn:uuid:} IRI, the next sequence number of the proxy IRI
-   * (from 1, gapless), the CID, the {@code procedureTag()} of the generator, and
+   * (from 1, gapless), the CID, the {@code procedureTag()} of the generator, the fragment
+   * IRIs of the version ({@link VocabVersioning#VERSION_FRAGMENT}, also when the CID was
+   * stored already), and
    * {@code dcterms:created} from the implementation's clock, plus creator and comment
    * from {@code details} if given. The revision counter of the proxy IRI is raised.</p>
    *
@@ -266,8 +268,8 @@ public interface ResourceVersioning {
    * <p>The tombstone is a history entry of its own with an {@code urn:uuid:} IRI, the next
    * sequence number of the proxy IRI (gapless) and {@code dcterms:created}, creator and
    * comment from {@code details} if given, typed {@link EntryKind#TOMBSTONE}. It names the
-   * CID and the procedure of the last version of the proxy IRI, or neither if the proxy
-   * IRI was never published. The revision counter is raised.</p>
+   * CID, the procedure and the fragment IRIs of the last version of the proxy IRI, or none
+   * of them if the proxy IRI was never published. The revision counter is raised.</p>
    *
    * <p><strong>History and versions stay.</strong> Every earlier entry and every version in
    * the {@link VersioningGraphs#CONTENT_STORE content store} remains, so
@@ -357,8 +359,8 @@ public interface ResourceVersioning {
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalArgumentException if {@code cid} contains a {@code #}
-   * @throws IllegalStateException if {@code tx} has already ended, or the fragment index
-   *     of the CID in the history graph is malformed
+   * @throws IllegalStateException if {@code tx} has already ended, or the history entry
+   *     that names the CID records malformed fragment IRIs
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -388,9 +390,8 @@ public interface ResourceVersioning {
    *     graph
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
    *     {@code sequence} is less than 1
-   * @throws IllegalStateException if {@code tx} has already ended, the history of the
-   *     proxy IRI is malformed or not gapless, or the fragment index of the version's CID
-   *     is malformed
+   * @throws IllegalStateException if {@code tx} has already ended, or the history of the
+   *     proxy IRI is malformed or not gapless
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */

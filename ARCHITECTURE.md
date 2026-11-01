@@ -524,9 +524,11 @@ same proxy IRI, two publishes that store the same new CID, and the first
 operations on a dataset not yet bound to its content graph (each writes the
 binding) still conflict.
 Fragment IRIs cannot be found by a pattern, so the library records the fragment
-subjects of every slice it writes as bookkeeping triples in the history graph,
-beside the revision counter; a fragment subject written past the library on a
-fragment IRI it never wrote is not part of the slice.
+subjects of every slice it writes in the history graph: those of the draft and
+of the published copy as bookkeeping triples of the proxy IRI, beside the
+revision counter, and those of a version on every history entry that names its
+CID. A fragment subject written past the library on a fragment IRI the library
+never wrote is not part of the slice until a write names it.
 
 A versioned dataset keeps the caller's content graph (the draft view) beside
 four fixed graphs of the library — published view, content store, history and

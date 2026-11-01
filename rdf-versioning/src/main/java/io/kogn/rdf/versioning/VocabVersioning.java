@@ -27,6 +27,7 @@ import io.kogn.rdf.terms.SimpleIRI;
  *          versioning:sequence  7 ;
  *          versioning:content   <ni:///sha3-256;...> ;
  *          versioning:procedure "ni-rdf/1" ;
+ *          versioning:versionFragment <ni:///sha3-256;...#root> ;
  *          dcterms:created      "2026-10-31T09:00:00Z"^^xsd:dateTime .
  * }</pre>
  *
@@ -125,17 +126,20 @@ public interface VocabVersioning {
    *
    * <p>Subject a proxy IRI, object one of its {@code #fragment} IRIs, in the history graph.
    * Replaced on every publish that writes the published view, removed on delete. A
-   * bookkeeping triple like {@link #DRAFT_FRAGMENT}.</p>
+   * bookkeeping triple of the proxy IRI like {@link #DRAFT_FRAGMENT}.</p>
    */
   IRI PUBLISHED_FRAGMENT = new SimpleIRI(NAMESPACE + "publishedFragment");
 
   /**
-   * The {@code versioning:versionFragment} property: a fragment IRI that is a subject of a
-   * version in the {@link VersioningGraphs#CONTENT_STORE content store}.
+   * The {@code versioning:versionFragment} property: a fragment IRI that is a subject of the
+   * version a history entry names.
    *
-   * <p>Subject a CID, object one of its {@code #fragment} IRIs, in the history graph.
-   * Written once, when the version enters the content store, and never changed, like the
-   * version itself. A bookkeeping triple like {@link #DRAFT_FRAGMENT}.</p>
+   * <p>Subject an entry, object one of the {@code #fragment} IRIs of the CID in its
+   * {@link #CONTENT}, in the history graph. One triple per fragment subject of the version
+   * in the {@link VersioningGraphs#CONTENT_STORE content store}. Every entry that names a
+   * CID carries them — a publish, whether or not it stored the version, and a tombstone,
+   * which takes them over from the last version — so the fragments of a CID can be read from
+   * any entry naming it. Part of the entry, written with it and never changed.</p>
    */
   IRI VERSION_FRAGMENT = new SimpleIRI(NAMESPACE + "versionFragment");
 }
