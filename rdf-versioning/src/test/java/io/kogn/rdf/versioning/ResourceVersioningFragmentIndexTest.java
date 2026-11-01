@@ -27,6 +27,7 @@ import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
+import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
@@ -193,8 +194,10 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void noOperationExportsAGraph() {
-    final Graph content = graph(triple(A, "one"), triple(A_X, "x"));
+  void noOperationReadsAWholeGraph() {
+    final BlankNode node = rdf.createBlankNode();
+    final Graph content = graph(triple(A, "one"), triple(A_X, "x"), triple(node, "deep"));
+    content.add(A, P, node);
     final IRI cid = generator.generateIri(A, content);
 
     final RecordingTx recorded = transactor.inTransaction(tx -> {
@@ -213,6 +216,8 @@ class ResourceVersioningFragmentIndexTest {
     });
 
     assertThat(recorded.exported).isEmpty();
+    assertThat(recorded.counted).isEmpty();
+    assertThat(recorded.unboundPatterns).isEmpty();
   }
 
   private Set<IRI> indexed(final IRI base, final IRI predicate) {
@@ -265,6 +270,9 @@ class ResourceVersioningFragmentIndexTest {
 
     private final DatasetTx delegate;
     private final List<IRI> exported = new ArrayList<>();
+    private final List<String> counted = new ArrayList<>();
+    /** Every {@code contains}/{@code match} whose subject and object are both wildcards. */
+    private final List<String> unboundPatterns = new ArrayList<>();
     private final List<Map.Entry<IRI, Triple>> added = new ArrayList<>();
 
     RecordingTx(final DatasetTx delegate) {
@@ -299,24 +307,36 @@ class ResourceVersioningFragmentIndexTest {
 
     @Override
     public long count(final IRI namedGraph) {
+      counted.add(namedGraph.ntriplesString());
       return delegate.count(namedGraph);
     }
 
     @Override
     public long count() {
+      counted.add("all graphs");
       return delegate.count();
     }
 
     @Override
     public boolean contains(final IRI namedGraph, final BlankNodeOrIRI subject, final IRI predicate,
         final RDFTerm object) {
+      recordUnbound("contains", namedGraph, subject, predicate, object);
       return delegate.contains(namedGraph, subject, predicate, object);
     }
 
     @Override
     public ReadableGraph match(final IRI namedGraph, final BlankNodeOrIRI subject, final IRI predicate,
         final RDFTerm object) {
+      recordUnbound("match", namedGraph, subject, predicate, object);
       return delegate.match(namedGraph, subject, predicate, object);
+    }
+
+    private void recordUnbound(final String operation, final IRI namedGraph, final BlankNodeOrIRI subject,
+        final IRI predicate, final RDFTerm object) {
+      if (subject == null && object == null) {
+        unboundPatterns.add(operation + " " + namedGraph.ntriplesString() + " "
+            + (predicate == null ? "*" : predicate.ntriplesString()));
+      }
     }
 
     @Override
