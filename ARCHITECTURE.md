@@ -514,7 +514,12 @@ bound to its own proxy IRI — or to the CID, the history entries, the fragment
 IRIs and the blank nodes of its slice — and never exports a graph. On a backend
 that tracks what a transaction read (RDF4J under `SERIALIZABLE`), operations on
 disjoint proxy IRIs therefore commit side by side, and the read cost follows the
-slice and the history of the one proxy IRI, not the dataset. Two writers of the
+slice and the history of the one proxy IRI, not the dataset — as long as the
+backend indexes each pattern. The shared-blank-node check of `replaceSlice` and
+`delete` reads blank nodes in object position with subject and predicate
+unbound; `MemoryStore` and a `NativeStore` built by the hosting module
+(`spoc,posc,cosp`) index that, a `NativeStore` with RDF4J's default `spoc,posc`
+scans the content graph for it. Two writers of the
 same proxy IRI, two publishes that store the same new CID, and the first
 operations on a dataset not yet bound to its content graph (each writes the
 binding) still conflict.

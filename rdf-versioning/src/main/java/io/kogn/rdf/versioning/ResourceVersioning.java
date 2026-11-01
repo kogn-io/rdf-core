@@ -51,9 +51,16 @@ import io.kogn.rdf.terms.ReadableGraph;
  * is not yet bound to its content graph (both find the binding absent and write it, see
  * {@link #bindContentGraph}); consumers retry reads as well as writes. The read cost of an
  * operation is O(size of the slice + number of history entries of the proxy IRI),
- * independent of the rest of the dataset; a publish or a {@link #publishState} adds the
- * derivation of the CID. A triple term (RDF 1.2) in a pattern an operation reads makes it
- * fail with {@link IllegalStateException}, as {@link DatasetTx#match} documents.</p>
+ * independent of the rest of the dataset, provided the backend has an index for each
+ * pattern; a publish or a {@link #publishState} adds the derivation of the CID. Most
+ * patterns bind the subject. The check for shared blank nodes in {@link #replaceSlice} and
+ * {@link #delete} also reads each blank node of the slice as object, with subject and
+ * predicate unbound; that needs an index led by the object within the graph. The RDF4J
+ * {@code MemoryStore} has one, and so does a {@code NativeStore} created by the hosting
+ * module ({@code spoc,posc,cosp}); a {@code NativeStore} with the RDF4J default
+ * {@code spoc,posc} scans the content graph for it. A triple term (RDF 1.2) in a pattern
+ * an operation reads makes it fail with {@link IllegalStateException}, as
+ * {@link DatasetTx#match} documents.</p>
  *
  * <p><strong>Union reads.</strong> On a versioned dataset a query without {@code FROM}
  * or {@code GRAPH} runs over the union of all named graphs and sees the library's
