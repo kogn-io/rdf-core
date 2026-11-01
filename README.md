@@ -42,9 +42,9 @@ the caller's responsibility, not something the ports check on write; each
 implementation states what it enforces when it meets some. The `rdf-terms`
 factories reject `rdf:dirLangString` as a plain datatype. The read paths that
 convert into the data model — `GraphStore#export`, `SparqlQuery#select` and
-`#construct`, the same operations on `DatasetTx` — reject an RDF 1.2 triple term
-with an `IllegalStateException`. A SPARQL update that stores one is not
-rejected, and `DatasetExport` writes the store's content as it is, in RDF 1.2
+`#construct`, the same operations on `DatasetTx`, and `DatasetTx#match` — reject
+an RDF 1.2 triple term with an `IllegalStateException`. A SPARQL update that
+stores one is not rejected, and `DatasetExport` writes the store's content as it is, in RDF 1.2
 syntax if the store holds such a term.
 
 ## Consuming snapshots
