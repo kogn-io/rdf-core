@@ -253,6 +253,8 @@ class ResourceVersioningPublishTest {
     assertThat(written).isNotEqualTo(next);
   }
 
+  // Pins interim behaviour, not the contract: ADR-0022 re-derives the stored version under the
+  // current procedure once a second procedure exists (#228).
   @Test
   void aDraftOfAnotherProcedureIsPublishedAgain() {
     draft(A, literalTriples(A, "one"));
