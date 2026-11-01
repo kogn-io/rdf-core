@@ -1,6 +1,14 @@
 # Design note: versioning (#105)
 
-Status: historical background — superseded by [ADR-0021](../adr/0021-resource-versioning-module.md), [ADR-0022](../adr/0022-draft-publish-versioning-per-proxy-iri.md), [ADR-0023](../adr/0023-versioned-dataset-fixed-named-graphs.md) and the `rdf-versioning` module; where they differ, they win | Date: 2026-10-31 (first version 2026-10-02) | Issue: #105
+Status: historical background — superseded by [ADR-0021](../adr/0021-resource-versioning-module.md), [ADR-0022](../adr/0022-draft-publish-versioning-per-proxy-iri.md), [ADR-0023](../adr/0023-versioned-dataset-fixed-named-graphs.md) and the `rdf-versioning` module; where they differ, they win | Date: 2026-10-31 (first version 2026-10-02) | Issue: #105 (closed 2026-11-01)
+
+Retention: **not meant to stay.** This file is kept only while
+[#221](https://github.com/kogn-io/rdf-core/issues/221) is open: its sections D9 (tags) and
+D12 (forgetting a version) are the only full description of the two parts of the design that
+the first cut left out, and #221 points here for them. Once #221 is resolved — implemented or
+dropped — move whatever still matters into the resolving issues or ADRs and delete this file.
+ADR-0017, ADR-0019 and ADR-0021 to ADR-0023 cite it as the source of their values; accepted
+ADRs are not edited, so those citations go stale by design when the file goes.
 
 This note was the agreed basis for implementing #105 (at the time of writing).
 It collects the decisions, the reasoning behind them and what was still open. It is not an ADR: once the
