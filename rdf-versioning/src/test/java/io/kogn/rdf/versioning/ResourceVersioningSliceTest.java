@@ -307,6 +307,8 @@ class ResourceVersioningSliceTest {
   @Test
   void twoConcurrentFirstWritesOfOneProxyIriDoNotBothCommit() throws InterruptedException {
     assertThat(concurrentWriteOutcome(read(A).token())).isInstanceOf(ConcurrencyConflictException.class);
+
+    assertWinnerOnly(1);
   }
 
   @Test
@@ -314,6 +316,8 @@ class ResourceVersioningSliceTest {
     final RevisionToken first = write(A, graph(), read(A).token());
 
     assertThat(concurrentWriteOutcome(first)).isInstanceOf(ConcurrencyConflictException.class);
+
+    assertWinnerOnly(2);
   }
 
   @Test
@@ -381,6 +385,14 @@ class ResourceVersioningSliceTest {
     competitor.join();
     assertThat(competitorFailure.get()).isNull();
     return outcome;
+  }
+
+  /** The content under A is the competitor's alone and the counter stands at {@code revision}. */
+  private void assertWinnerOnly(final long revision) {
+    final DraftSlice slice = read(A);
+    assertThat(slice.triples().size()).isEqualTo(1);
+    assertThat(slice.triples().contains(rdf.createTriple(A, P, rdf.createLiteral("competitor")))).isTrue();
+    assertThat(slice.token().revision()).isEqualTo(revision);
   }
 
   private void awaitCommitted(final CountDownLatch latch) {
