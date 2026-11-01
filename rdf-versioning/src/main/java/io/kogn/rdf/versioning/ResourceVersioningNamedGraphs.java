@@ -58,8 +58,10 @@ import io.kogn.rdf.terms.vocab.VocabXsd;
  * slice is read subject by subject: the proxy IRI, each of its fragment IRIs, then the
  * blank-node closure node by node. A fragment IRI cannot be found by a statement pattern,
  * so the library records the fragment subjects of every slice it writes in the history
- * graph ({@link VocabVersioning#DRAFT_FRAGMENT}, {@link VocabVersioning#PUBLISHED_FRAGMENT},
- * {@link VocabVersioning#VERSION_FRAGMENT}), beside the revision counter.</p>
+ * graph: those of the draft and of the published copy beside the revision counter
+ * ({@link VocabVersioning#DRAFT_FRAGMENT}, {@link VocabVersioning#PUBLISHED_FRAGMENT}), those
+ * of a version on every history entry that names its CID
+ * ({@link VocabVersioning#VERSION_FRAGMENT}).</p>
  */
 public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
@@ -235,7 +237,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     Objects.requireNonNull(tx, "tx");
     requireProxy(cid);
     bindContentGraph(tx);
-    return versionOf(tx, cid);
+    return versionOf(tx, cid, recordedVersionFragments(tx, cid));
   }
 
   @Override
@@ -249,8 +251,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return entriesOf(tx, proxyIri).stream()
         .filter(entry -> entry.sequence() == sequence && !entry.tombstone())
         .findFirst()
-        .flatMap(StoredEntry::content)
-        .flatMap(cid -> versionOf(tx, cid));
+        .flatMap(entry -> entry.content().flatMap(cid -> versionOf(tx, cid, entry.versionFragments())));
   }
 
   @Override
@@ -326,14 +327,52 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
         .filter(e -> e.content().isPresent())
         .findFirst();
     final IRI entry = writeEntry(tx, last, proxyIri, EntryKind.TOMBSTONE, lastVersion.flatMap(StoredEntry::content),
-        lastVersion.flatMap(StoredEntry::procedure), details);
+        lastVersion.flatMap(StoredEntry::procedure), lastVersion.map(StoredEntry::versionFragments).orElse(Set.of()),
+        details);
     return new DeleteResult(entry, new RevisionToken(proxyIri, raiseCounter(tx, proxyIri, counter, current)));
   }
 
-  private static Optional<ReadableGraph> versionOf(final DatasetTx tx, final IRI cid) {
-    final Graph version = storedSlice(tx, VersioningGraphs.CONTENT_STORE, cid,
-        indexedFragments(tx, cid, VocabVersioning.VERSION_FRAGMENT));
+  private static Optional<ReadableGraph> versionOf(final DatasetTx tx, final IRI cid, final Set<IRI> fragments) {
+    final Graph version = storedSlice(tx, VersioningGraphs.CONTENT_STORE, cid, fragments);
     return version.isEmpty() ? Optional.empty() : Optional.of(version);
+  }
+
+  /**
+   * The fragment IRIs of the version {@code cid}, as recorded on a history entry naming it.
+   * Every entry that names a CID carries its fragments, so any one of them answers.
+   */
+  private static Set<IRI> recordedVersionFragments(final DatasetTx tx, final IRI cid) {
+    final Optional<BlankNodeOrIRI> naming = tx.match(VersioningGraphs.HISTORY, null, VocabVersioning.CONTENT, cid)
+        .stream()
+        .map(Triple::getSubject)
+        .findFirst();
+    if (naming.isEmpty()) {
+      return Set.of();
+    }
+    if (!(naming.get() instanceof IRI entry)) {
+      throw new IllegalStateException(
+          "history entry naming " + cid.ntriplesString() + " is not an IRI: " + naming.get().ntriplesString());
+    }
+    return versionFragments(tx.match(VersioningGraphs.HISTORY, entry, VocabVersioning.VERSION_FRAGMENT, null), entry,
+        Optional.of(cid));
+  }
+
+  /**
+   * The {@code versioning:versionFragment} objects of {@code entry} in {@code history}, each
+   * checked to be a fragment IRI of the CID the entry names.
+   */
+  private static Set<IRI> versionFragments(final ReadableGraph history, final IRI entry, final Optional<IRI> cid) {
+    final Set<IRI> fragments = new LinkedHashSet<>();
+    for (final Triple triple : history.stream(entry, VocabVersioning.VERSION_FRAGMENT, null).toList()) {
+      final boolean ofTheCid = cid.isPresent() && triple.getObject() instanceof IRI fragment
+          && fragment.getIRIString().startsWith(cid.get().getIRIString() + FRAGMENT_SEPARATOR);
+      if (!ofTheCid) {
+        throw new IllegalStateException("malformed history entry " + entry.ntriplesString() + ": "
+            + VocabVersioning.VERSION_FRAGMENT.ntriplesString() + " " + triple.getObject().ntriplesString());
+      }
+      fragments.add((IRI) triple.getObject());
+    }
+    return fragments;
   }
 
   private static HistoryEntry describe(final StoredEntry stored) {
@@ -400,7 +439,6 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     final Graph version = rebaser.rebase(plan.slice(), proxyIri, cid);
     if (!isStored(tx, version)) {
       tx.add(VersioningGraphs.CONTENT_STORE, withFreshBlankNodes(version));
-      reindexFragments(tx, cid, VocabVersioning.VERSION_FRAGMENT, Set.of(), fragmentsOf(version, cid));
     }
     final Set<IRI> oldFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
     final Graph oldPublished = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, oldFragments);
@@ -412,14 +450,18 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
         fragmentsOf(plan.slice(), proxyIri));
 
     final IRI entry = writeEntry(tx, plan.last(), proxyIri, EntryKind.PUBLISH, Optional.of(cid),
-        Optional.of(generator.procedureTag()), details);
+        Optional.of(generator.procedureTag()), fragmentsOf(version, cid), details);
     raiseCounter(tx, proxyIri, plan.counter(), plan.current());
     return entry;
   }
 
-  /** Writes the next history entry of the proxy IRI and returns its IRI. */
+  /**
+   * Writes the next history entry of the proxy IRI and returns its IRI; {@code versionFragments}
+   * are the fragment IRIs of the version {@code content} names.
+   */
   private IRI writeEntry(final DatasetTx tx, final Optional<StoredEntry> last, final IRI proxyIri, final EntryKind kind,
-      final Optional<IRI> content, final Optional<String> procedure, final PublishDetails details) {
+      final Optional<IRI> content, final Optional<String> procedure, final Set<IRI> versionFragments,
+      final PublishDetails details) {
     final SimpleRdf rdf = new SimpleRdf();
     final long sequence = last.map(entry -> entry.sequence() + 1).orElse(1L);
     final IRI entry = new SimpleIRI(ENTRY_IRI_PREFIX + UUID.randomUUID());
@@ -431,6 +473,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     written.add(entry, VocabVersioning.SEQUENCE, rdf.createLiteral(Long.toString(sequence), VocabXsd.INTEGER));
     content.ifPresent(cid -> written.add(entry, VocabVersioning.CONTENT, cid));
     procedure.ifPresent(tag -> written.add(entry, VocabVersioning.PROCEDURE, rdf.createLiteral(tag)));
+    for (final IRI fragment : versionFragments) {
+      written.add(entry, VocabVersioning.VERSION_FRAGMENT, fragment);
+    }
     written.add(entry, VocabDct.CREATED,
         rdf.createLiteral(clock.instant().truncatedTo(ChronoUnit.MILLIS).toString(), VocabXsd.DATETIME));
     details.creator().ifPresent(creator -> written.add(entry, VocabDct.CREATOR, creator));
@@ -506,8 +551,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       try {
         final long number = Long.parseLong(literal.getLexicalForm());
         if (number >= 1) {
-          return new StoredEntry(entry, number, tombstone, content.map(IRI.class::cast),
-              procedure.map(term -> ((Literal) term).getLexicalForm()), history);
+          final Optional<IRI> cid = content.map(IRI.class::cast);
+          return new StoredEntry(entry, number, tombstone, cid,
+              procedure.map(term -> ((Literal) term).getLexicalForm()), versionFragments(history, entry, cid), history);
         }
       } catch (final NumberFormatException e) {
         // falls through to the malformed-entry error
@@ -567,7 +613,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
    * entry as subject, kept for {@link #describe(StoredEntry)}.
    */
   private record StoredEntry(IRI iri, long sequence, boolean tombstone, Optional<IRI> content,
-      Optional<String> procedure, ReadableGraph description) {
+      Optional<String> procedure, Set<IRI> versionFragments, ReadableGraph description) {
   }
 
   private record PublishPlan(RevisionToken token, long current, Optional<Triple> counter, Graph slice, IRI cid,
