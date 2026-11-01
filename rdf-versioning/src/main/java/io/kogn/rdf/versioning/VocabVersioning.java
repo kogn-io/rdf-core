@@ -21,11 +21,13 @@ import io.kogn.rdf.terms.SimpleIRI;
  *
  * <pre>{@code
  * ex:tree  versioning:entry     <urn:uuid:5b1f0c9e-3a52-4c1e-9d0a-7f2e6a1c4b88> ;
- *          versioning:revision  5 .
+ *          versioning:revision  5 ;
+ *          versioning:draftFragment <https://example.org/tree#root> .
  * <urn:uuid:5b1f0c9e-3a52-4c1e-9d0a-7f2e6a1c4b88>
  *          versioning:sequence  7 ;
  *          versioning:content   <ni:///sha3-256;...> ;
  *          versioning:procedure "ni-rdf/1" ;
+ *          versioning:versionFragment <ni:///sha3-256;...#root> ;
  *          dcterms:created      "2026-10-31T09:00:00Z"^^xsd:dateTime .
  * }</pre>
  *
@@ -105,4 +107,40 @@ public interface VocabVersioning {
    * every later use (ADR-0023).</p>
    */
   IRI CONTENT_GRAPH = new SimpleIRI(NAMESPACE + "contentGraph");
+
+  /**
+   * The {@code versioning:draftFragment} property: a fragment IRI that is a subject of the
+   * draft slice of a proxy IRI.
+   *
+   * <p>Subject a proxy IRI, object one of its {@code #fragment} IRIs, in the history graph.
+   * One triple per fragment subject of the draft as the library last wrote it; replaced on
+   * every draft write, removed on delete. A bookkeeping triple like {@link #REVISION}, not
+   * an entry: a fragment IRI cannot be found by a statement pattern, so the library records
+   * the ones it wrote and reads the slice subject by subject.</p>
+   */
+  IRI DRAFT_FRAGMENT = new SimpleIRI(NAMESPACE + "draftFragment");
+
+  /**
+   * The {@code versioning:publishedFragment} property: a fragment IRI that is a subject of
+   * the slice of a proxy IRI in the {@link VersioningGraphs#PUBLISHED published view}.
+   *
+   * <p>Subject a proxy IRI, object one of its {@code #fragment} IRIs, in the history graph.
+   * Replaced on every publish that writes the published view, removed on delete. A
+   * bookkeeping triple of the proxy IRI like {@link #DRAFT_FRAGMENT}.</p>
+   */
+  IRI PUBLISHED_FRAGMENT = new SimpleIRI(NAMESPACE + "publishedFragment");
+
+  /**
+   * The {@code versioning:versionFragment} property: a fragment IRI that is a subject of the
+   * version a history entry names.
+   *
+   * <p>Subject an entry, object one of the {@code #fragment} IRIs of the CID in its
+   * {@link #CONTENT}, in the history graph. One triple per fragment subject of the version
+   * in the {@link VersioningGraphs#CONTENT_STORE content store}. Every entry that names a
+   * CID carries them — a publish, whether or not it stored the version, and a tombstone,
+   * which takes them over from the last version. A read of the version by its CID takes the
+   * union over all entries naming it. Part of the entry, written with it and never
+   * changed.</p>
+   */
+  IRI VERSION_FRAGMENT = new SimpleIRI(NAMESPACE + "versionFragment");
 }

@@ -1682,6 +1682,137 @@ class DatasetRdf4jTest {
     }
 
     @Test
+    @DisplayName("match — returns exactly the triples of the pattern, null matching any component")
+    void match_nullWildcards_returnMatchingTriples() {
+      // given
+      final IRI other = RDF4JIRI.of("https://example.org/other");
+      final Graph graph = rdf.createGraph();
+      graph.add(rdf.createTriple(SUBJECT, PREDICATE, OBJECT));
+      graph.add(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral("value")));
+      graph.add(rdf.createTriple(other, PREDICATE, OBJECT));
+      store.add(GRAPH_1, graph);
+
+      // when
+      final ReadableGraph exact = transactor.inTransaction(tx -> tx.match(GRAPH_1, SUBJECT, PREDICATE, OBJECT));
+      final ReadableGraph bySubject = transactor.inTransaction(tx -> tx.match(GRAPH_1, SUBJECT, null, null));
+      final ReadableGraph byObject = transactor.inTransaction(tx -> tx.match(GRAPH_1, null, null, OBJECT));
+      final ReadableGraph all = transactor.inTransaction(tx -> tx.match(GRAPH_1, null, null, null));
+      final ReadableGraph absent = transactor
+          .inTransaction(tx -> tx.match(GRAPH_1, SUBJECT, PREDICATE, rdf.createLiteral("absent")));
+
+      // then
+      assertThat(exact.size()).isEqualTo(1L);
+      assertThat(bySubject.size()).isEqualTo(2L);
+      assertThat(bySubject.contains(rdf.createTriple(SUBJECT, PREDICATE, rdf.createLiteral("value")))).isTrue();
+      assertThat(byObject.size()).isEqualTo(2L);
+      assertThat(byObject.contains(rdf.createTriple(other, PREDICATE, OBJECT))).isTrue();
+      assertThat(all.size()).isEqualTo(3L);
+      assertThat(absent.isEmpty()).isTrue();
+    }
+
+    @Test
+    @DisplayName("match — is scoped to the named graph")
+    void match_otherNamedGraph_returnsEmpty() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final ReadableGraph found = transactor.inTransaction(tx -> tx.match(GRAPH_2, SUBJECT, null, null));
+
+      // then
+      assertThat(found.isEmpty()).isTrue();
+    }
+
+    @Test
+    @DisplayName("read-your-writes — match sees a triple added in the same transaction, and its result"
+        + " is a snapshot that later writes do not change")
+    void inTransaction_matchAfterAdd_seesTheTripleAndKeepsASnapshot() {
+      // when
+      final ReadableGraph matched = transactor.inTransaction(tx -> {
+        tx.add(GRAPH_1, singleTripleGraph());
+        final ReadableGraph result = tx.match(GRAPH_1, SUBJECT, null, null);
+        tx.add(GRAPH_1, valueTriple("later"));
+        return result;
+      });
+
+      // then
+      assertThat(matched.size()).isEqualTo(1L);
+      assertThat(matched.contains(rdf.createTriple(SUBJECT, PREDICATE, OBJECT))).isTrue();
+    }
+
+    @Test
+    @DisplayName("match observes only its pattern — a concurrent add of another subject to the same graph"
+        + " lets both commit (issue #226)")
+    void inTransaction_matchThenConcurrentAddOfAnotherSubject_bothCommit() throws InterruptedException {
+      // given — a pattern bound to SUBJECT; the competing transaction adds a triple of another
+      // subject to the same named graph and commits before this one does. export(GRAPH_1) in
+      // place of match would observe the whole graph and lose the commit, see
+      // inTransaction_countThenConcurrentAddToSameGraph_commitFailsAsConflict.
+      store.add(GRAPH_1, singleTripleGraph());
+      final IRI otherSubject = RDF4JIRI.of("https://example.org/other-subject");
+
+      // when
+      final Throwable outcome = matchThenConcurrentAdd(otherSubject);
+
+      // then
+      assertThat(outcome).isNull();
+      assertThat(store.count(GRAPH_1)).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("match observes its pattern — a concurrent add of a matching triple fails this transaction's"
+        + " commit as a conflict (issue #226)")
+    void inTransaction_matchThenConcurrentAddOfAMatchingTriple_commitFailsAsConflict() throws InterruptedException {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final Throwable outcome = matchThenConcurrentAdd(SUBJECT);
+
+      // then
+      assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+    }
+
+    /**
+     * Reads {@code match(GRAPH_1, SUBJECT, *, *)}, lets a second transaction add
+     * {@code (competingSubject, PREDICATE, "concurrent")} to {@code GRAPH_1} and commit, then
+     * commits; returns what the first transaction ended with, {@code null} for a commit.
+     */
+    private Throwable matchThenConcurrentAdd(final IRI competingSubject) throws InterruptedException {
+      final CountDownLatch matched = new CountDownLatch(1);
+      final CountDownLatch concurrentAddCommitted = new CountDownLatch(1);
+      final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
+      final Graph competing = rdf.createGraph();
+      competing.add(rdf.createTriple(competingSubject, PREDICATE, rdf.createLiteral("concurrent")));
+      final Thread writer = new Thread(() -> {
+        try {
+          awaitUninterruptibly(matched);
+          transactor.inTransaction(tx -> tx.add(GRAPH_1, competing));
+        } catch (RuntimeException e) {
+          writerFailure.set(e);
+        } finally {
+          concurrentAddCommitted.countDown();
+        }
+      });
+      writer.start();
+
+      Throwable outcome = null;
+      try {
+        transactor.inTransaction(tx -> {
+          tx.match(GRAPH_1, SUBJECT, null, null);
+          matched.countDown();
+          awaitUninterruptibly(concurrentAddCommitted);
+          return null;
+        });
+      } catch (RuntimeException e) {
+        outcome = e;
+      }
+      writer.join();
+      assertThat(writerFailure.get()).isNull();
+      return outcome;
+    }
+
+    @Test
     @DisplayName("tx.update — malformed SPARQL fails with the neutral MalformedSparqlException")
     void inTransaction_updateMalformedSparql_throwsNeutralException() {
       assertThatThrownBy(() -> transactor.inTransaction(tx -> {

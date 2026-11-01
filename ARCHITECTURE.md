@@ -118,7 +118,7 @@ concern:
   out (an unreachable `SERVICE` endpoint, a `LOAD` that cannot fetch its
   source), each with the backend's own signal kept as cause. The graph
   operations — `GraphStore`, hence `DatasetTx` too, plus `DatasetTx#contains`
-  and the commit in `DatasetTransactor#inTransaction` — have the same kind of
+  and `DatasetTx#match` and the commit in `DatasetTransactor#inTransaction` — have the same kind of
   neutral type, `DatasetStorageException`: an I/O failure, a store that is shut
   down or locked, a failed read, a failed commit that is not a lost race, with
   the backend's signal as cause. What stays outside that translation are
@@ -159,18 +159,21 @@ concern:
   operation those three ports declare, called through a `DatasetTx`,
   participates in the same transaction instead of each being its own implicit,
   single-operation transaction the way it is when one of those ports is used
-  directly. `DatasetTx` adds one operation of its own, `contains(graph, s, p,
-  o)` with `null` as wildcard: a guard read stated as a statement pattern
-  rather than as a query, so a backend can answer it from its own pattern
-  lookup instead of through query evaluation — the longer path, and the one on
-  which a backend can lose the conflict. Optimistic-concurrency guards belong
+  directly. `DatasetTx` adds two operations of its own, both statement patterns
+  with `null` as wildcard. `contains(graph, s, p, o)` is a guard read stated as
+  a pattern rather than as a query, so a backend can answer it from its own
+  pattern lookup instead of through query evaluation — the longer path, and the
+  one on which a backend can lose the conflict. `match(graph, s, p, o)` returns
+  the matching triples and observes only the pattern, where `export` observes
+  the whole named graph; a read of a few subjects of a concurrently written
+  graph states them as patterns there instead of exporting the graph. Optimistic-concurrency guards belong
   here, not in `ask` — see the "Limits" notes on `DatasetTransactorRdf4j`. The
   loser of such a race fails at commit with the port's neutral
   `ConcurrencyConflictException`, so a caller can catch and retry without
   naming a backend exception type. Not every operation observes the same
   amount of the graph, though: `add`/`remove` conflict only on the individual
   triples they touch (each is checked and mutated one triple at a time via a
-  pattern lookup), while `contains`/`count`/`export`/`ask`/`select` conflict on
+  pattern lookup), while `contains`/`match`/`count`/`export`/`ask`/`select` conflict on
   whatever they read — up to the whole named graph for a wildcard `count` or
   `export` — because a caller that already read that much is meant to lose the
   race against a concurrent writer to it, the same way a `contains` guard is
@@ -505,6 +508,32 @@ removes the draft and the published slice and appends a tombstone entry;
 versions and earlier entries stay. `publishState` reports one of four values:
 never published, published unchanged, published with unpublished changes,
 deleted.
+
+Every operation reads through `DatasetTx#match` and `#contains` with patterns
+bound to its own proxy IRI — or to the CID, the history entries, the fragment
+IRIs and the blank nodes of its slice — and never exports a graph. On a backend
+that tracks what a transaction read (RDF4J under `SERIALIZABLE`), operations on
+disjoint proxy IRIs therefore commit side by side, and the read cost follows the
+slice and the history of the one proxy IRI, not the dataset — as long as the
+backend indexes each pattern. The shared-blank-node check of `replaceSlice` and
+`delete` reads blank nodes in object position with subject and predicate
+unbound; `MemoryStore` and a `NativeStore` built by the hosting module
+(`spoc,posc,cosp`) index that, a `NativeStore` with RDF4J's default `spoc,posc`
+scans the content graph for it. Two writers of the
+same proxy IRI, two publishes that store the same new CID, a read of a version
+by its CID and a publish of a draft with that CID (a new history entry names the
+CID even when the version is stored already), and the first
+operations on a dataset not yet bound to its content graph (each writes the
+binding) still conflict.
+Fragment IRIs cannot be found by a pattern, so the library records the fragment
+subjects of every slice it writes in the history graph: those of the draft and
+of the published copy as bookkeeping triples of the proxy IRI, beside the
+revision counter, and those of a version on every history entry that names its
+CID. A fragment IRI belongs to the stored slice only if the last write through
+the library had it as a subject; triples on any other fragment IRI, written past
+the library or left out by that write, are not part of the slice until a write
+names it. If such a triple shares a blank node with the slice, `replaceSlice` and
+`delete` reject the write with `AmbiguousBlankNodeException`.
 
 A versioned dataset keeps the caller's content graph (the draft view) beside
 four fixed graphs of the library — published view, content store, history and

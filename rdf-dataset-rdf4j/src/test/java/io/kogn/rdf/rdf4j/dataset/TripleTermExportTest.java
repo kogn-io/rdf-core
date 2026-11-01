@@ -17,7 +17,7 @@ import io.kogn.rdf.terms.IRI;
 
 /**
  * A SPARQL update can store an RDF 1.2 triple term, which the port data model cannot represent;
- * {@code export} rejects it right away instead of returning a graph that fails when iterated.
+ * {@code export} and {@code match} reject it right away instead of returning a graph that fails when iterated.
  */
 class TripleTermExportTest {
 
@@ -56,6 +56,15 @@ class TripleTermExportTest {
     final DatasetTransactorRdf4j transactor = new DatasetTransactorRdf4j(repository);
 
     assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.export(graph))).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("triple term");
+  }
+
+  @Test
+  void datasetTxMatchRejectsATripleTerm() {
+    final DatasetTransactorRdf4j transactor = new DatasetTransactorRdf4j(repository);
+
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> tx.match(graph, null, null, null)))
+        .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("triple term");
   }
 

@@ -15,6 +15,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +49,19 @@ import io.kogn.rdf.terms.vocab.VocabXsd;
  *
  * <p>Stateless apart from the content graph it is bound to, and safe for concurrent use;
  * concurrency control is the transaction's.</p>
+ *
+ * <p>Every read goes through {@link DatasetTx#match} or {@link DatasetTx#contains} with a
+ * bound subject or object, never through {@link DatasetTx#export}, so an operation observes
+ * the patterns of its own proxy IRI (or CID) and the content-graph binding, and nothing
+ * else of the graphs it reads. Until the binding is committed, the first operations on a
+ * dataset all read it as absent and write it, so they conflict with each other. A
+ * slice is read subject by subject: the proxy IRI, each of its fragment IRIs, then the
+ * blank-node closure node by node. A fragment IRI cannot be found by a statement pattern,
+ * so the library records the fragment subjects of every slice it writes in the history
+ * graph: those of the draft and of the published copy beside the revision counter
+ * ({@link VocabVersioning#DRAFT_FRAGMENT}, {@link VocabVersioning#PUBLISHED_FRAGMENT}), those
+ * of a version on every history entry that names its CID
+ * ({@link VocabVersioning#VERSION_FRAGMENT}).</p>
  */
 public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
@@ -119,8 +133,8 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       tx.add(config, binding);
       return;
     }
-    final List<RDFTerm> recorded = tx.export(config)
-        .stream(config, VocabVersioning.CONTENT_GRAPH, null)
+    final List<RDFTerm> recorded = tx.match(config, config, VocabVersioning.CONTENT_GRAPH, null)
+        .stream()
         .map(Triple::getObject)
         .toList();
     if (recorded.size() != 1 || !contentGraph.equals(recorded.getFirst())) {
@@ -134,7 +148,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     requireProxy(proxyIri);
     bindContentGraph(tx);
     final long revision = revisionOf(tx, proxyIri).map(ResourceVersioningNamedGraphs::revisionValue).orElse(0L);
-    final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
+    final Graph slice = draftOf(tx, proxyIri, indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT));
     return new DraftSlice(proxyIri, slice, new RevisionToken(proxyIri, revision));
   }
 
@@ -158,9 +172,14 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     final Graph copy = copyOf(content);
     requireSlice(copy, proxyIri);
 
-    final ReadableGraph stored = tx.export(contentGraph);
-    final Graph old = sliceOf(stored, proxyIri);
-    requireNoSharedBlankNode(copy, stored, old, proxyIri);
+    final Set<IRI> oldFragments = indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT);
+    final Set<IRI> newFragments = fragmentsOf(copy, proxyIri);
+    // A fragment the new content names for the first time is replaced as a whole, including
+    // triples written on it past the library.
+    final Set<IRI> replaced = new LinkedHashSet<>(oldFragments);
+    replaced.addAll(newFragments);
+    final Graph old = draftOf(tx, proxyIri, replaced);
+    requireNoSharedBlankNode(tx, copy, old, proxyIri);
 
     if (!old.isEmpty()) {
       tx.remove(contentGraph, old);
@@ -168,6 +187,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!copy.isEmpty()) {
       tx.add(contentGraph, copy);
     }
+    reindexFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT, oldFragments, newFragments);
     final long next = raiseCounter(tx, proxyIri, counter, current);
     return new RevisionToken(proxyIri, next);
   }
@@ -208,7 +228,8 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     Objects.requireNonNull(tx, "tx");
     requireProxy(proxyIri);
     bindContentGraph(tx);
-    return sliceOf(tx.export(VersioningGraphs.PUBLISHED), proxyIri);
+    return storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri,
+        indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT));
   }
 
   @Override
@@ -216,7 +237,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     Objects.requireNonNull(tx, "tx");
     requireProxy(cid);
     bindContentGraph(tx);
-    return versionOf(tx, cid);
+    return versionOf(tx, cid, recordedVersionFragments(tx, cid));
   }
 
   @Override
@@ -230,8 +251,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return entriesOf(tx, proxyIri).stream()
         .filter(entry -> entry.sequence() == sequence && !entry.tombstone())
         .findFirst()
-        .flatMap(StoredEntry::content)
-        .flatMap(cid -> versionOf(tx, cid));
+        .flatMap(entry -> entry.content().flatMap(cid -> versionOf(tx, cid, entry.versionFragments())));
   }
 
   @Override
@@ -243,8 +263,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (entries.isEmpty()) {
       return List.of();
     }
-    final ReadableGraph history = tx.export(VersioningGraphs.HISTORY);
-    return entries.stream().map(entry -> describe(history, entry)).toList();
+    return entries.stream().map(ResourceVersioningNamedGraphs::describe).toList();
   }
 
   @Override
@@ -259,7 +278,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (last.get().tombstone()) {
       return PublishState.DELETED;
     }
-    final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
+    final Graph slice = draftOf(tx, proxyIri, indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT));
     if (slice.isEmpty()) {
       return PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES;
     }
@@ -285,9 +304,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (current != expected.revision()) {
       throw new RevisionConflictException(proxyIri);
     }
-    final ReadableGraph stored = tx.export(contentGraph);
-    final Graph draft = sliceOf(stored, proxyIri);
-    requireNoSharedBlankNode(new SimpleGraph(), stored, draft, proxyIri);
+    final Set<IRI> draftFragments = indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT);
+    final Graph draft = draftOf(tx, proxyIri, draftFragments);
+    requireNoSharedBlankNode(tx, new SimpleGraph(), draft, proxyIri);
     final List<StoredEntry> entries = entriesOf(tx, proxyIri);
     final Optional<StoredEntry> last = entries.isEmpty() ? Optional.empty() : Optional.of(entries.getLast());
     if (draft.isEmpty() && last.isPresent() && last.get().tombstone()) {
@@ -296,25 +315,68 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!draft.isEmpty()) {
       tx.remove(contentGraph, draft);
     }
-    final Graph published = sliceOf(tx.export(VersioningGraphs.PUBLISHED), proxyIri);
+    reindexFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT, draftFragments, Set.of());
+    final Set<IRI> publishedFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
+    final Graph published = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, publishedFragments);
     if (!published.isEmpty()) {
       tx.remove(VersioningGraphs.PUBLISHED, published);
     }
+    reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, publishedFragments, Set.of());
     final Optional<StoredEntry> lastVersion = entries.reversed()
         .stream()
         .filter(e -> e.content().isPresent())
         .findFirst();
     final IRI entry = writeEntry(tx, last, proxyIri, EntryKind.TOMBSTONE, lastVersion.flatMap(StoredEntry::content),
-        lastVersion.flatMap(StoredEntry::procedure), details);
+        lastVersion.flatMap(StoredEntry::procedure), lastVersion.map(StoredEntry::versionFragments).orElse(Set.of()),
+        details);
     return new DeleteResult(entry, new RevisionToken(proxyIri, raiseCounter(tx, proxyIri, counter, current)));
   }
 
-  private static Optional<ReadableGraph> versionOf(final DatasetTx tx, final IRI cid) {
-    final Graph version = sliceOf(tx.export(VersioningGraphs.CONTENT_STORE), cid);
+  private static Optional<ReadableGraph> versionOf(final DatasetTx tx, final IRI cid, final Set<IRI> fragments) {
+    final Graph version = storedSlice(tx, VersioningGraphs.CONTENT_STORE, cid, fragments);
     return version.isEmpty() ? Optional.empty() : Optional.of(version);
   }
 
-  private static HistoryEntry describe(final ReadableGraph history, final StoredEntry stored) {
+  /**
+   * The fragment IRIs of the version {@code cid}: the union of those recorded on every history
+   * entry naming it. Each entry the library writes carries all of them; the union keeps the
+   * result complete and independent of the order of the entries where one lacks them.
+   */
+  private static Set<IRI> recordedVersionFragments(final DatasetTx tx, final IRI cid) {
+    final Set<IRI> fragments = new LinkedHashSet<>();
+    for (final Triple naming : tx.match(VersioningGraphs.HISTORY, null, VocabVersioning.CONTENT, cid)
+        .stream()
+        .toList()) {
+      if (!(naming.getSubject() instanceof IRI entry)) {
+        throw new IllegalStateException(
+            "history entry naming " + cid.ntriplesString() + " is not an IRI: " + naming.getSubject().ntriplesString());
+      }
+      fragments.addAll(versionFragments(
+          tx.match(VersioningGraphs.HISTORY, entry, VocabVersioning.VERSION_FRAGMENT, null), entry, Optional.of(cid)));
+    }
+    return fragments;
+  }
+
+  /**
+   * The {@code versioning:versionFragment} objects of {@code entry} in {@code history}, each
+   * checked to be a fragment IRI of the CID the entry names.
+   */
+  private static Set<IRI> versionFragments(final ReadableGraph history, final IRI entry, final Optional<IRI> cid) {
+    final Set<IRI> fragments = new LinkedHashSet<>();
+    for (final Triple triple : history.stream(entry, VocabVersioning.VERSION_FRAGMENT, null).toList()) {
+      final boolean ofTheCid = cid.isPresent() && triple.getObject() instanceof IRI fragment
+          && fragment.getIRIString().startsWith(cid.get().getIRIString() + FRAGMENT_SEPARATOR);
+      if (!ofTheCid) {
+        throw new IllegalStateException("malformed history entry " + entry.ntriplesString() + ": "
+            + VocabVersioning.VERSION_FRAGMENT.ntriplesString() + " " + triple.getObject().ntriplesString());
+      }
+      fragments.add((IRI) triple.getObject());
+    }
+    return fragments;
+  }
+
+  private static HistoryEntry describe(final StoredEntry stored) {
+    final ReadableGraph history = stored.description();
     final RDFTerm created = single(history, stored.iri(), VocabDct.CREATED);
     final Instant instant;
     try {
@@ -365,7 +427,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (current != token.revision()) {
       throw new RevisionConflictException(proxyIri);
     }
-    final Graph slice = sliceOf(tx.export(contentGraph), proxyIri);
+    final Graph slice = draftOf(tx, proxyIri, indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT));
     final IRI cid = generator.generateIri(proxyIri, slice);
     final Optional<StoredEntry> last = lastEntry(tx, proxyIri);
     return new PublishPlan(token, current, counter, slice, cid, last, isUnchanged(last, cid));
@@ -378,21 +440,32 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!isStored(tx, version)) {
       tx.add(VersioningGraphs.CONTENT_STORE, withFreshBlankNodes(version));
     }
-    final Graph oldPublished = sliceOf(tx.export(VersioningGraphs.PUBLISHED), proxyIri);
+    final Set<IRI> oldFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
+    final Set<IRI> newFragments = fragmentsOf(plan.slice(), proxyIri);
+    // As in replaceSlice: a fragment the published slice names is replaced as a whole, also
+    // where the index does not record it.
+    final Set<IRI> replaced = new LinkedHashSet<>(oldFragments);
+    replaced.addAll(newFragments);
+    final Graph oldPublished = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, replaced);
     if (!oldPublished.isEmpty()) {
       tx.remove(VersioningGraphs.PUBLISHED, oldPublished);
     }
     tx.add(VersioningGraphs.PUBLISHED, withFreshBlankNodes(plan.slice()));
+    reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, oldFragments, newFragments);
 
     final IRI entry = writeEntry(tx, plan.last(), proxyIri, EntryKind.PUBLISH, Optional.of(cid),
-        Optional.of(generator.procedureTag()), details);
+        Optional.of(generator.procedureTag()), fragmentsOf(version, cid), details);
     raiseCounter(tx, proxyIri, plan.counter(), plan.current());
     return entry;
   }
 
-  /** Writes the next history entry of the proxy IRI and returns its IRI. */
+  /**
+   * Writes the next history entry of the proxy IRI and returns its IRI; {@code versionFragments}
+   * are the fragment IRIs of the version {@code content} names.
+   */
   private IRI writeEntry(final DatasetTx tx, final Optional<StoredEntry> last, final IRI proxyIri, final EntryKind kind,
-      final Optional<IRI> content, final Optional<String> procedure, final PublishDetails details) {
+      final Optional<IRI> content, final Optional<String> procedure, final Set<IRI> versionFragments,
+      final PublishDetails details) {
     final SimpleRdf rdf = new SimpleRdf();
     final long sequence = last.map(entry -> entry.sequence() + 1).orElse(1L);
     final IRI entry = new SimpleIRI(ENTRY_IRI_PREFIX + UUID.randomUUID());
@@ -404,6 +477,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     written.add(entry, VocabVersioning.SEQUENCE, rdf.createLiteral(Long.toString(sequence), VocabXsd.INTEGER));
     content.ifPresent(cid -> written.add(entry, VocabVersioning.CONTENT, cid));
     procedure.ifPresent(tag -> written.add(entry, VocabVersioning.PROCEDURE, rdf.createLiteral(tag)));
+    for (final IRI fragment : versionFragments) {
+      written.add(entry, VocabVersioning.VERSION_FRAGMENT, fragment);
+    }
     written.add(entry, VocabDct.CREATED,
         rdf.createLiteral(clock.instant().truncatedTo(ChronoUnit.MILLIS).toString(), VocabXsd.DATETIME));
     details.creator().ifPresent(creator -> written.add(entry, VocabDct.CREATOR, creator));
@@ -445,15 +521,17 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!tx.contains(VersioningGraphs.HISTORY, proxyIri, VocabVersioning.ENTRY, null)) {
       return List.of();
     }
-    final ReadableGraph history = tx.export(VersioningGraphs.HISTORY);
-    final List<RDFTerm> linked = history.stream(proxyIri, VocabVersioning.ENTRY, null).map(Triple::getObject).toList();
+    final List<RDFTerm> linked = tx.match(VersioningGraphs.HISTORY, proxyIri, VocabVersioning.ENTRY, null)
+        .stream()
+        .map(Triple::getObject)
+        .toList();
     final List<StoredEntry> entries = new ArrayList<>();
     for (final RDFTerm term : linked) {
       if (!(term instanceof IRI entry)) {
         throw new IllegalStateException(
             "entry of " + proxyIri.ntriplesString() + " is not an IRI: " + term.ntriplesString());
       }
-      entries.add(readEntry(history, entry));
+      entries.add(readEntry(tx.match(VersioningGraphs.HISTORY, entry, null, null), entry));
     }
     entries.sort(Comparator.comparingLong(StoredEntry::sequence));
     for (int i = 0; i < entries.size(); i++) {
@@ -477,8 +555,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       try {
         final long number = Long.parseLong(literal.getLexicalForm());
         if (number >= 1) {
-          return new StoredEntry(entry, number, tombstone, content.map(IRI.class::cast),
-              procedure.map(term -> ((Literal) term).getLexicalForm()));
+          final Optional<IRI> cid = content.map(IRI.class::cast);
+          return new StoredEntry(entry, number, tombstone, cid,
+              procedure.map(term -> ((Literal) term).getLexicalForm()), versionFragments(history, entry, cid), history);
         }
       } catch (final NumberFormatException e) {
         // falls through to the malformed-entry error
@@ -533,8 +612,12 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return copy;
   }
 
+  /**
+   * An entry as read from the history graph; {@code description} holds every triple with the
+   * entry as subject, kept for {@link #describe(StoredEntry)}.
+   */
   private record StoredEntry(IRI iri, long sequence, boolean tombstone, Optional<IRI> content,
-      Optional<String> procedure) {
+      Optional<String> procedure, Set<IRI> versionFragments, ReadableGraph description) {
   }
 
   private record PublishPlan(RevisionToken token, long current, Optional<Triple> counter, Graph slice, IRI cid,
@@ -557,8 +640,8 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!tx.contains(VersioningGraphs.HISTORY, proxyIri, VocabVersioning.REVISION, null)) {
       return Optional.empty();
     }
-    final List<Triple> found = tx.export(VersioningGraphs.HISTORY)
-        .stream(proxyIri, VocabVersioning.REVISION, null)
+    final List<Triple> found = tx.match(VersioningGraphs.HISTORY, proxyIri, VocabVersioning.REVISION, null)
+        .stream()
         .toList();
     if (found.size() != 1) {
       throw new IllegalStateException(
@@ -589,7 +672,10 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return text.equals(proxy) || text.startsWith(proxy + FRAGMENT_SEPARATOR);
   }
 
-  /** The slice of {@code proxyIri} in {@code graph}: members, plus the blank-node closure. */
+  /**
+   * The slice of {@code proxyIri} in an in-memory {@code graph}: members, plus the blank-node
+   * closure. Used on the caller's content, never on a stored graph (see {@link #storedSlice}).
+   */
   private static Graph sliceOf(final ReadableGraph graph, final IRI proxyIri) {
     final String proxy = proxyIri.getIRIString();
     final Graph slice = new SimpleGraph();
@@ -607,6 +693,93 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       }
     }
     return slice;
+  }
+
+  /** The draft slice of {@code proxyIri}, read from the content graph, see {@link #storedSlice}. */
+  private Graph draftOf(final DatasetTx tx, final IRI proxyIri, final Set<IRI> fragments) {
+    return storedSlice(tx, contentGraph, proxyIri, fragments);
+  }
+
+  /**
+   * The slice of {@code base} in the stored {@code graph}, read pattern by pattern so that only
+   * those patterns are observed: everything about {@code base}, everything about each indexed
+   * fragment IRI, then the blank-node closure node by node.
+   */
+  private static Graph storedSlice(final DatasetTx tx, final IRI graph, final IRI base, final Set<IRI> fragments) {
+    final Graph slice = new SimpleGraph();
+    final Deque<BlankNode> pending = new ArrayDeque<>();
+    final Set<BlankNode> seen = new HashSet<>();
+    takeAll(tx.match(graph, base, null, null), slice, seen, pending);
+    for (final IRI fragment : fragments) {
+      takeAll(tx.match(graph, fragment, null, null), slice, seen, pending);
+    }
+    while (!pending.isEmpty()) {
+      takeAll(tx.match(graph, pending.poll(), null, null), slice, seen, pending);
+    }
+    return slice;
+  }
+
+  private static void takeAll(final ReadableGraph matched, final Graph slice, final Set<BlankNode> seen,
+      final Deque<BlankNode> pending) {
+    for (final Triple triple : matched.stream().toList()) {
+      slice.add(triple);
+      enqueue(triple.getObject(), seen, pending);
+    }
+  }
+
+  /**
+   * The fragment IRIs the history graph records for {@code base} under {@code predicate}, one
+   * of the fragment indexes of {@link VocabVersioning}.
+   */
+  private static Set<IRI> indexedFragments(final DatasetTx tx, final IRI base, final IRI predicate) {
+    final String prefix = base.getIRIString() + FRAGMENT_SEPARATOR;
+    final Set<IRI> fragments = new LinkedHashSet<>();
+    for (final Triple triple : tx.match(VersioningGraphs.HISTORY, base, predicate, null).stream().toList()) {
+      if (!(triple.getObject() instanceof IRI fragment && fragment.getIRIString().startsWith(prefix))) {
+        throw new IllegalStateException("malformed fragment index of " + base.ntriplesString() + ": "
+            + predicate.ntriplesString() + " " + triple.getObject().ntriplesString());
+      }
+      fragments.add(fragment);
+    }
+    return fragments;
+  }
+
+  /** The fragment IRIs of {@code base} that are subjects in {@code slice}. */
+  private static Set<IRI> fragmentsOf(final ReadableGraph slice, final IRI base) {
+    final String prefix = base.getIRIString() + FRAGMENT_SEPARATOR;
+    final Set<IRI> fragments = new LinkedHashSet<>();
+    for (final Triple triple : slice.stream().toList()) {
+      if (triple.getSubject() instanceof IRI subject && subject.getIRIString().startsWith(prefix)) {
+        fragments.add(subject);
+      }
+    }
+    return fragments;
+  }
+
+  /**
+   * Replaces the fragment index of {@code base} under {@code predicate}, writing only the
+   * difference between {@code recorded} and {@code current}.
+   */
+  private static void reindexFragments(final DatasetTx tx, final IRI base, final IRI predicate, final Set<IRI> recorded,
+      final Set<IRI> current) {
+    final Graph dropped = new SimpleGraph();
+    for (final IRI fragment : recorded) {
+      if (!current.contains(fragment)) {
+        dropped.add(base, predicate, fragment);
+      }
+    }
+    final Graph added = new SimpleGraph();
+    for (final IRI fragment : current) {
+      if (!recorded.contains(fragment)) {
+        added.add(base, predicate, fragment);
+      }
+    }
+    if (!dropped.isEmpty()) {
+      tx.remove(VersioningGraphs.HISTORY, dropped);
+    }
+    if (!added.isEmpty()) {
+      tx.add(VersioningGraphs.HISTORY, added);
+    }
   }
 
   private static void enqueue(final RDFTerm object, final Set<BlankNode> seen, final Deque<BlankNode> pending) {
@@ -634,22 +807,25 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
             + " " + stray.getPredicate().ntriplesString() + " " + stray.getObject().ntriplesString());
   }
 
-  private static void requireNoSharedBlankNode(final Graph content, final ReadableGraph stored, final Graph old,
-      final IRI proxyIri) {
+  /**
+   * Rejects the write if a blank node of {@code content} or of the {@code old} slice is used by
+   * a triple of the content graph outside {@code old}. Reads each node as subject and as object,
+   * so only those patterns are observed.
+   */
+  private void requireNoSharedBlankNode(final DatasetTx tx, final Graph content, final Graph old, final IRI proxyIri) {
     final Set<BlankNode> nodes = new HashSet<>();
     collectBlankNodes(content, nodes);
     collectBlankNodes(old, nodes);
-    if (nodes.isEmpty()) {
-      return;
-    }
-    for (final Triple triple : stored.stream().toList()) {
-      if (old.contains(triple)) {
-        continue;
-      }
-      if (nodes.contains(triple.getSubject()) || nodes.contains(triple.getObject())) {
-        throw new AmbiguousBlankNodeException("blank node of the slice of " + proxyIri.ntriplesString()
-            + " is also used outside it, in " + triple.getSubject().ntriplesString() + " "
-            + triple.getPredicate().ntriplesString() + " " + triple.getObject().ntriplesString());
+    for (final BlankNode node : nodes) {
+      for (final ReadableGraph uses : List.of(tx.match(contentGraph, node, null, null),
+          tx.match(contentGraph, null, null, node))) {
+        final Optional<Triple> outside = uses.stream().filter(triple -> !old.contains(triple)).findFirst();
+        if (outside.isPresent()) {
+          final Triple triple = outside.get();
+          throw new AmbiguousBlankNodeException("blank node of the slice of " + proxyIri.ntriplesString()
+              + " is also used outside it, in " + triple.getSubject().ntriplesString() + " "
+              + triple.getPredicate().ntriplesString() + " " + triple.getObject().ntriplesString());
+        }
       }
     }
   }

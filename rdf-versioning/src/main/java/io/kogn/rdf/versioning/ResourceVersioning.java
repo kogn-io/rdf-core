@@ -35,21 +35,34 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link DatasetTx#contains(IRI, io.kogn.rdf.terms.BlankNodeOrIRI, IRI,
  * io.kogn.rdf.terms.RDFTerm) contains}, not {@code ASK} (ADR-0008).</p>
  *
- * <p><strong>Concurrency and cost.</strong> The sole implementation reads whole graphs
- * of the versioned dataset (the content, history, published, content-store and config
- * graphs) through {@link DatasetTx#export} and filters in memory, in every operation,
- * pure reads included. On the RDF4J backend, which runs {@code SERIALIZABLE}, a
- * transaction that has observed a whole graph fails on commit with
- * {@link ConcurrencyConflictException} whenever another transaction commits a change to
- * that graph in the meantime. Every write through this port reads and changes the
- * history graph (the revision counters live there), so writers of disjoint proxy IRIs
- * conflict with each other: at most one of them commits. Reads conflict the same way
- * with concurrent writes to the graphs they read, so consumers retry reads as well as
- * writes. The read cost of an operation is O(|content graph| + |history|),
- * not O(size of the slice), and the history graph grows with every publish. A triple
- * term (RDF 1.2) in any of the library's graphs or in the content graph makes every
- * operation fail with {@link IllegalStateException}, as {@link DatasetTx#export}
- * documents.</p>
+ * <p><strong>Concurrency and cost.</strong> The sole implementation reads by statement
+ * pattern ({@link DatasetTx#match}, {@link DatasetTx#contains}), every pattern bound to the
+ * proxy IRI of the operation or to the CID, history entries, fragment IRIs and blank nodes
+ * of its slice, plus the binding in the config graph; it never exports a whole graph. On a
+ * backend that tracks what a transaction read, as the RDF4J backend does under
+ * {@code SERIALIZABLE}, an operation therefore conflicts only with concurrent changes to
+ * those patterns. Operations on disjoint proxy IRIs, writes included, commit side by side,
+ * and a read of one proxy IRI does not fail because another one is written. Still at most
+ * one of two transactions commits, the other failing with
+ * {@link ConcurrencyConflictException}, if both write the same proxy IRI (both read and
+ * raise its revision counter), if both publish the same content as a new version (both
+ * look the CID up in the content store and write it there, ADR-0023), if one reads a
+ * proxy IRI the other writes, if one reads a version by its CID while the other publishes
+ * a draft with that CID (also when the version is stored already, since the new history
+ * entry names the CID), or if both are among the first operations on a dataset that
+ * is not yet bound to its content graph (both find the binding absent and write it, see
+ * {@link #bindContentGraph}); consumers retry reads as well as writes. The read cost of an
+ * operation is O(size of the slice + number of history entries of the proxy IRI),
+ * independent of the rest of the dataset, provided the backend has an index for each
+ * pattern; a publish or a {@link #publishState} adds the derivation of the CID. Most
+ * patterns bind the subject. The check for shared blank nodes in {@link #replaceSlice} and
+ * {@link #delete} also reads each blank node of the slice as object, with subject and
+ * predicate unbound; that needs an index led by the object within the graph. The RDF4J
+ * {@code MemoryStore} has one, and so does a {@code NativeStore} created by the hosting
+ * module ({@code spoc,posc,cosp}); a {@code NativeStore} with the RDF4J default
+ * {@code spoc,posc} scans the content graph for it. A triple term (RDF 1.2) in a pattern
+ * an operation reads makes it fail with {@link IllegalStateException}, as
+ * {@link DatasetTx#match} documents.</p>
  *
  * <p><strong>Union reads.</strong> On a versioned dataset a query without {@code FROM}
  * or {@code GRAPH} runs over the union of all named graphs and sees the library's
@@ -76,8 +89,11 @@ public interface ResourceVersioning {
    * first write.</p>
    *
    * <p>Two transactions that bind the same unbound dataset concurrently are guarded by
-   * the isolation promise of {@link DatasetTransactor}: if they name different content
-   * graphs, at most one commits.</p>
+   * the isolation promise of {@link DatasetTransactor}: at most one commits, whether they
+   * name different content graphs or the same one, since both read the binding as absent
+   * and write it. Every operation of the port binds first, so the first operations on a
+   * fresh dataset exclude each other even for disjoint proxy IRIs; once the binding is
+   * committed, binding only reads it.</p>
    *
    * @param tx the caller's open transaction; must not be {@code null}
    * @throws ContentGraphMismatchException if the dataset is bound to another content
@@ -100,6 +116,19 @@ public interface ResourceVersioning {
    * nodes are followed from the objects of slice triples, transitively; their labels are
    * the store's and not stable across reads.</p>
    *
+   * <p><strong>Which fragment IRIs.</strong> A fragment IRI cannot be found by a statement
+   * pattern, so the library records, in the history graph, the fragment subjects of the
+   * content each {@link #replaceSlice} wrote ({@link VocabVersioning#DRAFT_FRAGMENT}), and
+   * reads the slice subject by subject. A fragment IRI belongs to the stored slice if the
+   * last write through the library had it as a subject. A triple written to the content
+   * graph past the library, on a fragment IRI that write did not have, is not part of the
+   * slice: it is not read, and only a later write that names that fragment IRI as a subject
+   * replaces it (see {@link #replaceSlice}). Triples on the proxy IRI itself,
+   * on a recorded fragment IRI and on the blank nodes reachable from them are, whoever
+   * wrote them. If such a triple outside the slice shares a blank node with the slice,
+   * {@link #replaceSlice} and {@link #delete} reject the write with
+   * {@link AmbiguousBlankNodeException}.</p>
+   *
    * <p>A proxy IRI without a draft yields an empty slice and a valid token (revision
    * zero), so a first {@link #replaceSlice write} needs no special case. An empty slice
    * is not a deletion.</p>
@@ -117,7 +146,7 @@ public interface ResourceVersioning {
    *     graph
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
    * @throws IllegalStateException if {@code tx} has already ended, or the revision
-   *     counter in the history graph is malformed
+   *     counter or the fragment index in the history graph is malformed
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -128,7 +157,9 @@ public interface ResourceVersioning {
    * counter, if {@code expected} is still current.
    *
    * <p>Everything in the slice of the proxy IRI is removed and {@code content} is
-   * written in its place; triples of other proxy IRIs are untouched. Every triple of
+   * written in its place; triples of other proxy IRIs are untouched. A fragment IRI that
+   * {@code content} has as a subject is replaced as a whole, triples written on it past the
+   * library included, so the slice read afterwards is exactly {@code content}. Every triple of
    * {@code content} must belong to the slice (see {@link #readSlice}): an IRI subject
    * that is neither the proxy IRI nor one of its fragment IRIs, or a blank-node subject
    * not reachable from such a subject, is rejected. The proxy IRI is never inferred from
@@ -166,7 +197,7 @@ public interface ResourceVersioning {
    *     if {@code proxyIri} contains a {@code #} or if {@code expected} belongs to
    *     another proxy IRI
    * @throws IllegalStateException if {@code tx} has already ended, or the revision
-   *     counter in the history graph is malformed
+   *     counter or the fragment index in the history graph is malformed
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -183,7 +214,9 @@ public interface ResourceVersioning {
    * slice in the {@link VersioningGraphs#PUBLISHED published view} is replaced by the
    * draft, and a history entry is written (ADR-0022, ADR-0023). The draft stays. The
    * entry has a random {@code urn:uuid:} IRI, the next sequence number of the proxy IRI
-   * (from 1, gapless), the CID, the {@code procedureTag()} of the generator, and
+   * (from 1, gapless), the CID, the {@code procedureTag()} of the generator, the fragment
+   * IRIs of the version ({@link VocabVersioning#VERSION_FRAGMENT}, also when the CID was
+   * stored already), and
    * {@code dcterms:created} from the implementation's clock, plus creator and comment
    * from {@code details} if given. The revision counter of the proxy IRI is raised.</p>
    *
@@ -224,8 +257,8 @@ public interface ResourceVersioning {
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalStateException if {@code tx} has already ended, or the history graph
-   *     is malformed: a revision counter or a latest entry of a proxy IRI that does not
-   *     read back
+   *     is malformed: a revision counter, a latest entry or a fragment index of a proxy
+   *     IRI that does not read back
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -239,8 +272,8 @@ public interface ResourceVersioning {
    * <p>The tombstone is a history entry of its own with an {@code urn:uuid:} IRI, the next
    * sequence number of the proxy IRI (gapless) and {@code dcterms:created}, creator and
    * comment from {@code details} if given, typed {@link EntryKind#TOMBSTONE}. It names the
-   * CID and the procedure of the last version of the proxy IRI, or neither if the proxy
-   * IRI was never published. The revision counter is raised.</p>
+   * CID, the procedure and the fragment IRIs of the last version of the proxy IRI, or none
+   * of them if the proxy IRI was never published. The revision counter is raised.</p>
    *
    * <p><strong>History and versions stay.</strong> Every earlier entry and every version in
    * the {@link VersioningGraphs#CONTENT_STORE content store} remains, so
@@ -271,8 +304,8 @@ public interface ResourceVersioning {
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
    *     {@code expected} belongs to another proxy IRI
    * @throws IllegalStateException if {@code tx} has already ended, or the history graph
-   *     is malformed: a revision counter or an entry of the proxy IRI that does not read
-   *     back
+   *     is malformed: a revision counter, an entry or a fragment index of the proxy IRI
+   *     that does not read back
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -282,7 +315,8 @@ public interface ResourceVersioning {
    * Reads the published state of a proxy IRI: the copy of its current version in the
    * {@link VersioningGraphs#PUBLISHED published view}, under the proxy IRI.
    *
-   * <p>The slice is cut like the draft's (see {@link #readSlice}). It is empty if the
+   * <p>The slice is cut like the draft's (see {@link #readSlice}), with the fragment IRIs
+   * the publish recorded ({@link VocabVersioning#PUBLISHED_FRAGMENT}). It is empty if the
    * proxy IRI was never published or was deleted since. Blank-node labels are the store's and not stable
    * across reads, nor equal to those of the draft or of the stored version (ADR-0023),
    * so compare by CID, not by triple. A reference to a proxy IRI inside the slice stays
@@ -298,7 +332,8 @@ public interface ResourceVersioning {
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
-   * @throws IllegalStateException if {@code tx} has already ended
+   * @throws IllegalStateException if {@code tx} has already ended, or the fragment index
+   *     of the proxy IRI in the history graph is malformed
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -328,7 +363,8 @@ public interface ResourceVersioning {
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalArgumentException if {@code cid} contains a {@code #}
-   * @throws IllegalStateException if {@code tx} has already ended
+   * @throws IllegalStateException if {@code tx} has already ended, or the history entry
+   *     that names the CID records malformed fragment IRIs
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -404,7 +440,11 @@ public interface ResourceVersioning {
    * the latest entry was derived by another procedure than the one in use, the CIDs are
    * not comparable and the answer is {@code PUBLISHED_WITH_UNPUBLISHED_CHANGES}, as a
    * publish would publish again. Writes past this library are seen here, by content,
-   * though the revision token does not see them. Reading may bind the dataset to the
+   * though the revision token does not see them, as far as they fall into the slice: on
+   * the proxy IRI itself, on a fragment IRI the last draft write through the library had
+   * as a subject, and on the blank nodes reachable from them (see {@link #readSlice}).
+   * A triple on any other fragment IRI is not seen, including one the library wrote in an
+   * earlier draft that the last draft write left out. Reading may bind the dataset to the
    * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
    *
    * @param tx the caller's open transaction; must not be {@code null}
@@ -421,8 +461,8 @@ public interface ResourceVersioning {
    *     cannot be derived for another reason
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
-   * @throws IllegalStateException if {@code tx} has already ended, or the history of the
-   *     proxy IRI is malformed or not gapless
+   * @throws IllegalStateException if {@code tx} has already ended, the history of the
+   *     proxy IRI is malformed or not gapless, or its fragment index is malformed
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */

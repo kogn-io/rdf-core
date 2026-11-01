@@ -14,7 +14,8 @@
  *       formats (read; not part of the transactional unit of work, see ADR-0013)</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTransactor} — atomic unit-of-work boundary</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — composes the three ports above into one
- *       atomic unit-of-work, plus the transaction-only {@code contains} guard read</li>
+ *       atomic unit-of-work, plus the transaction-only pattern reads {@code contains} (the
+ *       guard read) and {@code match} (the matching triples, observing only the pattern)</li>
  * </ul>
  *
  * <p>Multi-tenant <em>hosting</em> of a pool of stores — open-or-create/close/delete/list by
