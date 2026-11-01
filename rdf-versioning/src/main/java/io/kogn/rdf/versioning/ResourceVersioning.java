@@ -36,14 +36,16 @@ import io.kogn.rdf.terms.ReadableGraph;
  * io.kogn.rdf.terms.RDFTerm) contains}, not {@code ASK} (ADR-0008).</p>
  *
  * <p><strong>Concurrency and cost.</strong> The sole implementation reads whole graphs
- * of the versioned dataset (the content graph, the history graph, the published and
- * content-store graphs) through {@link DatasetTx#export} and filters in memory, in
- * every operation, pure reads included. On the RDF4J backend, which runs
- * {@code SERIALIZABLE}, a transaction that has observed a whole graph fails on commit
- * with {@link ConcurrencyConflictException} whenever another transaction commits a
- * write to the same dataset in the meantime. Consumers therefore retry reads as well
- * as writes, and writers of disjoint proxy IRIs conflict with each other: at most one
- * of them commits. The read cost of an operation is O(|content graph| + |history|),
+ * of the versioned dataset (the content, history, published, content-store and config
+ * graphs) through {@link DatasetTx#export} and filters in memory, in every operation,
+ * pure reads included. On the RDF4J backend, which runs {@code SERIALIZABLE}, a
+ * transaction that has observed a whole graph fails on commit with
+ * {@link ConcurrencyConflictException} whenever another transaction commits a change to
+ * that graph in the meantime. Every write through this port reads and changes the
+ * history graph (the revision counters live there), so writers of disjoint proxy IRIs
+ * conflict with each other: at most one of them commits. Reads conflict the same way
+ * with concurrent writes to the graphs they read, so consumers retry reads as well as
+ * writes. The read cost of an operation is O(|content graph| + |history|),
  * not O(size of the slice), and the history graph grows with every publish. A triple
  * term (RDF 1.2) in any of the library's graphs or in the content graph makes every
  * operation fail with {@link IllegalStateException}, as {@link DatasetTx#export}
