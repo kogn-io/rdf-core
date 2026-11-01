@@ -12,6 +12,7 @@ carries what is specific to this codebase. Read it before starting the audit.
 | `rdf-dataset-hosting` | **highest** | port module with real validation logic and lifecycle contracts |
 | `rdf-dataset-hosting-rdf4j` | **highest** | owns stores and leases; the round-2 lifecycle findings all lived here |
 | `rdf-cid` | high | its own promise ("same content -> same identifier") is a correctness property, not just a contract; the only backend-free module with a third-party dependency footprint at all (ADR-0014); wrong output is silent (a wrong CID looks exactly like a right one) |
+| `rdf-versioning` | **highest** | port module with atomicity and concurrency promises over the caller's `DatasetTx`; round 6 found a whole-graph observation that four clean PR reviews of its parts could not see |
 | `rdf-shacl` / `rdf-shacl-rdf4j` | medium | smaller surface, value types, no concurrency |
 | `rdf-terms` | low | library-free data model, no I/O, no state |
 
@@ -29,6 +30,7 @@ At ~6k LOC the whole tree fits in one pass. Do not sample.
 | rdf-shacl-rdf4j | `rdf-shacl-rdf4j` | 2 | `2853056` | 2026-10-03 |
 | rdf-terms | `rdf-terms` | 3 | `2853056` | 2026-10-03 |
 | rdf-cid | `rdf-cid` | 1 | `51e7702` | 2026-10-04 |
+| rdf-versioning | `rdf-versioning` | 1 | `6887eae` | 2026-11-01 |
 
 The 2026-10-04 stamp on `rdf-cid` is its first audit on the ni-rdf/1 state (after #142):
 two reviewers (spec conformance clause by clause; hostile input, cost bound, exception
@@ -173,6 +175,26 @@ Traps worth keeping:
 - **`main` moved three times during the audit** (parallel campaigns) — pin the commit in every
   repro and re-check `git log <start>..HEAD -- <module>` before filing.
 - **Time only as ratios**, the CPU is shared.
+
+## Calibration — round 6 (2026-11-01, commit `6887eae`, `rdf-versioning`)
+
+First audit of `rdf-versioning` as a whole, right after its nine packages (#199–#207) had
+landed through individually reviewed pull requests (#209–#217). One reviewer, read-only,
+probes built in a scratch directory (latch-forced overlap, 20 runs per scenario, with
+control cases against `DatasetTx` directly). Result: 1 P1 (#226), 1 P2 (#225, fixed by #227),
+5 P3 (#228, #229, folded into #222 and #226). Build green, 114 tests.
+
+| Sweep | Found |
+|---|---|
+| Phase 1.2 / 2 — every read of the implementation against the transactor's isolation level, not only the guards | **#226** — the headline: every operation, pure reads included, exports whole graphs; under `SERIALIZABLE` a wildcard export observes the graph, so a read of proxy IRI A fails on commit whenever B is written concurrently, disjoint writers always conflict, and read cost grows with the dataset. The whole-graph observation #64 / ADR-0012 removed from the transactor, reintroduced one layer up. Invisible per PR: each `export` looked harmless in its diff. |
+| Phase 1.1 — the module's own exception types against the base port's rule for `IllegalStateException` | **#225** — `RevisionConflictException extends IllegalStateException`, the type `DatasetTx` reserves for "do not retry", while a stale token is a retryable lost race like `ConcurrencyConflictException`. |
+| Phase 6 — port Javadoc against the accepted ADRs, sentence by sentence | **#228** — procedure-mismatch path: ADR-0022 says re-derive and compare, port and tests pin "published again". |
+| Phase 5 — every documented promise against a test that would go red | **#229** (five promises without a test) and three concurrency promises without a test (into #222); all held in probes. |
+| Control cases first | `export` of another graph and `contains` with a narrow pattern never conflicted — that separated the module's pattern from the transactor and kept #226 from being misfiled as a backend bug. |
+
+What a later round should keep: the latch harness (`ResourceVersioningSliceTest.concurrentWriteOutcome`)
+is the right instrument for every "at most one commits" sentence; run it against the
+operation that makes the promise, not a neighbour that shares the helper.
 
 ## Project-specific traps
 
