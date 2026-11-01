@@ -48,6 +48,14 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link DatasetTransactorRdf4j}. Inferred statements are excluded, matching
  * {@link GraphStoreRdf4j}.</p>
  *
+ * <p>{@link #match(IRI, io.kogn.rdf.terms.BlankNodeOrIRI, IRI, io.kogn.rdf.terms.RDFTerm)} maps
+ * to {@link RepositoryConnection#getStatements} with the caller's pattern, the read
+ * {@code contains} and {@code export} make as well, and copies the result before returning.
+ * With a bound component it registers only that pattern as observed, so under
+ * {@code SERIALIZABLE} it conflicts with a concurrent commit of a matching triple and with
+ * nothing else in the named graph. Inferred statements are excluded, and an RDF 1.2 triple term
+ * in the result is rejected like in {@link #export}.</p>
+ *
  * <p>{@link #add} and {@link #remove} compute their delta per triple, via
  * {@link RepositoryConnection#hasStatement} before mutating each one, instead of sampling
  * {@link RepositoryConnection#size} before and after the whole call the way
@@ -218,6 +226,35 @@ class DatasetTxRdf4j implements DatasetTx {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
     return StorageErrors
         .translating(() -> connection.hasStatement(subjectValue, predicateValue, objectValue, false, context));
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Rejects an RDF 1.2 triple term in the result with an {@link IllegalStateException}: a SPARQL
+   * update can store one, the port data model cannot represent it.</p>
+   *
+   * @throws IllegalStateException if a matching triple holds an RDF 1.2 triple term
+   */
+  @Override
+  public ReadableGraph match(final IRI namedGraph, final BlankNodeOrIRI subject, final IRI predicate,
+      final RDFTerm object) {
+    requireActive();
+    final org.eclipse.rdf4j.model.Resource subjectValue = subject == null
+        ? null
+        : RDF4JConverters.toRDF4JResource(subject);
+    final org.eclipse.rdf4j.model.IRI predicateValue = predicate == null ? null : RDF4JConverters.toRDF4JIRI(predicate);
+    final org.eclipse.rdf4j.model.Value objectValue = object == null ? null : RDF4JConverters.toRDF4JValue(object);
+    final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
+    final List<Statement> statements = StorageErrors.translating(() -> {
+      try (RepositoryResult<Statement> result = connection.getStatements(subjectValue, predicateValue, objectValue,
+          false, context)) {
+        return result.asList();
+      }
+    });
+    final Model model = new LinkedHashModel(statements);
+    RDF4JConverters.requireNoTripleTerms(model);
+    return new RDF4JGraph(model);
   }
 
   @Override
