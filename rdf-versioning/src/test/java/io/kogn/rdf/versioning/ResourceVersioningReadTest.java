@@ -169,6 +169,27 @@ class ResourceVersioningReadTest {
         .isInstanceOf(IllegalArgumentException.class);
   }
 
+  @Test
+  void aReferenceToAnotherProxyIriInsideAVersionKeepsNamingTheProxyIriOnEveryReadPath() {
+    final Graph draft = one(A, "one");
+    draft.add(A, Q, B);
+    draft.add(A, Q, A);
+    draft(A, draft);
+    publish(A);
+    final IRI cid = generator.generateIri(A, draft);
+
+    final ReadableGraph byCid = transactor.inTransaction(tx -> copy(versioning.readVersion(tx, cid).orElseThrow()));
+    final ReadableGraph bySequence = transactor
+        .inTransaction(tx -> copy(versioning.readVersion(tx, A, 1).orElseThrow()));
+    final ReadableGraph published = transactor.inTransaction(tx -> copy(versioning.readPublished(tx, A)));
+
+    for (final ReadableGraph version : List.of(byCid, bySequence)) {
+      assertThat(version.contains(rdf.createTriple(cid, Q, B))).isTrue();
+    }
+    assertThat(published.contains(rdf.createTriple(A, Q, B))).isTrue();
+    assertThat(published.contains(rdf.createTriple(A, Q, A))).isTrue();
+  }
+
   // --- readVersion by sequence number
 
   @Test
@@ -378,6 +399,21 @@ class ResourceVersioningReadTest {
     draft(A, one(A, "one"));
     publish(A);
     draft(A, new SimpleGraph());
+
+    assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES);
+  }
+
+  @Test
+  void aWritePastThePortIsSeenByItsContent() {
+    draft(A, one(A, "one"));
+    publish(A);
+    assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
+    final Graph foreign = one(A, "x");
+
+    inTx(tx -> {
+      tx.add(CONTENT, foreign);
+      return null;
+    });
 
     assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES);
   }
