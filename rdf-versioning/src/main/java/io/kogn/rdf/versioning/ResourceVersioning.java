@@ -108,7 +108,8 @@ public interface ResourceVersioning {
    * reads the slice subject by subject. A fragment IRI belongs to the stored slice if the
    * last write through the library had it as a subject. A triple written to the content
    * graph past the library, on a fragment IRI that write did not have, is not part of the
-   * slice: it is neither read nor replaced nor removed. Triples on the proxy IRI itself,
+   * slice: it is not read, and only a later write that names that fragment IRI as a subject
+   * replaces it (see {@link #replaceSlice}). Triples on the proxy IRI itself,
    * on a recorded fragment IRI and on the blank nodes reachable from them are, whoever
    * wrote them.</p>
    *
@@ -140,7 +141,9 @@ public interface ResourceVersioning {
    * counter, if {@code expected} is still current.
    *
    * <p>Everything in the slice of the proxy IRI is removed and {@code content} is
-   * written in its place; triples of other proxy IRIs are untouched. Every triple of
+   * written in its place; triples of other proxy IRIs are untouched. A fragment IRI that
+   * {@code content} has as a subject is replaced as a whole, triples written on it past the
+   * library included, so the slice read afterwards is exactly {@code content}. Every triple of
    * {@code content} must belong to the slice (see {@link #readSlice}): an IRI subject
    * that is neither the proxy IRI nor one of its fragment IRIs, or a blank-node subject
    * not reachable from such a subject, is rejected. The proxy IRI is never inferred from
