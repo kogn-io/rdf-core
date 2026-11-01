@@ -176,6 +176,17 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
+  void aVersionReadByCidConflictsWithAPublishOfTheSameContentEvenIfItIsStoredAlready() throws InterruptedException {
+    final IRI cidOfA = latestCid(A);
+    draft(C, resource(C, "a1"));
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, cidOfA), () -> publish(C));
+
+    assertThat(latestCid(C)).isEqualTo(cidOfA);
+    assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+  }
+
+  @RepeatedTest(RUNS)
   void writersOfTheSameProxyIriDoNotBothCommit() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
@@ -253,6 +264,10 @@ class ResourceVersioningConcurrencyTest {
         .map(triple -> ((Literal) triple.getObject()).getLexicalForm())
         .findFirst()
         .orElseThrow();
+  }
+
+  private IRI latestCid(final IRI proxy) {
+    return historyOf(proxy).getLast().content().orElseThrow();
   }
 
   private List<HistoryEntry> historyOf(final IRI proxy) {
