@@ -143,6 +143,37 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
+  void aPublishThatNamesAFragmentReplacesWhatWasWrittenOnItInThePublishedViewPastTheLibrary() {
+    final Graph foreign = graph(triple(A_Y, "foreign"));
+    transactor.inTransaction(tx -> tx.add(VersioningGraphs.PUBLISHED, foreign));
+    draft(A, graph(triple(A, "one"), triple(A_Y, "y")));
+
+    publish(A);
+
+    final ReadableGraph published = read(tx -> versioning.readPublished(tx, A));
+    assertThat(published.size()).isEqualTo(2);
+    assertThat(published.contains(triple(A_Y, "y"))).isTrue();
+    assertThat(countIn(VersioningGraphs.PUBLISHED)).isEqualTo(2);
+  }
+
+  @Test
+  void aPublishReplacesAPublishedFragmentThatHasNoIndexEntry() {
+    draft(A, graph(triple(A, "one"), triple(A_X, "v1")));
+    publish(A);
+    final Graph index = new SimpleGraph();
+    index.add(A, VocabVersioning.PUBLISHED_FRAGMENT, A_X);
+    transactor.inTransaction(tx -> tx.remove(VersioningGraphs.HISTORY, index));
+    draft(A, graph(triple(A, "one"), triple(A_X, "v2")));
+
+    publish(A);
+
+    final ReadableGraph published = read(tx -> versioning.readPublished(tx, A));
+    assertThat(published.contains(triple(A_X, "v2"))).isTrue();
+    assertThat(published.contains(triple(A_X, "v1"))).isFalse();
+    assertThat(countIn(VersioningGraphs.PUBLISHED)).isEqualTo(2);
+  }
+
+  @Test
   void aDeleteClearsTheDraftAndPublishedIndexAndItsTombstoneCarriesTheVersionFragments() {
     final Graph content = graph(triple(A, "one"), triple(A_X, "x"));
     draft(A, content);

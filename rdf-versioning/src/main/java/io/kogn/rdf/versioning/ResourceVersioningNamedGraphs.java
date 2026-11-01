@@ -441,13 +441,17 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       tx.add(VersioningGraphs.CONTENT_STORE, withFreshBlankNodes(version));
     }
     final Set<IRI> oldFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
-    final Graph oldPublished = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, oldFragments);
+    final Set<IRI> newFragments = fragmentsOf(plan.slice(), proxyIri);
+    // As in replaceSlice: a fragment the published slice names is replaced as a whole, also
+    // where the index does not record it.
+    final Set<IRI> replaced = new LinkedHashSet<>(oldFragments);
+    replaced.addAll(newFragments);
+    final Graph oldPublished = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, replaced);
     if (!oldPublished.isEmpty()) {
       tx.remove(VersioningGraphs.PUBLISHED, oldPublished);
     }
     tx.add(VersioningGraphs.PUBLISHED, withFreshBlankNodes(plan.slice()));
-    reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, oldFragments,
-        fragmentsOf(plan.slice(), proxyIri));
+    reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, oldFragments, newFragments);
 
     final IRI entry = writeEntry(tx, plan.last(), proxyIri, EntryKind.PUBLISH, Optional.of(cid),
         Optional.of(generator.procedureTag()), fragmentsOf(version, cid), details);
