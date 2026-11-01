@@ -28,8 +28,10 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link DatasetTx} and never opens a transaction of its own, so several operations
  * commit together or not at all, and an aborted transaction leaves nothing of them
  * behind. A {@link ConcurrencyConflictException} the store raises on commit is
- * reported to the caller of {@link DatasetTransactor#inTransaction}; retrying is the
- * caller's decision. First-insert guards read with
+ * reported to the caller of {@link DatasetTransactor#inTransaction}; a stale
+ * {@link RevisionToken} is reported as a {@link RevisionConflictException}, a subtype of
+ * it, so one {@code catch} covers both lost races. Retrying is the caller's decision.
+ * First-insert guards read with
  * {@link DatasetTx#contains(IRI, io.kogn.rdf.terms.BlankNodeOrIRI, IRI,
  * io.kogn.rdf.terms.RDFTerm) contains}, not {@code ASK} (ADR-0008).</p>
  *
