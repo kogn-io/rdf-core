@@ -34,10 +34,10 @@ import io.kogn.rdf.terms.SimpleIRI;
 import io.kogn.rdf.terms.SimpleRdf;
 
 /**
- * Races between transactions on one versioned dataset, run against a {@code NativeStore},
- * a store with a more realistic transaction isolation than the {@code MemoryStore}. These are
+ * Races between transactions on one versioned dataset, run against a disk-backed
+ * {@code NativeStore}, beside the {@code MemoryStore} the other tests use. These are
  * end-state and race regression tests, not a pin of the {@code contains} guard of ADR-0008:
- * replacing that guard with an {@code ASK} left them green (1000 runs per race). Each race is held by latches, not by timing: the slow transaction has read
+ * replacing that guard with an {@code ASK} left the first-write, follow-up-write and bind races green (1000 runs each). Each race is held by latches, not by timing: the slow transaction has read
  * (and for some races written) before the competitor commits, and commits afterwards.
  *
  * <p>Only invariants of the same proxy IRI and of equal content are pinned; no race here
@@ -154,7 +154,8 @@ class ResourceVersioningConcurrencyTest {
     assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
     assertThat(stateOf(B)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
     assertThat(stateOf(A)).isEqualTo(PublishState.NEVER_PUBLISHED);
-    // one version of two triples (proxy -> blank node -> "same"); a second copy would count four
+    // pins one store write per publish in the race (two triples; a second write would count four);
+    // dedupe across sequential publishes is pinned in ResourceVersioningPublishTest
     assertThat(count(VersioningGraphs.CONTENT_STORE)).isEqualTo(2);
   }
 
