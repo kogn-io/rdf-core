@@ -292,7 +292,8 @@ public interface ResourceVersioning {
    * across reads, nor equal to those of the draft or of the stored version (ADR-0023),
    * so compare by CID, not by triple. A reference to a proxy IRI inside the slice stays
    * a reference to the proxy IRI and meets the target's current state when read later
-   * (ADR-0022). Reading may bind the dataset to the content graph, see
+   * (ADR-0022); that includes a reference of the slice to its own proxy IRI, which stays
+   * as it is here, unlike in the stored version (see {@link #readVersion(DatasetTx, IRI)}). Reading may bind the dataset to the content graph, see
    * {@link #bindContentGraph(DatasetTx)}.</p>
    *
    * @param tx the caller's open transaction; must not be {@code null}
@@ -317,9 +318,11 @@ public interface ResourceVersioning {
    * between reads except in blank-node labels, which are the store's and not stable
    * (ADR-0023). The CID must be in the canonical form {@code ni:///sha3-256;...}
    * (ADR-0019); another spelling of the same name is not normalized and is not found.
-   * Stored references are not translated: a reference to a proxy IRI inside the version
-   * keeps naming the proxy IRI and meets the target's current state when read later
-   * (ADR-0022).
+   * Stored references are not translated: a reference to <em>another</em> proxy IRI
+   * inside the version keeps naming that proxy IRI and meets the target's current state
+   * when read later (ADR-0022). The version's own proxy IRI and its {@code #fragment}
+   * IRIs, in any position, are the CID and its fragments in the version, so that the
+   * version verifies against its own name: a self-reference is a reference to the CID.
    * The library does not resolve a CID it does not hold, and offers no read from a CID
    * back to a proxy IRI: two proxy IRIs with identical content share one version
    * (ADR-0022). Reading may bind the dataset to the content graph, see
@@ -349,9 +352,11 @@ public interface ResourceVersioning {
    * empty then, as for an {@code sequence} the proxy IRI never reached. Reading may bind
    * the dataset to the content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
    *
-   * <p>Stored references are not translated: a reference to a proxy IRI inside the version
-   * keeps naming the proxy IRI and meets the target's current state when read later
-   * (ADR-0022).</p>
+   * <p>Stored references are not translated: a reference to <em>another</em> proxy IRI
+   * inside the version keeps naming that proxy IRI and meets the target's current state
+   * when read later (ADR-0022). The version's own proxy IRI and its {@code #fragment}
+   * IRIs, in any position, are the CID and its fragments in the version, so that the
+   * version verifies against its own name: a self-reference is a reference to the CID.</p>
    *
    * @param tx the caller's open transaction; must not be {@code null}
    * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
