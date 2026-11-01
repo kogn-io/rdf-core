@@ -130,6 +130,27 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
+  void aTripleOnAnUnrecordedFragmentThatSharesABlankNodeWithTheSliceIsRejected() {
+    final BlankNode node = rdf.createBlankNode();
+    final Graph content = graph(triple(node, "deep"));
+    content.add(A, P, node);
+    draft(A, content);
+    final RDFTerm stored = read(tx -> versioning.readSlice(tx, A).triples()).stream(A, P, null)
+        .findFirst()
+        .orElseThrow()
+        .getObject();
+    final Graph foreign = new SimpleGraph();
+    foreign.add(A_Z, P, stored);
+    transactor.inTransaction(tx -> tx.add(CONTENT, foreign));
+    final RevisionToken token = read(tx -> versioning.readSlice(tx, A).token());
+
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, graph(), token)))
+        .isInstanceOf(AmbiguousBlankNodeException.class);
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.delete(tx, A, token, PublishDetails.NONE)))
+        .isInstanceOf(AmbiguousBlankNodeException.class);
+  }
+
+  @Test
   void aPublishReplacesThePublishedFragmentsWithThoseOfTheNewVersion() {
     draft(A, graph(triple(A, "one"), triple(A_X, "x"), triple(A_Y, "y")));
     publish(A);
