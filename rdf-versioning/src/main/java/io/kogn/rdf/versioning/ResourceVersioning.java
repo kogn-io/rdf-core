@@ -125,7 +125,9 @@ public interface ResourceVersioning {
    * slice: it is not read, and only a later write that names that fragment IRI as a subject
    * replaces it (see {@link #replaceSlice}). Triples on the proxy IRI itself,
    * on a recorded fragment IRI and on the blank nodes reachable from them are, whoever
-   * wrote them.</p>
+   * wrote them. If such a triple outside the slice shares a blank node with the slice,
+   * {@link #replaceSlice} and {@link #delete} reject the write with
+   * {@link AmbiguousBlankNodeException}.</p>
    *
    * <p>A proxy IRI without a draft yields an empty slice and a valid token (revision
    * zero), so a first {@link #replaceSlice write} needs no special case. An empty slice
@@ -441,7 +443,8 @@ public interface ResourceVersioning {
    * though the revision token does not see them, as far as they fall into the slice: on
    * the proxy IRI itself, on a fragment IRI the last draft write through the library had
    * as a subject, and on the blank nodes reachable from them (see {@link #readSlice}).
-   * A triple on a fragment IRI the library never wrote is not seen. Reading may bind the dataset to the
+   * A triple on any other fragment IRI is not seen, including one the library wrote in an
+   * earlier draft that the last draft write left out. Reading may bind the dataset to the
    * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
    *
    * @param tx the caller's open transaction; must not be {@code null}
