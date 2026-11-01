@@ -46,8 +46,10 @@ import io.kogn.rdf.terms.ReadableGraph;
  * one of two transactions commits, the other failing with
  * {@link ConcurrencyConflictException}, if both write the same proxy IRI (both read and
  * raise its revision counter), if both publish the same content as a new version (both
- * look the CID up in the content store and write it there, ADR-0023), or if one reads a
- * proxy IRI the other writes; consumers retry reads as well as writes. The read cost of an
+ * look the CID up in the content store and write it there, ADR-0023), if one reads a
+ * proxy IRI the other writes, or if both are among the first operations on a dataset that
+ * is not yet bound to its content graph (both find the binding absent and write it, see
+ * {@link #bindContentGraph}); consumers retry reads as well as writes. The read cost of an
  * operation is O(size of the slice + number of history entries of the proxy IRI),
  * independent of the rest of the dataset; a publish or a {@link #publishState} adds the
  * derivation of the CID. A triple term (RDF 1.2) in a pattern an operation reads makes it
@@ -78,8 +80,11 @@ public interface ResourceVersioning {
    * first write.</p>
    *
    * <p>Two transactions that bind the same unbound dataset concurrently are guarded by
-   * the isolation promise of {@link DatasetTransactor}: if they name different content
-   * graphs, at most one commits.</p>
+   * the isolation promise of {@link DatasetTransactor}: at most one commits, whether they
+   * name different content graphs or the same one, since both read the binding as absent
+   * and write it. Every operation of the port binds first, so the first operations on a
+   * fresh dataset exclude each other even for disjoint proxy IRIs; once the binding is
+   * committed, binding only reads it.</p>
    *
    * @param tx the caller's open transaction; must not be {@code null}
    * @throws ContentGraphMismatchException if the dataset is bound to another content
