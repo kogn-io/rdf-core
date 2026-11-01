@@ -26,6 +26,7 @@ import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
+import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.SimpleGraph;
@@ -33,9 +34,10 @@ import io.kogn.rdf.terms.SimpleIRI;
 import io.kogn.rdf.terms.SimpleRdf;
 
 /**
- * Races between transactions on one versioned dataset, run against a {@code NativeStore}:
- * its transaction isolation is the one ADR-0008 guards (the {@code MemoryStore} does not
- * reproduce it). Each race is held by latches, not by timing: the slow transaction has read
+ * Races between transactions on one versioned dataset, run against a {@code NativeStore},
+ * a store with a more realistic transaction isolation than the {@code MemoryStore}. These are
+ * end-state and race regression tests, not a pin of the {@code contains} guard of ADR-0008:
+ * replacing that guard with an {@code ASK} left them green (1000 runs per race). Each race is held by latches, not by timing: the slow transaction has read
  * (and for some races written) before the competitor commits, and commits afterwards.
  *
  * <p>Only invariants of the same proxy IRI and of equal content are pinned; no race here
@@ -44,8 +46,13 @@ import io.kogn.rdf.terms.SimpleRdf;
 @Timeout(value = 30, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class ResourceVersioningConcurrencyTest {
 
-  /** Repetitions per race: a lost update shows up in a small fraction of runs, 50 keeps CI short. */
-  private static final int REPETITIONS = 50;
+  /**
+   * Repetitions per race. The latches force the overlap, so a run does not depend on lucky timing;
+   * the repetitions only guard against residual scheduling effects. 20 keeps CI near 12 s.
+   */
+  private static final int REPETITIONS = 20;
+
+  private static final long JOIN_MILLIS = 10_000;
 
   private static final IRI CONTENT = new SimpleIRI("https://example.org/graph/content");
   private static final IRI OTHER_CONTENT = new SimpleIRI("https://example.org/graph/other");
@@ -112,7 +119,7 @@ class ResourceVersioningConcurrencyTest {
       return null;
     }));
 
-    assertThat(loser).isInstanceOf(RuntimeException.class);
+    assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
     final List<IRI> bound = transactor.inTransaction(tx -> tx.export(VersioningGraphs.CONFIG)
         .stream(VersioningGraphs.CONFIG, VocabVersioning.CONTENT_GRAPH, null)
         .map(triple -> (IRI) triple.getObject())
@@ -137,8 +144,8 @@ class ResourceVersioningConcurrencyTest {
 
   @RepeatedTest(REPETITIONS)
   void twoConcurrentPublishesOfEqualContentStoreTheVersionOnceAndCommitOnlyOne() throws InterruptedException {
-    final RevisionToken tokenA = write(A, content(A, "same"), read(A).token());
-    final RevisionToken tokenB = write(B, content(B, "same"), read(B).token());
+    final RevisionToken tokenA = write(A, contentWithBlankNode(A, "a"), read(A).token());
+    final RevisionToken tokenB = write(B, contentWithBlankNode(B, "b"), read(B).token());
 
     final Throwable loser = race(tx -> versioning.readSlice(tx, A),
         tx -> versioning.publish(tx, List.of(tokenA), PublishDetails.NONE),
@@ -147,7 +154,8 @@ class ResourceVersioningConcurrencyTest {
     assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
     assertThat(stateOf(B)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
     assertThat(stateOf(A)).isEqualTo(PublishState.NEVER_PUBLISHED);
-    assertThat(count(VersioningGraphs.CONTENT_STORE)).isEqualTo(1);
+    // one version of two triples (proxy -> blank node -> "same"); a second copy would count four
+    assertThat(count(VersioningGraphs.CONTENT_STORE)).isEqualTo(2);
   }
 
   /**
@@ -178,23 +186,29 @@ class ResourceVersioningConcurrencyTest {
     Throwable outcome = null;
     try {
       transactor.inTransaction(tx -> {
-        slowRead.accept(tx);
-        slowWrite.accept(tx);
-        slowIsReady.countDown();
+        try {
+          slowRead.accept(tx);
+          slowWrite.accept(tx);
+        } finally {
+          slowIsReady.countDown();
+        }
         awaitLatch(competitorCommitted);
         return null;
       });
     } catch (final RuntimeException e) {
       outcome = e;
     }
-    thread.join();
+    thread.join(JOIN_MILLIS);
+    assertThat(thread.isAlive()).isFalse();
     assertThat(competitorFailure.get()).isNull();
     return outcome;
   }
 
   private static void awaitLatch(final CountDownLatch latch) {
     try {
-      latch.await();
+      if (!latch.await(JOIN_MILLIS, TimeUnit.MILLISECONDS)) {
+        throw new IllegalStateException("competitor did not finish");
+      }
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
     }
@@ -203,6 +217,14 @@ class ResourceVersioningConcurrencyTest {
   private Graph content(final IRI proxy, final String text) {
     final Graph graph = new SimpleGraph();
     graph.add(proxy, P, rdf.createLiteral(text));
+    return graph;
+  }
+
+  private Graph contentWithBlankNode(final IRI proxy, final String label) {
+    final BlankNode node = rdf.createBlankNode(label);
+    final Graph graph = new SimpleGraph();
+    graph.add(proxy, P, node);
+    graph.add(node, P, rdf.createLiteral("same"));
     return graph;
   }
 
