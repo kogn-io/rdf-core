@@ -429,14 +429,21 @@ class ResourceVersioningReadTest {
     draft(A, one(A, "one"));
     publish(A);
     assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
-    final Graph foreign = one(A, "x");
-
     inTx(tx -> {
-      tx.add(CONTENT, foreign);
+      tx.remove(CONTENT, one(A, "one"));
+      tx.add(CONTENT, one(A, "x"));
       return null;
     });
 
     assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES);
+
+    inTx(tx -> {
+      tx.remove(CONTENT, one(A, "x"));
+      tx.add(CONTENT, one(A, "one"));
+      return null;
+    });
+
+    assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
   }
 
   @Test
