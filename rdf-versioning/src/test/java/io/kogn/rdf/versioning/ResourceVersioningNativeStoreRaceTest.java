@@ -45,7 +45,7 @@ import io.kogn.rdf.terms.SimpleRdf;
  * claims that transactions on disjoint proxy IRIs conflict.</p>
  */
 @Timeout(value = 30, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
-class ResourceVersioningConcurrencyTest {
+class ResourceVersioningNativeStoreRaceTest {
 
   /**
    * Repetitions per race. The latches force the overlap, so a run does not depend on lucky timing;
