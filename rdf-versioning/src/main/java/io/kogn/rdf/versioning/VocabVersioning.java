@@ -138,8 +138,9 @@ public interface VocabVersioning {
    * {@link #CONTENT}, in the history graph. One triple per fragment subject of the version
    * in the {@link VersioningGraphs#CONTENT_STORE content store}. Every entry that names a
    * CID carries them — a publish, whether or not it stored the version, and a tombstone,
-   * which takes them over from the last version — so the fragments of a CID can be read from
-   * any entry naming it. Part of the entry, written with it and never changed.</p>
+   * which takes them over from the last version. A read of the version by its CID takes the
+   * union over all entries naming it. Part of the entry, written with it and never
+   * changed.</p>
    */
   IRI VERSION_FRAGMENT = new SimpleIRI(NAMESPACE + "versionFragment");
 }
