@@ -56,5 +56,12 @@
 			<artifactId>rdf4j-sail-memory</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- The concurrency tests also run against a NativeStore, whose transaction isolation
+		     the MemoryStore does not reproduce (ADR-0008). -->
+		<dependency>
+			<groupId>org.eclipse.rdf4j</groupId>
+			<artifactId>rdf4j-sail-nativerdf</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 </project>
