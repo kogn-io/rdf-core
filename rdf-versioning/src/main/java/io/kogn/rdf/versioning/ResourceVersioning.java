@@ -455,8 +455,8 @@ public interface ResourceVersioning {
    * though the revision token does not see them, as far as they fall into the slice: on
    * the proxy IRI itself, on a fragment IRI the last draft write through the library had
    * as a subject, and on the blank nodes reachable from them (see {@link #readSlice}).
-   * A triple on any other fragment IRI is not seen, including one the library wrote in an
-   * earlier draft that the last draft write left out. Reading may bind the dataset to the
+   * A triple on any other fragment IRI is not seen, including one written past the library
+   * on a fragment IRI the last draft write left out. Reading may bind the dataset to the
    * content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
    *
    * @param tx the caller's open transaction; must not be {@code null}
