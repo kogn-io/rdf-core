@@ -47,9 +47,10 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link ConcurrencyConflictException}, if both write the same proxy IRI (both read and
  * raise its revision counter), if both publish the same content as a new version (both
  * look the CID up in the content store and write it there, ADR-0023), if one reads a
- * proxy IRI the other writes, if one reads a version by its CID while the other publishes
- * a draft with that CID (also when the version is stored already, since the new history
- * entry names the CID), or if both are among the first operations on a dataset that
+ * proxy IRI the other writes, if one reads a version by its CID while the other writes a
+ * history entry naming that CID, for any proxy IRI (a publish of a draft with that CID,
+ * also when the version is stored already, or a {@link #delete} whose tombstone names it
+ * as the last version), or if both are among the first operations on a dataset that
  * is not yet bound to its content graph (both find the binding absent and write it, see
  * {@link #bindContentGraph}); consumers retry reads as well as writes. The read cost of an
  * operation is O(size of the slice + number of history entries of the proxy IRI),

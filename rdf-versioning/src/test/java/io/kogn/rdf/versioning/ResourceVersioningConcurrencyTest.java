@@ -187,6 +187,18 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
+  void aVersionReadByCidConflictsWithADeleteWhoseTombstoneNamesTheCid() throws InterruptedException {
+    final IRI cidOfB = latestCid(B);
+    final RevisionToken tokenOfB = token(B);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, cidOfB),
+        () -> transactor.inTransaction(tx -> versioning.delete(tx, B, tokenOfB, PublishDetails.NONE)));
+
+    assertThat(historyOf(B).getLast().content()).contains(cidOfB);
+    assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+  }
+
+  @RepeatedTest(RUNS)
   void writersOfTheSameProxyIriDoNotBothCommit() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
