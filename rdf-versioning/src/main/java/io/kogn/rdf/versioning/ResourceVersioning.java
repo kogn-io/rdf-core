@@ -56,7 +56,10 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link #bindContentGraph}); consumers retry reads as well as writes. The read cost of an
  * operation is O(size of the slice + number of history entries of the proxy IRI),
  * independent of the rest of the dataset, provided the backend has an index for each
- * pattern; a publish or a {@link #publishState} adds the derivation of the CID. Most
+ * pattern; a publish or a {@link #publishState} adds the derivation of the CID. A read of
+ * a version, by its CID or by sequence number, also reads every history entry naming that
+ * CID, of any proxy IRI, so its cost grows with the number of publishes and tombstones
+ * that share the content. Most
  * patterns bind the subject. The check for shared blank nodes in {@link #replaceSlice} and
  * {@link #delete} also reads each blank node of the slice as object, with subject and
  * predicate unbound; that needs an index led by the object within the graph. The RDF4J
