@@ -84,7 +84,11 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * is the difference to {@link #export(IRI) export}, which observes the whole named graph
    * however little of it the caller goes on to use. A read that needs only some subjects
    * of a large, concurrently written graph should therefore state them as patterns here
-   * rather than export the graph and filter. What the isolation level guarantees, and what
+   * rather than export the graph and filter. One exception depends on the backend: a
+   * concurrent commit that clears or drops the whole named graph ({@link #clear(IRI) clear},
+   * or a SPARQL {@code CLEAR}/{@code DROP} of it) may count as a change to every pattern read
+   * in that graph, including one that matched nothing the clear removed. What the isolation
+   * level guarantees, and what
    * it does not for a guard against IRIs the store does not hold yet, is the
    * {@link DatasetTransactor}'s; a first-insert guard reads through {@code contains}
    * (ADR-0008).</p>

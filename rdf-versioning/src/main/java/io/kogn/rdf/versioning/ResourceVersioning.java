@@ -41,7 +41,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  * of its slice, plus the binding in the config graph; it never exports a whole graph. On a
  * backend that tracks what a transaction read, as the RDF4J backend does under
  * {@code SERIALIZABLE}, an operation conflicts exactly with concurrent changes to the
- * patterns it reads: of two transactions, the one committing second fails with
+ * patterns it reads, and with a concurrent clear of a whole graph it reads where the
+ * backend counts that as a change to every pattern in it (see {@link DatasetTx#match}): of
+ * two transactions, the one committing second fails with
  * {@link ConcurrencyConflictException} if the other changed what it read. What an
  * operation reads:</p>
  * <ul>
