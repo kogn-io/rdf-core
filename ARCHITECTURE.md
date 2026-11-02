@@ -529,8 +529,9 @@ entries, and unless unchanged the published fragment index, the published slice
 and whether the content store holds the CID; `readPublished` the published
 fragment index and the published slice; `history` the entries; `publishState`
 the entries and, unless never published or deleted, the draft fragment index
-and the draft; a version read, by CID or by sequence number, every history
-entry naming the CID, of any proxy IRI, and the version; `delete` the counter,
+and the draft; a version read by CID every history entry naming the CID, of
+any proxy IRI, and the version, and a read by sequence number first the
+entries of the proxy IRI as well; `delete` the counter,
 the draft fragment index, the draft, each blank node of the draft and the
 entries, and unless deleted already without a draft the published fragment
 index and the published slice; and every operation reads the content-graph
