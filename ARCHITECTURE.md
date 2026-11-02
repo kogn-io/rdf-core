@@ -536,20 +536,29 @@ entries of the proxy IRI as well; `delete` the counter,
 the draft fragment index, the draft, each blank node of the draft and the
 entries, and unless deleted already without a draft the published fragment
 index and the published slice; and every operation reads the content-graph
-binding in the config graph. For instance, two writers of the same proxy IRI
-conflict, as do a `readSlice` and a write of the same proxy IRI, a
-`replaceSlice` and a concurrent write past the library on the same proxy IRI or
-on a fragment IRI the new content names, two publishes that store the same new CID, a version read
-and any write of a history entry naming its CID (a publish of a draft with that
-CID, even when the version is stored already, or a `delete` whose tombstone
-names it), the first operations on a dataset not yet bound to its content graph
-(each writes the binding), and two writes of disjoint proxy IRIs whose contents
-carry the same blank node (as per-document parser labels produce) — one after
-the other the second gets an `AmbiguousBlankNodeException`, concurrently one
-gets a `ConcurrencyConflictException`. A `readPublished`, `history` or version
-read of a proxy IRI does not conflict with a `replaceSlice` of it; otherwise
-operations on disjoint proxy IRIs commit side by side. Consumers retry reads as
-well as writes. The read cost follows the slice and the history of the one proxy
+binding in the config graph. Which of two transactions fails depends on what
+each read and on the order of the commits.
+Where each reads what the other writes, they conflict whichever commits first:
+two writers of the same proxy IRI (each reads the counter the other raises),
+two publishes that store the same new CID (each reads the content store where
+the other adds it), the first operations on a dataset not yet bound to its
+content graph (each reads the binding the other writes), and two `replaceSlice` calls on
+disjoint proxy IRIs whose contents carry the same blank node (as per-document
+parser labels produce) — one after the other the second gets an
+`AmbiguousBlankNodeException`, concurrently the second to commit gets a
+`ConcurrencyConflictException`. Where only one reads what the other writes, it
+fails if the other commits first and both commit otherwise: a `readSlice`
+against a write of the same proxy IRI, a version read against any write of a
+history entry naming its CID (a publish of a draft with that CID, even when the
+version is stored already, or a `delete` whose tombstone names it), and a read
+by sequence number also against a write of an entry of its proxy IRI. A
+`replaceSlice` fails if a write past the library commits first that touches a
+triple about the proxy IRI or about a fragment IRI the new content names;
+committing first, it makes the foreign writer fail only if that one read a
+pattern the `replaceSlice` changed — a `DatasetTx#add` observes only the
+triples it adds. A `readPublished`, `history` or version read of a proxy IRI
+does not conflict with a `replaceSlice` of it; otherwise operations on disjoint
+proxy IRIs commit side by side. Consumers retry reads as well as writes. The read cost follows the slice and the history of the one proxy
 IRI, not the dataset — as long as the backend indexes each pattern. A read of a
 version also reads every history entry naming that CID, so its cost grows with
 the number of entries sharing the content. The shared-blank-node check reads

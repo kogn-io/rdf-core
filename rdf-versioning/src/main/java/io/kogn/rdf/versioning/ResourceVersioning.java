@@ -90,22 +90,30 @@ import io.kogn.rdf.terms.ReadableGraph;
  *   graph, and the history entries; unless the proxy IRI is deleted already and holds no
  *   draft, also the published fragment index and the published slice.</li>
  * </ul>
- * <p>For instance, at most one of two transactions commits if both write the same proxy
- * IRI (a call that writes nothing, as above, is no write); if one reads the draft of a proxy IRI ({@link #readSlice}) and the other writes it;
- * if one replaces the draft of a proxy IRI ({@link #replaceSlice}) and the other, past the
- * library, changes a triple in the content graph about that proxy IRI, about a fragment IRI
- * the new content names or the draft fragment index records, or about a blank node of the
- * new content or the old slice;
- * if both publish the same content as a new version; if one reads a version while the
- * other writes a history entry naming its CID, for any proxy IRI (a publish of a draft
- * with that CID, also when the version is stored already, or a {@link #delete} whose
- * tombstone names it as the last version); if both are among the first operations on an
- * unbound dataset; or if both write disjoint proxy IRIs whose contents carry the same
- * blank node, as a parser labelling each document from {@code _:b0} produces — one after
- * the other, the second write fails with {@link AmbiguousBlankNodeException}, concurrently
- * one fails with {@link ConcurrencyConflictException}. A {@link #readPublished}, a
- * {@link #history} or a version read of a proxy IRI, on the other hand, does not conflict
- * with a {@link #replaceSlice} of it, which changes none of what they read; operations on
+ * <p>Which of two transactions fails depends on what each read and on the order of the
+ * commits. Where each reads what the other writes, they conflict whichever commits first:
+ * two writes of the same proxy IRI (a call that writes nothing, as above, is no write),
+ * each reading the revision counter the other raises; two publishes that store the same
+ * new version, each reading the content store where the other adds it; two of the first
+ * operations on an unbound dataset, each reading the binding the other writes; and two
+ * {@link #replaceSlice} calls on disjoint proxy IRIs whose contents carry the same blank
+ * node, as a parser labelling each document from {@code _:b0} produces, each reading that
+ * blank node in the content graph where the other adds it — one after the other, the
+ * second fails with {@link AmbiguousBlankNodeException}, concurrently the second to commit
+ * fails with {@link ConcurrencyConflictException}. Where only one of them reads what the
+ * other writes, it fails if the other commits before it, and both commit if it commits
+ * first: a {@link #readSlice} of a proxy IRI against a write of it; a version read against
+ * a write of a history entry naming its CID, for any proxy IRI (a publish of a draft with
+ * that CID, also when the version is stored already, or a {@link #delete} whose tombstone
+ * names it as the last version), and a read by sequence number also against a publish or
+ * {@link #delete} of its proxy IRI that writes an entry. A {@link #replaceSlice} of a
+ * proxy IRI fails if a change past the library commits before it that touches a triple in
+ * the content graph about that proxy IRI, about a fragment IRI the new content names or
+ * the draft fragment index records, or about a blank node of the new content or the old
+ * slice; committing first, it makes that other transaction fail only if the other read a
+ * pattern the {@link #replaceSlice} changed. A {@link #readPublished}, a {@link #history}
+ * or a version read of a proxy IRI, on the other hand, does not conflict with a
+ * {@link #replaceSlice} of it, which changes none of what they read; operations on
  * disjoint proxy IRIs otherwise commit side by side. Consumers retry reads as well as
  * writes.</p>
  * <p>The read cost of an
