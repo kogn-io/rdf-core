@@ -239,8 +239,10 @@ public interface ResourceVersioning {
    * is derived again under the current procedure and that is compared, and a change of
    * procedure alone creates no version (ADR-0022).</p>
    *
-   * <p><strong>All or nothing.</strong> Every token is checked and every CID derived
-   * before the first triple is written (apart from the binding of the content graph on first use), so a failure for any proxy IRI leaves the
+   * <p><strong>All or nothing.</strong> Everything is read before the first triple is
+   * written (apart from the binding of the content graph on first use): every token is
+   * checked, every CID derived, and the published view, its fragment index and the content
+   * store are looked up for every proxy IRI, so a failure for any proxy IRI leaves the
    * transaction as it was; if {@code tx} aborts, published view, content store, history
    * and counters are unchanged. A stale token is reported, never retried. The first
    * sequence number and the first copy of a CID are looked up with
