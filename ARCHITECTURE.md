@@ -512,22 +512,35 @@ deleted.
 Every operation reads through `DatasetTx#match` and `#contains` with patterns
 bound to its own proxy IRI — or to the CID, the history entries, the fragment
 IRIs and the blank nodes of its slice — and never exports a graph. On a backend
-that tracks what a transaction read (RDF4J under `SERIALIZABLE`), operations on
-disjoint proxy IRIs therefore commit side by side, and the read cost follows the
-slice and the history of the one proxy IRI, not the dataset — as long as the
-backend indexes each pattern. A read of a version, by CID or by sequence number,
-also reads every history entry naming that CID, of any proxy IRI, so its cost
-grows with the number of entries sharing the content. The shared-blank-node check of `replaceSlice` and
-`delete` reads blank nodes in object position with subject and predicate
-unbound; `MemoryStore` and a `NativeStore` the hosting module creates with its
-default index spec (`spoc,posc,cosp`) index that, a `NativeStore` with RDF4J's default `spoc,posc`
-scans the content graph for it. Two writers of the
-same proxy IRI, two publishes that store the same new CID, a read of a version
-(by its CID or by sequence number) and any write of a history entry naming that CID, for any proxy IRI
-(a publish of a draft with that CID, even when the version is stored already, or
-a `delete` whose tombstone names it as the last version), and the first
-operations on a dataset not yet bound to its content graph (each writes the
-binding) still conflict.
+that tracks what a transaction read (RDF4J under `SERIALIZABLE`), an operation
+conflicts exactly with concurrent changes to the patterns it reads. Writes of a
+proxy IRI read and raise its revision counter; `readSlice` reads the counter
+and the draft, `publishState` the history entries and, unless never published
+or deleted, the draft; `readPublished` reads the published slice and its
+fragment index, `history` the entries; a version read, by CID or by sequence
+number, reads every history entry naming the CID, of any proxy IRI; `publish`
+looks the CID up in the content store; the shared-blank-node check of
+`replaceSlice` and `delete` reads each blank node of the slice; and every
+operation reads the content-graph binding in the config graph. For instance,
+two writers of the same proxy IRI conflict, as do a `readSlice` and a write of
+the same proxy IRI, two publishes that store the same new CID, a version read
+and any write of a history entry naming its CID (a publish of a draft with that
+CID, even when the version is stored already, or a `delete` whose tombstone
+names it), the first operations on a dataset not yet bound to its content graph
+(each writes the binding), and two writes of disjoint proxy IRIs whose contents
+carry the same blank node (as per-document parser labels produce) — one after
+the other the second gets an `AmbiguousBlankNodeException`, concurrently one
+gets a `ConcurrencyConflictException`. A `readPublished`, `history` or version
+read of a proxy IRI does not conflict with a `replaceSlice` of it; otherwise
+operations on disjoint proxy IRIs commit side by side. Consumers retry reads as
+well as writes. The read cost follows the slice and the history of the one proxy
+IRI, not the dataset — as long as the backend indexes each pattern. A read of a
+version also reads every history entry naming that CID, so its cost grows with
+the number of entries sharing the content. The shared-blank-node check reads
+blank nodes in object position with subject and predicate unbound; `MemoryStore`
+and a `NativeStore` the hosting module creates with its default index spec
+(`spoc,posc,cosp`) index that, a `NativeStore` with RDF4J's default `spoc,posc`
+scans the content graph for it.
 Fragment IRIs cannot be found by a pattern, so the library records the fragment
 subjects of every slice it writes in the history graph: those of the draft and
 of the published copy as bookkeeping triples of the proxy IRI, beside the

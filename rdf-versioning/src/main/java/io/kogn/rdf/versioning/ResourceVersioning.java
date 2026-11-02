@@ -40,20 +40,44 @@ import io.kogn.rdf.terms.ReadableGraph;
  * proxy IRI of the operation or to the CID, history entries, fragment IRIs and blank nodes
  * of its slice, plus the binding in the config graph; it never exports a whole graph. On a
  * backend that tracks what a transaction read, as the RDF4J backend does under
- * {@code SERIALIZABLE}, an operation therefore conflicts only with concurrent changes to
- * those patterns. Operations on disjoint proxy IRIs, writes included, commit side by side,
- * and a read of one proxy IRI does not fail because another one is written, unless that
- * write names a CID the read looks up (below). Still at most
- * one of two transactions commits, the other failing with
- * {@link ConcurrencyConflictException}, if both write the same proxy IRI (both read and
- * raise its revision counter), if both publish the same content as a new version (both
- * look the CID up in the content store and write it there, ADR-0023), if one reads a
- * proxy IRI the other writes, if one reads a version, by its CID or by sequence number,
- * while the other writes a history entry naming that CID, for any proxy IRI (a publish of a draft with that CID,
- * also when the version is stored already, or a {@link #delete} whose tombstone names it
- * as the last version), or if both are among the first operations on a dataset that
- * is not yet bound to its content graph (both find the binding absent and write it, see
- * {@link #bindContentGraph}); consumers retry reads as well as writes. The read cost of an
+ * {@code SERIALIZABLE}, an operation conflicts exactly with concurrent changes to the
+ * patterns it reads: of two transactions, the one committing second fails with
+ * {@link ConcurrencyConflictException} if the other changed what it read. What an
+ * operation reads:</p>
+ * <ul>
+ *   <li>every operation reads the binding in the config graph; the first operations on a
+ *   dataset not yet bound find it absent and write it (see {@link #bindContentGraph});</li>
+ *   <li>{@link #replaceSlice}, {@link #publish} and {@link #delete} read the revision
+ *   counter of each proxy IRI they write and raise it;</li>
+ *   <li>{@link #readSlice} reads the counter and the draft slice;
+ *   {@link #publishState} reads the history entries of the proxy IRI and, unless it is
+ *   never published or deleted, the draft slice;</li>
+ *   <li>{@link #readPublished} reads the published slice and its fragment index;</li>
+ *   <li>{@link #history} reads the history entries of the proxy IRI;</li>
+ *   <li>a read of a version, by its CID or by sequence number (which first reads the
+ *   entries of the proxy IRI), reads every history entry naming that CID, of any proxy IRI,
+ *   and the version in the content store;</li>
+ *   <li>{@link #publish} reads the draft slice, the history entries and the published slice
+ *   with its fragment index, and looks the CID up in the content store (ADR-0023);
+ *   {@link #delete} reads the draft slice, the history entries and the published slice;</li>
+ *   <li>{@link #replaceSlice} and {@link #delete} read each blank node of the slice, as
+ *   subject and as object, in the content graph (the check for shared blank nodes).</li>
+ * </ul>
+ * <p>For instance, at most one of two transactions commits if both write the same proxy
+ * IRI; if one reads the draft of a proxy IRI ({@link #readSlice}) and the other writes it;
+ * if both publish the same content as a new version; if one reads a version while the
+ * other writes a history entry naming its CID, for any proxy IRI (a publish of a draft
+ * with that CID, also when the version is stored already, or a {@link #delete} whose
+ * tombstone names it as the last version); if both are among the first operations on an
+ * unbound dataset; or if both write disjoint proxy IRIs whose contents carry the same
+ * blank node, as a parser labelling each document from {@code _:b0} produces — one after
+ * the other, the second write fails with {@link AmbiguousBlankNodeException}, concurrently
+ * one fails with {@link ConcurrencyConflictException}. A {@link #readPublished}, a
+ * {@link #history} or a version read of a proxy IRI, on the other hand, does not conflict
+ * with a {@link #replaceSlice} of it, which changes none of what they read; operations on
+ * disjoint proxy IRIs otherwise commit side by side. Consumers retry reads as well as
+ * writes.</p>
+ * <p>The read cost of an
  * operation is O(size of the slice + number of history entries of the proxy IRI),
  * independent of the rest of the dataset, provided the backend has an index for each
  * pattern; a publish or a {@link #publishState} adds the derivation of the CID. A read of
