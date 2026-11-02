@@ -339,6 +339,61 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
+  void aPublishWhoseSecondProxyIriHasAMalformedPublishedIndexWritesNothingOfTheFirst() {
+    draft(A, graph(triple(A, "one"), triple(A_X, "x")));
+    draft(B, graph(triple(B, "two")));
+    final Graph index = new SimpleGraph();
+    index.add(B, VocabVersioning.PUBLISHED_FRAGMENT, A_X);
+    transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, index));
+
+    final Throwable thrown = transactor.inTransaction(tx -> {
+      final List<RevisionToken> tokens = List.of(versioning.readSlice(tx, A).token(),
+          versioning.readSlice(tx, B).token());
+      try {
+        versioning.publish(tx, tokens, PublishDetails.NONE);
+        return null;
+      } catch (final IllegalStateException e) {
+        return e;
+      }
+    });
+
+    assertThat(thrown).isInstanceOf(IllegalStateException.class).hasMessageContaining("fragment index");
+    final List<HistoryEntry> history = read(tx -> versioning.history(tx, A));
+    final long revision = read(tx -> versioning.readSlice(tx, A).token().revision());
+    assertThat(history).isEmpty();
+    assertThat(revision).isEqualTo(1L);
+    assertThat(indexed(A, VocabVersioning.PUBLISHED_FRAGMENT)).isEmpty();
+    assertThat(countIn(VersioningGraphs.PUBLISHED)).isZero();
+    assertThat(countIn(VersioningGraphs.CONTENT_STORE)).isZero();
+  }
+
+  @Test
+  void aDeleteWithAMalformedPublishedIndexWritesNothing() {
+    draft(A, graph(triple(A, "one"), triple(A_X, "x")));
+    publish(A);
+    final Graph index = new SimpleGraph();
+    index.add(A, VocabVersioning.PUBLISHED_FRAGMENT, B_X);
+    transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, index));
+
+    final Throwable thrown = transactor.inTransaction(tx -> {
+      try {
+        versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE);
+        return null;
+      } catch (final IllegalStateException e) {
+        return e;
+      }
+    });
+
+    assertThat(thrown).isInstanceOf(IllegalStateException.class).hasMessageContaining("fragment index");
+    assertThat(countIn(CONTENT)).isEqualTo(2);
+    assertThat(indexed(A, VocabVersioning.DRAFT_FRAGMENT)).containsExactly(A_X);
+    final List<HistoryEntry> history = read(tx -> versioning.history(tx, A));
+    final long revision = read(tx -> versioning.readSlice(tx, A).token().revision());
+    assertThat(history).hasSize(1);
+    assertThat(revision).isEqualTo(2L);
+  }
+
+  @Test
   void noOperationReadsAWholeGraph() {
     final BlankNode node = rdf.createBlankNode();
     final Graph content = graph(triple(A, "one"), triple(A_X, "x"), triple(node, "deep"));

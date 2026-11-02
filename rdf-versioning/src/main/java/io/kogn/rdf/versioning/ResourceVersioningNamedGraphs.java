@@ -208,15 +208,18 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       }
       plans.add(planPublish(tx, token));
     }
+    // Every read happens while planning; from here on only writes, so a failure cannot leave
+    // a part of the publish behind (all or nothing).
     final Map<IRI, IRI> entries = new LinkedHashMap<>();
     final Map<IRI, RevisionToken> tokens = new LinkedHashMap<>();
+    final Set<IRI> storedCids = new HashSet<>();
     for (final PublishPlan plan : plans) {
       if (plan.unchanged()) {
         entries.put(plan.proxyIri(), plan.last().orElseThrow().iri());
         tokens.put(plan.proxyIri(), plan.token());
         continue;
       }
-      final IRI entry = apply(tx, plan, details);
+      final IRI entry = apply(tx, plan, details, storedCids);
       entries.put(plan.proxyIri(), entry);
       tokens.put(plan.proxyIri(), new RevisionToken(plan.proxyIri(), plan.current() + 1));
     }
@@ -312,12 +315,13 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (draft.isEmpty() && last.isPresent() && last.get().tombstone()) {
       return new DeleteResult(last.get().iri(), expected);
     }
+    // Every read before the first write, so a failure leaves nothing behind.
+    final Set<IRI> publishedFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
+    final Graph published = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, publishedFragments);
     if (!draft.isEmpty()) {
       tx.remove(contentGraph, draft);
     }
     reindexFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT, draftFragments, Set.of());
-    final Set<IRI> publishedFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
-    final Graph published = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, publishedFragments);
     if (!published.isEmpty()) {
       tx.remove(VersioningGraphs.PUBLISHED, published);
     }
@@ -430,31 +434,44 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     final Graph slice = draftOf(tx, proxyIri, indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT));
     final IRI cid = generator.generateIri(proxyIri, slice);
     final Optional<StoredEntry> last = lastEntry(tx, proxyIri);
-    return new PublishPlan(token, current, counter, slice, cid, last, isUnchanged(last, cid));
-  }
-
-  private IRI apply(final DatasetTx tx, final PublishPlan plan, final PublishDetails details) {
-    final IRI proxyIri = plan.proxyIri();
-    final IRI cid = plan.cid();
-    final Graph version = rebaser.rebase(plan.slice(), proxyIri, cid);
-    if (!isStored(tx, version)) {
-      tx.add(VersioningGraphs.CONTENT_STORE, withFreshBlankNodes(version));
+    final boolean unchanged = isUnchanged(last, cid);
+    if (unchanged) {
+      return new PublishPlan(token, current, counter, slice, cid, last, true, new SimpleGraph(), false, Set.of(),
+          Set.of(), new SimpleGraph());
     }
+    final Graph version = rebaser.rebase(slice, proxyIri, cid);
     final Set<IRI> oldFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
-    final Set<IRI> newFragments = fragmentsOf(plan.slice(), proxyIri);
+    final Set<IRI> newFragments = fragmentsOf(slice, proxyIri);
     // As in replaceSlice: a fragment the published slice names is replaced as a whole, also
     // where the index does not record it.
     final Set<IRI> replaced = new LinkedHashSet<>(oldFragments);
     replaced.addAll(newFragments);
     final Graph oldPublished = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, replaced);
-    if (!oldPublished.isEmpty()) {
-      tx.remove(VersioningGraphs.PUBLISHED, oldPublished);
+    return new PublishPlan(token, current, counter, slice, cid, last, false, version, isStored(tx, version),
+        oldFragments, newFragments, oldPublished);
+  }
+
+  /**
+   * Writes what {@code plan} holds; reads nothing. {@code storedCids} collects the CIDs this
+   * publish has put into the content store, so a second proxy IRI with the same content does
+   * not store its version twice.
+   */
+  private IRI apply(final DatasetTx tx, final PublishPlan plan, final PublishDetails details,
+      final Set<IRI> storedCids) {
+    final IRI proxyIri = plan.proxyIri();
+    final IRI cid = plan.cid();
+    if (!plan.stored() && storedCids.add(cid)) {
+      tx.add(VersioningGraphs.CONTENT_STORE, withFreshBlankNodes(plan.version()));
+    }
+    if (!plan.oldPublished().isEmpty()) {
+      tx.remove(VersioningGraphs.PUBLISHED, plan.oldPublished());
     }
     tx.add(VersioningGraphs.PUBLISHED, withFreshBlankNodes(plan.slice()));
-    reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, oldFragments, newFragments);
+    reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, plan.oldPublishedFragments(),
+        plan.newPublishedFragments());
 
     final IRI entry = writeEntry(tx, plan.last(), proxyIri, EntryKind.PUBLISH, Optional.of(cid),
-        Optional.of(generator.procedureTag()), fragmentsOf(version, cid), details);
+        Optional.of(generator.procedureTag()), fragmentsOf(plan.version(), cid), details);
     raiseCounter(tx, proxyIri, plan.counter(), plan.current());
     return entry;
   }
@@ -620,8 +637,14 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       Optional<String> procedure, Set<IRI> versionFragments, ReadableGraph description) {
   }
 
+  /**
+   * What a publish of one proxy IRI reads and derives; {@code version} is the slice rebased onto
+   * {@code cid}, {@code stored} whether the content store holds it already, {@code oldPublished}
+   * the published slice to replace. The last five are empty or false when {@code unchanged}.
+   */
   private record PublishPlan(RevisionToken token, long current, Optional<Triple> counter, Graph slice, IRI cid,
-      Optional<StoredEntry> last, boolean unchanged) {
+      Optional<StoredEntry> last, boolean unchanged, Graph version, boolean stored, Set<IRI> oldPublishedFragments,
+      Set<IRI> newPublishedFragments, Graph oldPublished) {
 
     IRI proxyIri() {
       return token.proxyIri();
