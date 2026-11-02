@@ -531,9 +531,10 @@ subjects of every slice it writes in the history graph: those of the draft and
 of the published copy as bookkeeping triples of the proxy IRI, beside the
 revision counter, and those of a version on every history entry that names its
 CID. A fragment IRI belongs to the stored slice only if the last write through
-the library had it as a subject; triples on any other fragment IRI, written past
-the library or left out by that write, are not part of the slice until a write
-names it. If such a triple shares a blank node with the slice, `replaceSlice` and
+the library had it as a subject. That write removes the triples of every
+fragment IRI of the earlier slice, so a triple on any other fragment IRI was
+written past the library — possibly on a fragment IRI that write left out — and
+is not part of the slice until a write names it. If such a triple shares a blank node with the slice, `replaceSlice` and
 `delete` reject the write with `AmbiguousBlankNodeException`.
 
 A versioned dataset keeps the caller's content graph (the draft view) beside
