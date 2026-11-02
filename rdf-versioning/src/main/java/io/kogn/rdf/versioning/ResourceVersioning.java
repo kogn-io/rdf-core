@@ -48,7 +48,11 @@ import io.kogn.rdf.terms.ReadableGraph;
  *   <li>every operation reads the binding in the config graph; the first operations on a
  *   dataset not yet bound find it absent and write it (see {@link #bindContentGraph});</li>
  *   <li>{@link #replaceSlice}, {@link #publish} and {@link #delete} read the revision
- *   counter of each proxy IRI they write and raise it;</li>
+ *   counter of each proxy IRI they name. {@link #replaceSlice} always raises it;
+ *   {@link #publish} and {@link #delete} raise it only where they write a history entry
+ *   (see {@link VocabVersioning#REVISION}). An unchanged publish and a delete of a proxy
+ *   IRI deleted already write nothing and act as reads: two of them on the same proxy IRI
+ *   both commit;</li>
  *   <li>a slice is read in its graph subject by subject: every triple about the proxy IRI
  *   (for a version, the CID), about each of its fragment IRIs and, node by node, about each
  *   blank node it reaches. The fragment IRIs of the draft and of the published slice come
@@ -87,7 +91,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  *   draft, also the published fragment index and the published slice.</li>
  * </ul>
  * <p>For instance, at most one of two transactions commits if both write the same proxy
- * IRI; if one reads the draft of a proxy IRI ({@link #readSlice}) and the other writes it;
+ * IRI (a call that writes nothing, as above, is no write); if one reads the draft of a proxy IRI ({@link #readSlice}) and the other writes it;
  * if one replaces the draft of a proxy IRI ({@link #replaceSlice}) and the other, past the
  * library, changes a triple in the content graph about that proxy IRI, about a fragment IRI
  * the new content names or the draft fragment index records, or about a blank node of the

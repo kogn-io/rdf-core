@@ -514,7 +514,9 @@ bound to its own proxy IRI — or to the CID, the history entries, the fragment
 IRIs and the blank nodes of its slice — and never exports a graph. On a backend
 that tracks what a transaction read (RDF4J under `SERIALIZABLE`), an operation
 conflicts exactly with concurrent changes to the patterns it reads. Writes of a
-proxy IRI read and raise its revision counter. A slice is read subject by
+proxy IRI read its revision counter and raise it when they write: an unchanged
+`publish` and a `delete` of a proxy IRI deleted already write nothing, so two
+of them on the same proxy IRI both commit. A slice is read subject by
 subject — the proxy IRI, each fragment IRI, each blank node it reaches — and
 the fragment IRIs of the draft and of the published slice come from the draft
 and the published fragment index in the history graph. Per operation:
