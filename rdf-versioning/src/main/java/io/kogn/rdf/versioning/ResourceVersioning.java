@@ -49,22 +49,49 @@ import io.kogn.rdf.terms.ReadableGraph;
  *   dataset not yet bound find it absent and write it (see {@link #bindContentGraph});</li>
  *   <li>{@link #replaceSlice}, {@link #publish} and {@link #delete} read the revision
  *   counter of each proxy IRI they write and raise it;</li>
- *   <li>{@link #readSlice} reads the counter and the draft slice;
- *   {@link #publishState} reads the history entries of the proxy IRI and, unless it is
- *   never published or deleted, the draft slice;</li>
- *   <li>{@link #readPublished} reads the published slice and its fragment index;</li>
+ *   <li>a slice is read in its graph subject by subject: every triple about the proxy IRI
+ *   (for a version, the CID), about each of its fragment IRIs and, node by node, about each
+ *   blank node it reaches. The fragment IRIs of the draft and of the published slice come
+ *   from their fragment indexes in the history graph, the
+ *   {@linkplain VocabVersioning#DRAFT_FRAGMENT draft fragment index} and the
+ *   {@linkplain VocabVersioning#PUBLISHED_FRAGMENT published fragment index}; those of a
+ *   version from the history entries naming its CID. The history entries of a proxy IRI
+ *   are read as the triples linking it to its entries and every triple about each
+ *   entry;</li>
+ *   <li>{@link #readSlice} reads the revision counter, the draft fragment index and the
+ *   draft slice;</li>
+ *   <li>{@link #replaceSlice} reads the revision counter, the draft fragment index, and the
+ *   draft slice over the indexed fragment IRIs and every fragment IRI the new content
+ *   names; then each blank node of the new content and of that old slice, as subject and as
+ *   object, in the content graph (the check for shared blank nodes). It reads no history
+ *   entry, nothing of the published view and nothing of the content store;</li>
+ *   <li>{@link #publish} reads, for each proxy IRI, the revision counter, the draft
+ *   fragment index, the draft slice and the history entries; unless the draft is
+ *   unchanged, also the published fragment index, the published slice over the indexed
+ *   fragment IRIs and every fragment IRI the draft names, and whether the content store
+ *   holds the version, by one pattern on the CID or one of its fragment IRIs
+ *   (ADR-0023);</li>
+ *   <li>{@link #readPublished} reads the published fragment index and the published
+ *   slice;</li>
  *   <li>{@link #history} reads the history entries of the proxy IRI;</li>
- *   <li>a read of a version, by its CID or by sequence number (which first reads the
- *   entries of the proxy IRI), reads every history entry naming that CID, of any proxy IRI,
- *   and the version in the content store;</li>
- *   <li>{@link #publish} reads the draft slice, the history entries and the published slice
- *   with its fragment index, and looks the CID up in the content store (ADR-0023);
- *   {@link #delete} reads the draft slice, the history entries and the published slice;</li>
- *   <li>{@link #replaceSlice} and {@link #delete} read each blank node of the slice, as
- *   subject and as object, in the content graph (the check for shared blank nodes).</li>
+ *   <li>{@link #publishState} reads the history entries of the proxy IRI and, unless it is
+ *   never published or deleted, the draft fragment index and the draft slice; it does not
+ *   read the revision counter;</li>
+ *   <li>a read of a version by its CID reads every history entry naming that CID, of any
+ *   proxy IRI (the triple naming it and the fragment IRIs the entry records), and the
+ *   version in the content store; a read by sequence number first reads the history
+ *   entries of the proxy IRI;</li>
+ *   <li>{@link #delete} reads the revision counter, the draft fragment index, the draft
+ *   slice, each blank node of the draft slice as subject and as object in the content
+ *   graph, and the history entries; unless the proxy IRI is deleted already and holds no
+ *   draft, also the published fragment index and the published slice.</li>
  * </ul>
  * <p>For instance, at most one of two transactions commits if both write the same proxy
  * IRI; if one reads the draft of a proxy IRI ({@link #readSlice}) and the other writes it;
+ * if one replaces the draft of a proxy IRI ({@link #replaceSlice}) and the other, past the
+ * library, changes a triple in the content graph about that proxy IRI, about a fragment IRI
+ * the new content names or the draft fragment index records, or about a blank node of the
+ * new content or the old slice;
  * if both publish the same content as a new version; if one reads a version while the
  * other writes a history entry naming its CID, for any proxy IRI (a publish of a draft
  * with that CID, also when the version is stored already, or a {@link #delete} whose

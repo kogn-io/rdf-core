@@ -514,16 +514,28 @@ bound to its own proxy IRI — or to the CID, the history entries, the fragment
 IRIs and the blank nodes of its slice — and never exports a graph. On a backend
 that tracks what a transaction read (RDF4J under `SERIALIZABLE`), an operation
 conflicts exactly with concurrent changes to the patterns it reads. Writes of a
-proxy IRI read and raise its revision counter; `readSlice` reads the counter
-and the draft, `publishState` the history entries and, unless never published
-or deleted, the draft; `readPublished` reads the published slice and its
-fragment index, `history` the entries; a version read, by CID or by sequence
-number, reads every history entry naming the CID, of any proxy IRI; `publish`
-looks the CID up in the content store; the shared-blank-node check of
-`replaceSlice` and `delete` reads each blank node of the slice; and every
-operation reads the content-graph binding in the config graph. For instance,
-two writers of the same proxy IRI conflict, as do a `readSlice` and a write of
-the same proxy IRI, two publishes that store the same new CID, a version read
+proxy IRI read and raise its revision counter. A slice is read subject by
+subject — the proxy IRI, each fragment IRI, each blank node it reaches — and
+the fragment IRIs of the draft and of the published slice come from the draft
+and the published fragment index in the history graph. Per operation:
+`readSlice` reads the counter, the draft fragment index and the draft;
+`replaceSlice` the counter, the draft fragment index, the draft over the
+indexed fragment IRIs and every fragment IRI the new content names, and each
+blank node of the new content and the old draft (the shared-blank-node check);
+`publish` the counter, the draft fragment index, the draft and the history
+entries, and unless unchanged the published fragment index, the published slice
+and whether the content store holds the CID; `readPublished` the published
+fragment index and the published slice; `history` the entries; `publishState`
+the entries and, unless never published or deleted, the draft fragment index
+and the draft; a version read, by CID or by sequence number, every history
+entry naming the CID, of any proxy IRI, and the version; `delete` the counter,
+the draft fragment index, the draft, each blank node of the draft and the
+entries, and unless deleted already without a draft the published fragment
+index and the published slice; and every operation reads the content-graph
+binding in the config graph. For instance, two writers of the same proxy IRI
+conflict, as do a `readSlice` and a write of the same proxy IRI, a
+`replaceSlice` and a concurrent write past the library on the same proxy IRI or
+on a fragment IRI the new content names, two publishes that store the same new CID, a version read
 and any write of a history entry naming its CID (a publish of a draft with that
 CID, even when the version is stored already, or a `delete` whose tombstone
 names it), the first operations on a dataset not yet bound to its content graph
