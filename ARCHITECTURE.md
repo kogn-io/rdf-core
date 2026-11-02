@@ -526,7 +526,8 @@ indexed fragment IRIs and every fragment IRI the new content names, and each
 blank node of the new content and the old draft (the shared-blank-node check);
 `publish` the counter, the draft fragment index, the draft and the history
 entries, and unless unchanged the published fragment index, the published slice
-and whether the content store holds the CID; `readPublished` the published
+and whether the content store holds the version, by one pattern on the CID or
+one of its fragment IRIs; `readPublished` the published
 fragment index and the published slice; `history` the entries; `publishState`
 the entries and, unless never published or deleted, the draft fragment index
 and the draft; a version read by CID every history entry naming the CID, of
