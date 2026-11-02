@@ -2224,5 +2224,88 @@ class DatasetRdf4jTest {
         backendRepository.shutDown();
       }
     }
+
+    @Test
+    @DisplayName("NativeStore — a concurrent clear of the named graph fails a match that found nothing in it,"
+        + " as a conflict (issue #226)")
+    void inTransaction_matchThenConcurrentClear_onNativeStore_commitFailsAsConflict(@TempDir final Path tempDir)
+        throws InterruptedException {
+      // given — GRAPH_1 holds no triple about SUBJECT, so the clear removes nothing the match
+      // read. RDF4J's sail-base Changeset records clear(context) as a deprecated context, and
+      // every observed pattern in that context counts as changed.
+      // when
+      final Throwable outcome = matchThenConcurrentClear(Backend.NATIVE, tempDir);
+
+      // then
+      assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class)
+          .hasRootCauseInstanceOf(SailConflictException.class);
+    }
+
+    @Test
+    @DisplayName("MemoryStore — a concurrent clear of the named graph lets a match that found nothing in it"
+        + " commit (issue #226)")
+    void inTransaction_matchThenConcurrentClear_onMemoryStore_bothCommit(@TempDir final Path tempDir)
+        throws InterruptedException {
+      // when
+      final Throwable outcome = matchThenConcurrentClear(Backend.MEMORY, tempDir);
+
+      // then
+      assertThat(outcome).isNull();
+    }
+
+    /**
+     * Seeds {@code GRAPH_1} with one triple about another subject, reads
+     * {@code match(GRAPH_1, SUBJECT, *, *)} (nothing found), lets a second transaction clear
+     * {@code GRAPH_1} and commit, then commits; returns what the first transaction ended with,
+     * {@code null} for a commit.
+     */
+    private Throwable matchThenConcurrentClear(final Backend backend, final Path tempDir) throws InterruptedException {
+      final Repository backendRepository = backend.create(tempDir);
+      backendRepository.init();
+      try {
+        final GraphStoreRdf4j backendStore = new GraphStoreRdf4j(backendRepository);
+        final DatasetTransactorRdf4j backendTransactor = new DatasetTransactorRdf4j(backendRepository);
+        final Graph other = rdf.createGraph();
+        other
+            .add(rdf.createTriple(RDF4JIRI.of("https://example.org/other-subject"), PREDICATE, rdf.createLiteral("x")));
+        backendStore.add(GRAPH_1, other);
+        final CountDownLatch matched = new CountDownLatch(1);
+        final CountDownLatch clearCommitted = new CountDownLatch(1);
+        final AtomicReference<Throwable> clearFailure = new AtomicReference<>();
+        final Thread clearer = new Thread(() -> {
+          try {
+            awaitUninterruptibly(matched);
+            backendTransactor.inTransaction(tx -> {
+              tx.clear(GRAPH_1);
+              return null;
+            });
+          } catch (RuntimeException e) {
+            clearFailure.set(e);
+          } finally {
+            clearCommitted.countDown();
+          }
+        });
+        clearer.start();
+
+        Throwable outcome = null;
+        try {
+          backendTransactor.inTransaction(tx -> {
+            final long found = tx.match(GRAPH_1, SUBJECT, null, null).size();
+            matched.countDown();
+            awaitUninterruptibly(clearCommitted);
+            assertThat(found).isZero();
+            return null;
+          });
+        } catch (RuntimeException e) {
+          outcome = e;
+        }
+        clearer.join();
+        assertThat(clearFailure.get()).isNull();
+        assertThat(backendStore.count(GRAPH_1)).isZero();
+        return outcome;
+      } finally {
+        backendRepository.shutDown();
+      }
+    }
   }
 }

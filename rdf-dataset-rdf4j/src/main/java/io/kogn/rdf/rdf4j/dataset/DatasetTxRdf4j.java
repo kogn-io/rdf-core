@@ -53,8 +53,13 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@code contains} and {@code export} make as well, and copies the result before returning.
  * With a bound component it registers only that pattern as observed, so under
  * {@code SERIALIZABLE} it conflicts with a concurrent commit of a matching triple and with
- * nothing else in the named graph. Inferred statements are excluded, and an RDF 1.2 triple term
- * in the result is rejected like in {@link #export}.</p>
+ * nothing else in the named graph — except, on a {@code NativeStore}, a concurrent commit that
+ * clears the named graph ({@link #clear}, or a SPARQL {@code CLEAR}/{@code DROP} of it, which
+ * RDF4J executes as the same clear of the context): the {@code Changeset} of RDF4J's sail-base
+ * records it as a cleared context and counts every pattern observed in that context as
+ * changed, so the match conflicts even if the clear removed no triple matching it. A
+ * {@code MemoryStore} lets such a match commit. Inferred statements are excluded, and an RDF 1.2
+ * triple term in the result is rejected like in {@link #export}.</p>
  *
  * <p>{@link #add} and {@link #remove} compute their delta per triple, via
  * {@link RepositoryConnection#hasStatement} before mutating each one, instead of sampling

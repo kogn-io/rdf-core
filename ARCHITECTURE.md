@@ -166,7 +166,11 @@ concern:
   one on which a backend can lose the conflict. `match(graph, s, p, o)` returns
   the matching triples and observes only the pattern, where `export` observes
   the whole named graph; a read of a few subjects of a concurrently written
-  graph states them as patterns there instead of exporting the graph. Optimistic-concurrency guards belong
+  graph states them as patterns there instead of exporting the graph. Clearing
+  or dropping a whole named graph is the exception, depending on the store: on
+  RDF4J's `NativeStore` a concurrent `clear` of the graph (or a SPARQL `CLEAR`/
+  `DROP` of it) conflicts with every pattern read in it, matched or not, while
+  the `MemoryStore` lets a pattern the clear did not touch commit. Optimistic-concurrency guards belong
   here, not in `ask` — see the "Limits" notes on `DatasetTransactorRdf4j`. The
   loser of such a race fails at commit with the port's neutral
   `ConcurrencyConflictException`, so a caller can catch and retry without
@@ -513,7 +517,9 @@ Every operation reads through `DatasetTx#match` and `#contains` with patterns
 bound to its own proxy IRI — or to the CID, the history entries, the fragment
 IRIs and the blank nodes of its slice — and never exports a graph. On a backend
 that tracks what a transaction read (RDF4J under `SERIALIZABLE`), an operation
-conflicts exactly with concurrent changes to the patterns it reads. Writes of a
+conflicts exactly with concurrent changes to the patterns it reads — and, on a
+store that counts clearing a whole named graph as changing every pattern in it,
+with a concurrent clear of a graph it reads (see `DatasetTx` above). Writes of a
 proxy IRI read its revision counter and raise it when they write: an unchanged
 `publish` and a `delete` of a proxy IRI deleted already write nothing, so two
 of them on the same proxy IRI both commit. A slice is read subject by
