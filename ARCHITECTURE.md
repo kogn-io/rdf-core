@@ -559,7 +559,9 @@ history entry naming its CID (a publish of a draft with that CID, even when the
 version is stored already, or a `delete` whose tombstone names it), and a read
 by sequence number also against a write of an entry of its proxy IRI. A
 `replaceSlice` fails if a write past the library commits first that touches a
-triple about the proxy IRI or about a fragment IRI the new content names;
+triple in the content graph about the proxy IRI, about a fragment IRI the new
+content names or the draft fragment index records, or about a blank node of the
+new content or the old slice;
 committing first, it makes the foreign writer fail only if that one read a
 pattern the `replaceSlice` changed — a `DatasetTx#add` observes only the
 triples it adds. A `readPublished`, `history` or version read of a proxy IRI
