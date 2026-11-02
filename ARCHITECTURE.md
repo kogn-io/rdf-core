@@ -515,7 +515,9 @@ IRIs and the blank nodes of its slice — and never exports a graph. On a backen
 that tracks what a transaction read (RDF4J under `SERIALIZABLE`), operations on
 disjoint proxy IRIs therefore commit side by side, and the read cost follows the
 slice and the history of the one proxy IRI, not the dataset — as long as the
-backend indexes each pattern. The shared-blank-node check of `replaceSlice` and
+backend indexes each pattern. A read of a version, by CID or by sequence number,
+also reads every history entry naming that CID, of any proxy IRI, so its cost
+grows with the number of entries sharing the content. The shared-blank-node check of `replaceSlice` and
 `delete` reads blank nodes in object position with subject and predicate
 unbound; `MemoryStore` and a `NativeStore` built by the hosting module
 (`spoc,posc,cosp`) index that, a `NativeStore` with RDF4J's default `spoc,posc`
