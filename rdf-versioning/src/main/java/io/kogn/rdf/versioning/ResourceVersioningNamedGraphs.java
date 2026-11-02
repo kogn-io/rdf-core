@@ -251,7 +251,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     return entriesOf(tx, proxyIri).stream()
         .filter(entry -> entry.sequence() == sequence && !entry.tombstone())
         .findFirst()
-        .flatMap(entry -> entry.content().flatMap(cid -> versionOf(tx, cid, entry.versionFragments())));
+        .flatMap(entry -> entry.content().flatMap(cid -> versionOf(tx, cid, recordedVersionFragments(tx, cid))));
   }
 
   @Override
