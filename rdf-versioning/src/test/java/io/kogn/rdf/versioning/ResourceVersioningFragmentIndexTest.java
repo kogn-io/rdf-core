@@ -418,6 +418,7 @@ class ResourceVersioningFragmentIndexTest {
     assertThat(recorded.exported).isEmpty();
     assertThat(recorded.counted).isEmpty();
     assertThat(recorded.unboundPatterns).isEmpty();
+    assertThat(recorded.sparql).isEmpty();
   }
 
   private Set<IRI> indexed(final IRI base, final IRI predicate) {
@@ -465,7 +466,10 @@ class ResourceVersioningFragmentIndexTest {
         tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, proxy).token()), PublishDetails.NONE));
   }
 
-  /** Passes every call to the transaction it wraps and records the graphs exported and added. */
+  /**
+   * Passes every call to the transaction it wraps and records the graphs exported, counted and
+   * added, the unbound patterns and every SPARQL call.
+   */
   private static final class RecordingTx implements DatasetTx {
 
     private final DatasetTx delegate;
@@ -474,6 +478,8 @@ class ResourceVersioningFragmentIndexTest {
     /** Every {@code contains}/{@code match} whose subject and object are both wildcards. */
     private final List<String> unboundPatterns = new ArrayList<>();
     private final List<Map.Entry<IRI, Triple>> added = new ArrayList<>();
+    /** Every {@code select}/{@code ask}/{@code construct}/{@code update}, by its query text. */
+    private final List<String> sparql = new ArrayList<>();
 
     RecordingTx(final DatasetTx delegate) {
       this.delegate = delegate;
@@ -541,41 +547,49 @@ class ResourceVersioningFragmentIndexTest {
 
     @Override
     public void update(final String sparql) {
+      this.sparql.add("update " + sparql);
       delegate.update(sparql);
     }
 
     @Override
     public void update(final String sparql, final Map<String, RDFTerm> bindings) {
+      this.sparql.add("update " + sparql);
       delegate.update(sparql, bindings);
     }
 
     @Override
     public Stream<BindingSet> select(final String sparql) {
+      this.sparql.add("select " + sparql);
       return delegate.select(sparql);
     }
 
     @Override
     public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
+      this.sparql.add("select " + sparql);
       return delegate.select(sparql, bindings);
     }
 
     @Override
     public ReadableGraph construct(final String sparql) {
+      this.sparql.add("construct " + sparql);
       return delegate.construct(sparql);
     }
 
     @Override
     public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
+      this.sparql.add("construct " + sparql);
       return delegate.construct(sparql, bindings);
     }
 
     @Override
     public boolean ask(final String sparql) {
+      this.sparql.add("ask " + sparql);
       return delegate.ask(sparql);
     }
 
     @Override
     public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
+      this.sparql.add("ask " + sparql);
       return delegate.ask(sparql, bindings);
     }
   }
