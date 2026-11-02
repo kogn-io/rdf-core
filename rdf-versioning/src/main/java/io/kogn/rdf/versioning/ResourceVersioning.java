@@ -120,7 +120,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  * predicate unbound; that needs an index led by the object within the graph. The RDF4J
  * {@code MemoryStore} has one, and so does a {@code NativeStore} the hosting module creates
  * with its default index spec ({@code spoc,posc,cosp}); a {@code NativeStore} with the RDF4J default
- * {@code spoc,posc} scans the content graph for it. A triple term (RDF 1.2) in a pattern
+ * {@code spoc,posc} has no index led by the object or by the graph, so it scans the
+ * whole store for it, every graph of the dataset included (history and content store
+ * too), once per blank node of the slice. A triple term (RDF 1.2) in a pattern
  * an operation reads makes it fail with {@link IllegalStateException}, as
  * {@link DatasetTx#match} documents.</p>
  *

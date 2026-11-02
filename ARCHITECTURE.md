@@ -554,7 +554,9 @@ the number of entries sharing the content. The shared-blank-node check reads
 blank nodes in object position with subject and predicate unbound; `MemoryStore`
 and a `NativeStore` the hosting module creates with its default index spec
 (`spoc,posc,cosp`) index that, a `NativeStore` with RDF4J's default `spoc,posc`
-scans the content graph for it.
+has no index led by the object or the graph and scans the whole store for it —
+every graph of the dataset, history and content store included — once per blank
+node of the slice.
 Fragment IRIs cannot be found by a pattern, so the library records the fragment
 subjects of every slice it writes in the history graph: those of the draft and
 of the published copy as bookkeeping triples of the proxy IRI, beside the
