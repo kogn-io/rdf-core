@@ -35,8 +35,9 @@ import io.kogn.rdf.terms.SimpleRdf;
 
 /**
  * What concurrent operations of a versioned dataset do to each other on the {@code SERIALIZABLE}
- * RDF4J backend (issue #226): operations on disjoint proxy IRIs observe disjoint patterns and both
- * commit; operations on the same proxy IRI, and two first copies of the same content, still
+ * RDF4J backend (issue #226): an operation conflicts exactly with concurrent changes to the
+ * patterns it reads, so operations on disjoint proxy IRIs usually both commit; operations on the
+ * same proxy IRI, two first copies of the same content and contents sharing a blank node still
  * conflict.
  *
  * <p>Each case lets a slow transaction run its operation, commits a competing transaction in
@@ -205,6 +206,40 @@ class ResourceVersioningConcurrencyTest {
         () -> transactor.inTransaction(tx -> versioning.delete(tx, B, tokenOfB, PublishDetails.NONE)));
 
     assertThat(historyOf(B).getLast().content()).contains(cidOfB);
+    assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+  }
+
+  @RepeatedTest(RUNS)
+  void aDraftReadConflictsWithAWriteOfTheSameProxyIri() throws InterruptedException {
+    final RevisionToken tokenOfA = token(A);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readSlice(tx, A),
+        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+
+    assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+  }
+
+  /**
+   * Disjoint proxy IRIs whose contents carry the same blank node, as a parser labelling each
+   * document from {@code _:b0} produces: written one after the other the second is an
+   * {@link AmbiguousBlankNodeException}; written concurrently the shared-blank-node check of each
+   * observes the node the other writes.
+   */
+  @RepeatedTest(RUNS)
+  void writersOfDisjointProxyIrisWhoseContentsShareABlankNodeDoNotBothCommit() throws InterruptedException {
+    final BlankNode shared = rdf.createBlankNode("shared");
+    final Graph contentOfC = new SimpleGraph();
+    contentOfC.add(C, Q, shared);
+    contentOfC.add(shared, P, rdf.createLiteral("c"));
+    final Graph contentOfD = new SimpleGraph();
+    contentOfD.add(D, Q, shared);
+    contentOfD.add(shared, P, rdf.createLiteral("d"));
+    final RevisionToken tokenOfC = token(C);
+    final RevisionToken tokenOfD = token(D);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.replaceSlice(tx, C, contentOfC, tokenOfC),
+        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, D, contentOfD, tokenOfD)));
+
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
 
