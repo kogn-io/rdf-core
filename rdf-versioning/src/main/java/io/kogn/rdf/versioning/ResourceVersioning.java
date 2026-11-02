@@ -42,13 +42,14 @@ import io.kogn.rdf.terms.ReadableGraph;
  * backend that tracks what a transaction read, as the RDF4J backend does under
  * {@code SERIALIZABLE}, an operation therefore conflicts only with concurrent changes to
  * those patterns. Operations on disjoint proxy IRIs, writes included, commit side by side,
- * and a read of one proxy IRI does not fail because another one is written. Still at most
+ * and a read of one proxy IRI does not fail because another one is written, unless that
+ * write names a CID the read looks up (below). Still at most
  * one of two transactions commits, the other failing with
  * {@link ConcurrencyConflictException}, if both write the same proxy IRI (both read and
  * raise its revision counter), if both publish the same content as a new version (both
  * look the CID up in the content store and write it there, ADR-0023), if one reads a
- * proxy IRI the other writes, if one reads a version by its CID while the other writes a
- * history entry naming that CID, for any proxy IRI (a publish of a draft with that CID,
+ * proxy IRI the other writes, if one reads a version, by its CID or by sequence number,
+ * while the other writes a history entry naming that CID, for any proxy IRI (a publish of a draft with that CID,
  * also when the version is stored already, or a {@link #delete} whose tombstone names it
  * as the last version), or if both are among the first operations on a dataset that
  * is not yet bound to its content graph (both find the binding absent and write it, see
@@ -384,7 +385,9 @@ public interface ResourceVersioning {
    * number {@code sequence} names.
    *
    * <p>A join of the history and the content store, so that no consumer writes it. The
-   * result has the CID as subject, like {@link #readVersion(DatasetTx, IRI)}. A tombstone is no version: the result is empty for its sequence number. A version
+   * result is what {@link #readVersion(DatasetTx, IRI)} returns for the CID the entry
+   * names, with the CID as subject. A tombstone is no version: the result is empty for its
+   * sequence number. A version
    * whose content was removed from the store has an entry but no content: the result is
    * empty then, as for an {@code sequence} the proxy IRI never reached. Reading may bind
    * the dataset to the content graph, see {@link #bindContentGraph(DatasetTx)}.</p>
