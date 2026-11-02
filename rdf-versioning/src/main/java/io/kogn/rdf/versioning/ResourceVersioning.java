@@ -376,8 +376,9 @@ public interface ResourceVersioning {
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalArgumentException if {@code cid} contains a {@code #}
-   * @throws IllegalStateException if {@code tx} has already ended, or the history entry
-   *     that names the CID records malformed fragment IRIs
+   * @throws IllegalStateException if {@code tx} has already ended, a subject of a
+   *     {@code versioning:content} triple naming the CID in the history is not an IRI, or
+   *     a history entry naming the CID, of any proxy IRI, records malformed fragment IRIs
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */
@@ -411,8 +412,10 @@ public interface ResourceVersioning {
    *     graph
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
    *     {@code sequence} is less than 1
-   * @throws IllegalStateException if {@code tx} has already ended, or the history of the
-   *     proxy IRI is malformed or not gapless
+   * @throws IllegalStateException if {@code tx} has already ended, the history of the
+   *     proxy IRI is malformed or not gapless, a subject of a {@code versioning:content}
+   *     triple naming the CID of the entry is not an IRI, or a history entry naming that
+   *     CID, of any proxy IRI, records malformed fragment IRIs
    * @throws DatasetStorageException if the backend fails
    * @throws NullPointerException if an argument is {@code null}
    */

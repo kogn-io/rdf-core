@@ -295,6 +295,40 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
+  void aVersionReadIsRejectedIfAHistorySubjectNamingTheCidIsNotAnIri() {
+    final Graph content = graph(triple(A, "one"), triple(A_X, "x"));
+    draft(A, content);
+    publish(A);
+    final IRI cid = generator.generateIri(A, content);
+    final Graph foreign = new SimpleGraph();
+    foreign.add(rdf.createBlankNode(), VocabVersioning.CONTENT, cid);
+    transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, foreign));
+
+    assertThatThrownBy(() -> read(tx -> versioning.readVersion(tx, cid))).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("is not an IRI");
+    assertThatThrownBy(() -> read(tx -> versioning.readVersion(tx, A, 1))).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("is not an IRI");
+  }
+
+  @Test
+  void aVersionReadBySequenceIsRejectedIfAnotherProxyIrisEntryNamingTheCidIsMalformed() {
+    final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
+    draft(A, contentOfA);
+    publish(A);
+    draft(B, graph(triple(B, "same"), triple(B_X, "part")));
+    final IRI entryOfB = transactor
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, B).token()), PublishDetails.NONE))
+        .entries()
+        .get(B);
+    final Graph foreign = new SimpleGraph();
+    foreign.add(entryOfB, VocabVersioning.VERSION_FRAGMENT, B_X);
+    transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, foreign));
+
+    assertThatThrownBy(() -> read(tx -> versioning.readVersion(tx, A, 1))).isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("malformed history entry");
+  }
+
+  @Test
   void aMalformedFragmentIndexIsRejected() {
     final Graph index = new SimpleGraph();
     index.add(A, VocabVersioning.DRAFT_FRAGMENT, B_X);
