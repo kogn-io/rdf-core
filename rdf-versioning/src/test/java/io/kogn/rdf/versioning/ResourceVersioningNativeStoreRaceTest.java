@@ -161,8 +161,8 @@ class ResourceVersioningNativeStoreRaceTest {
   }
 
   /**
-   * Runs {@code slowWork} in a transaction, lets {@code competitor} run and commit in another
-   * thread once the slow transaction has done its work, then lets the slow transaction commit.
+   * Runs {@code slowRead} then {@code slowWrite} in a transaction, lets {@code competitor} run
+   * and commit in another thread once both have run, then lets the slow transaction commit.
    *
    * @return what the slow transaction ended with, {@code null} if it committed
    */
