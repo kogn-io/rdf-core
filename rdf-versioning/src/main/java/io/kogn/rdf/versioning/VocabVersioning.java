@@ -52,8 +52,9 @@ public interface VocabVersioning {
    * The {@code versioning:revision} property: the revision counter of a proxy IRI.
    *
    * <p>Subject a proxy IRI, object a non-negative integer, in the history graph. It is
-   * raised on every draft write, publish and delete made through the library and backs
-   * the caller's opaque concurrency token (ADR-0022). A bookkeeping triple beside the
+   * raised on every draft write made through the library and on every publish and delete
+   * that writes a history entry (an unchanged publish or a delete of a proxy IRI deleted
+   * already writes nothing), and backs the caller's opaque concurrency token (ADR-0022). A bookkeeping triple beside the
    * entries, not an entry (ADR-0023).</p>
    */
   IRI REVISION = new SimpleIRI(NAMESPACE + "revision");
@@ -114,7 +115,8 @@ public interface VocabVersioning {
    *
    * <p>Subject a proxy IRI, object one of its {@code #fragment} IRIs, in the history graph.
    * One triple per fragment subject of the draft as the library last wrote it; replaced on
-   * every draft write, removed on delete. A bookkeeping triple like {@link #REVISION}, not
+   * every draft write, removed by a delete that writes a tombstone; a delete of a proxy IRI
+   * deleted already leaves it as it is. A bookkeeping triple like {@link #REVISION}, not
    * an entry: a fragment IRI cannot be found by a statement pattern, so the library records
    * the ones it wrote and reads the slice subject by subject.</p>
    */
@@ -125,7 +127,8 @@ public interface VocabVersioning {
    * the slice of a proxy IRI in the {@link VersioningGraphs#PUBLISHED published view}.
    *
    * <p>Subject a proxy IRI, object one of its {@code #fragment} IRIs, in the history graph.
-   * Replaced on every publish that writes the published view, removed on delete. A
+   * Replaced on every publish that writes the published view, removed by a delete that
+   * writes a tombstone. A
    * bookkeeping triple of the proxy IRI like {@link #DRAFT_FRAGMENT}.</p>
    */
   IRI PUBLISHED_FRAGMENT = new SimpleIRI(NAMESPACE + "publishedFragment");
