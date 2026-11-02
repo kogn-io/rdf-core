@@ -63,8 +63,8 @@ import io.kogn.rdf.terms.ReadableGraph;
  * patterns bind the subject. The check for shared blank nodes in {@link #replaceSlice} and
  * {@link #delete} also reads each blank node of the slice as object, with subject and
  * predicate unbound; that needs an index led by the object within the graph. The RDF4J
- * {@code MemoryStore} has one, and so does a {@code NativeStore} created by the hosting
- * module ({@code spoc,posc,cosp}); a {@code NativeStore} with the RDF4J default
+ * {@code MemoryStore} has one, and so does a {@code NativeStore} the hosting module creates
+ * with its default index spec ({@code spoc,posc,cosp}); a {@code NativeStore} with the RDF4J default
  * {@code spoc,posc} scans the content graph for it. A triple term (RDF 1.2) in a pattern
  * an operation reads makes it fail with {@link IllegalStateException}, as
  * {@link DatasetTx#match} documents.</p>
