@@ -135,6 +135,67 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
+  void aPublishedReadDoesNotConflictWithADraftWriteOfTheSameProxyIri() throws InterruptedException {
+    final RevisionToken tokenOfA = token(A);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readPublished(tx, A),
+        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+
+    assertThat(outcome).isNull();
+    assertThat(literalOf(A)).isEqualTo("a2");
+  }
+
+  @RepeatedTest(RUNS)
+  void aHistoryReadDoesNotConflictWithADraftWriteOfTheSameProxyIri() throws InterruptedException {
+    final RevisionToken tokenOfA = token(A);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.history(tx, A),
+        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+
+    assertThat(outcome).isNull();
+    assertThat(literalOf(A)).isEqualTo("a2");
+  }
+
+  @RepeatedTest(RUNS)
+  void aVersionReadDoesNotConflictWithADraftWriteOfTheProxyIriItWasPublishedFrom() throws InterruptedException {
+    final IRI cidOfA = latestCid(A);
+    final RevisionToken tokenOfA = token(A);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, cidOfA),
+        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+
+    assertThat(outcome).isNull();
+    assertThat(literalOf(A)).isEqualTo("a2");
+  }
+
+  /** An unchanged publish reads the counter but writes nothing, so it conflicts with no reader. */
+  @RepeatedTest(RUNS)
+  void twoUnchangedPublishesOfTheSameProxyIriBothCommit() throws InterruptedException {
+    final RevisionToken tokenOfA = token(A);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.publish(tx, List.of(tokenOfA), PublishDetails.NONE),
+        () -> publish(A));
+
+    assertThat(outcome).isNull();
+    assertThat(historyOf(A)).hasSize(1);
+    assertThat(token(A)).isEqualTo(tokenOfA);
+  }
+
+  /** A delete of a proxy IRI deleted already reads the counter but writes nothing, like an unchanged publish. */
+  @RepeatedTest(RUNS)
+  void twoDeletesOfAProxyIriDeletedAlreadyBothCommit() throws InterruptedException {
+    transactor.inTransaction(tx -> versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE));
+    final RevisionToken tokenOfA = token(A);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE),
+        () -> transactor.inTransaction(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE)));
+
+    assertThat(outcome).isNull();
+    assertThat(historyOf(A)).hasSize(2);
+    assertThat(token(A)).isEqualTo(tokenOfA);
+  }
+
+  @RepeatedTest(RUNS)
   void publishesOfDisjointProxyIrisWithDifferentContentBothCommit() throws InterruptedException {
     draft(A, resource(A, "a2"));
     final RevisionToken tokenOfA = token(A);
