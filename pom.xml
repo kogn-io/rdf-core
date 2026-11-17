@@ -63,7 +63,7 @@
 		<jmolecules.version>2.0.1</jmolecules.version>
 		<!-- rdf-cid only: RDFC-1.0 canonicalization (ni-rdf/1). The content hash
 		     (SHA3-256) and its base64url encoding are JDK-native, no extra dependency. -->
-		<titanium-rdfc.version>3.0.0</titanium-rdfc.version>
+		<titanium-rdfc.version>4.0.0</titanium-rdfc.version>
 		<maven-surefire-plugin.version>3.6.1</maven-surefire-plugin.version>
 		<spotless-maven-plugin.version>3.10.4</spotless-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.16</jacoco-maven-plugin.version>

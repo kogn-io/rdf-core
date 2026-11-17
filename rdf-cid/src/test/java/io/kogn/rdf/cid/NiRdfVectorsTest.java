@@ -13,7 +13,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -57,24 +56,9 @@ class NiRdfVectorsTest {
         .map(vector -> DynamicTest.dynamicTest(vector.get("id").asString(), () -> verify(vector)));
   }
 
-  /**
-   * Vectors the pinned titanium-rdfc would get wrong because it sorts by UTF-16 code unit instead
-   * of code point (https://github.com/filip26/titanium-rdf-canon/issues/65). Here the generator
-   * fails closed: it throws a {@link ContentAddressingException} instead of minting a name that
-   * deviates from the specification. The vector stays in the file for other implementations;
-   * remove the entry once titanium is fixed.
-   */
-  private static final Set<String> BLOCKED_BY_TITANIUM_65 = Set.of("code-point-order");
-
   private void verify(JsonNode vector) {
     IRI base = rdf.createIRI(vector.get("base").asString());
     Graph graph = parseNTriples(vector.get("input").asString());
-
-    if (BLOCKED_BY_TITANIUM_65.contains(vector.get("id").asString())) {
-      assertThatThrownBy(() -> generator.generateIri(base, graph)).isExactlyInstanceOf(ContentAddressingException.class)
-          .hasMessageContaining("titanium-rdf-canon#65");
-      return;
-    }
 
     if (vector.has("failure")) {
       String code = vector.get("failure").asString();
@@ -105,7 +89,6 @@ class NiRdfVectorsTest {
                     ? rdf.createLiteral(object, language)
                     : rdf.createLiteral(object, rdf.createIRI(datatype));
             graph.add(resource(subject), rdf.createIRI(predicate), objectTerm);
-            return null;
           });
     } catch (Exception e) {
       throw new IllegalStateException("Vector input is not valid N-Triples", e);
