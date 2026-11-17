@@ -449,9 +449,12 @@
 		     plugin (see the central-release profile), not through this section.
 		     Snapshots (default ${revision} = *-SNAPSHOT) are deployed here by the
 		     GitHub snapshot workflow on push to main. The <id> matches the
-		     Central token <server> in the CI settings.xml. -->
+		     Central token <server> in the CI settings.xml. It must not be
+		     "central": that id names Maven's built-in Maven Central repository,
+		     and Maven 4.0.0-rc-7 withholds the credentials of a server whose id
+		     belongs to a repository at another URL (the snapshot deploy got 401). -->
 		<snapshotRepository>
-			<id>central</id>
+			<id>central-portal</id>
 			<name>Central Portal Snapshots</name>
 			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
 		</snapshotRepository>
@@ -540,7 +543,7 @@
 						<extensions>true</extensions>
 						<configuration>
 							<!-- Sonatype token lives under this <server><id> in settings.xml. -->
-							<publishingServerId>central</publishingServerId>
+							<publishingServerId>central-portal</publishingServerId>
 							<!-- Keep early releases manual: the bundle is uploaded and
 							     validated, then you click "Publish" in the Central portal.
 							     Flip to true once the pipeline is trusted. -->

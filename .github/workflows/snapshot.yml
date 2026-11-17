@@ -8,8 +8,9 @@ name: Deploy snapshot to Central
 # repository. Pull requests and other branches only build + test (no deploy).
 #
 # The Central snapshot repo does not require signatures, so no GPG here — plain
-# `deploy` targets the <snapshotRepository id=central> from the POM's
-# distributionManagement. Credentials come from the `central` <server>.
+# `deploy` targets the <snapshotRepository id=central-portal> from the POM's
+# distributionManagement. Credentials come from the `central-portal` <server>
+# (not `central`, which names Maven's built-in Maven Central repository).
 #
 # Required repository secrets:
 #   CENTRAL_TOKEN_USERNAME / CENTRAL_TOKEN_PASSWORD  Sonatype Central portal token
@@ -40,7 +41,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          server-id: central
+          server-id: central-portal
           server-username: CENTRAL_TOKEN_USERNAME
           server-password: CENTRAL_TOKEN_PASSWORD
 
