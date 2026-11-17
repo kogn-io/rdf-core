@@ -5,7 +5,6 @@ package io.kogn.rdf.cid.sexpr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
-import io.kogn.rdf.cid.ContentAddressingException;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -95,45 +93,14 @@ class RdfDatasetCanonicalizerTest {
   }
 
   private static final String SUPPLEMENTARY = "\uD83D\uDE00";
-  private static final String PRIVATE_USE_BMP = "\uFFFD";
+  private static final String UPPER_BMP = "\uE000";
 
   @Test
-  @DisplayName("a supplementary and an E000-FFFF code point in a graph with blank nodes is rejected (titanium-rdf-canon#65)")
-  void mixedCodePointRangesWithBlankNodesAreRejected() {
-    List<Triple> triples = withLiterals(true, SUPPLEMENTARY, PRIVATE_USE_BMP);
-
-    assertThatThrownBy(() -> canonicalizer.canonicalIdentifiers(triples))
-        .isExactlyInstanceOf(ContentAddressingException.class)
-        .hasMessageContaining("titanium-rdf-canon#65");
-  }
-
-  @Test
-  @DisplayName("the two ranges may be spread over different terms, an IRI included")
-  void mixedRangesAcrossTermsAreRejected() {
-    IRI p = rdf.createIRI(EX + "p" + PRIVATE_USE_BMP);
-    List<Triple> triples = List.of(rdf.createTriple(rdf.createBlankNode("b"), p, rdf.createLiteral(SUPPLEMENTARY)));
-
-    assertThatThrownBy(() -> canonicalizer.canonicalIdentifiers(triples))
-        .isExactlyInstanceOf(ContentAddressingException.class)
-        .hasMessageContaining("titanium-rdf-canon#65");
-  }
-
-  @Test
-  @DisplayName("only supplementary code points are canonicalized")
-  void onlySupplementaryIsAccepted() {
-    assertThat(canonicalizer.canonicalIdentifiers(withLiterals(true, SUPPLEMENTARY, SUPPLEMENTARY))).hasSize(1);
-  }
-
-  @Test
-  @DisplayName("only E000-FFFF code points are canonicalized")
-  void onlyUpperBmpIsAccepted() {
-    assertThat(canonicalizer.canonicalIdentifiers(withLiterals(true, PRIVATE_USE_BMP, PRIVATE_USE_BMP))).hasSize(1);
-  }
-
-  @Test
-  @DisplayName("mixed ranges in a graph without blank nodes need no canonicalization and pass")
-  void mixedRangesWithoutBlankNodesPass() {
-    assertThat(canonicalizer.canonicalIdentifiers(withLiterals(false, SUPPLEMENTARY, PRIVATE_USE_BMP))).isEmpty();
+  @DisplayName("a graph with blank nodes that mixes a supplementary and an E000-FFFF code point is canonicalized")
+  void mixedCodePointRangesWithBlankNodesAreCanonicalized() {
+    // The labels themselves are pinned by the ni-rdf/1 vector code-point-order, whose two blank
+    // nodes differ only in such literals: UTF-16 code unit order would swap them.
+    assertThat(canonicalizer.canonicalIdentifiers(withLiterals(true, SUPPLEMENTARY, UPPER_BMP))).hasSize(1);
   }
 
   private List<Triple> withLiterals(boolean blankSubject, String first, String second) {

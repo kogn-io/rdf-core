@@ -122,7 +122,7 @@ class CanonicalizationCostTest {
       default -> canon.quad(subject, predicate, Terms.resource(triple.getObject()), null, null, null, null);
       }
     }
-    // titanium-rdfc 3.0.0 keeps its Hash First Degree Quads package-private. If an upgrade (#149)
+    // titanium-rdfc keeps its Hash First Degree Quads package-private. If an upgrade
     // breaks this lookup, re-attach the test to the new titanium API rather than deleting it: the
     // vectors alone do not notice the estimate drifting, since both readings group hashes alike.
     Method hashFirstDegree = RdfCanon.class.getDeclaredMethod("hashFirstDegree", String.class);
