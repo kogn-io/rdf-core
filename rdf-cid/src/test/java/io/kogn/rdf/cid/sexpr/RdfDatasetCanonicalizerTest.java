@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.terms.BlankNode;
-import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.SimpleRdf;
@@ -100,12 +99,12 @@ class RdfDatasetCanonicalizerTest {
   void mixedCodePointRangesWithBlankNodesAreCanonicalized() {
     // The labels themselves are pinned by the ni-rdf/1 vector code-point-order, whose two blank
     // nodes differ only in such literals: UTF-16 code unit order would swap them.
-    assertThat(canonicalizer.canonicalIdentifiers(withLiterals(true, SUPPLEMENTARY, UPPER_BMP))).hasSize(1);
+    assertThat(canonicalizer.canonicalIdentifiers(withLiterals(SUPPLEMENTARY, UPPER_BMP))).hasSize(1);
   }
 
-  private List<Triple> withLiterals(boolean blankSubject, String first, String second) {
+  private List<Triple> withLiterals(String first, String second) {
     IRI p = rdf.createIRI(EX + "p");
-    BlankNodeOrIRI subject = blankSubject ? rdf.createBlankNode("b") : rdf.createIRI(EX + "s");
+    BlankNode subject = rdf.createBlankNode("b");
     return List.of(rdf.createTriple(subject, p, rdf.createLiteral(first)),
         rdf.createTriple(subject, p, rdf.createLiteral(second)));
   }
