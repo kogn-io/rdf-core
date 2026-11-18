@@ -42,7 +42,7 @@ class SimpleRdfNTriplesTest {
 
   @Test
   void languageLiteralCarriesTheTagOnly() {
-    assertThat(rdf.createLiteral("hi", "en-GB").ntriplesString()).isEqualTo("\"hi\"@en-GB");
+    assertThat(rdf.createLiteral("hi", "en-GB").ntriplesString()).isEqualTo("\"hi\"@en-gb");
   }
 
   @Test

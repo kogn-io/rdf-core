@@ -3,6 +3,7 @@
 
 package io.kogn.rdf.rdf4j;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -36,7 +37,7 @@ public class RDF4JLiteral extends RDF4JTerm implements Literal {
 
   @Override
   public Optional<String> getLanguageTag() {
-    return ((org.eclipse.rdf4j.model.Literal) rdf4jValue).getLanguage();
+    return ((org.eclipse.rdf4j.model.Literal) rdf4jValue).getLanguage().map(tag -> tag.toLowerCase(Locale.ROOT));
   }
 
   @Override

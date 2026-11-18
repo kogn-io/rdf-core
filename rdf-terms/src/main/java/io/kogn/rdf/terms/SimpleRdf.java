@@ -4,6 +4,7 @@
 package io.kogn.rdf.terms;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -135,6 +136,7 @@ public class SimpleRdf implements RDF {
 
     SimpleLiteral {
       Objects.requireNonNull(lexicalForm, "lexicalForm must not be null");
+      langTag = langTag == null ? null : langTag.toLowerCase(Locale.ROOT);
       Objects.requireNonNull(datatype, "datatype must not be null");
       if (langTag != null && langTag.isEmpty()) {
         throw new IllegalArgumentException("Language tag must not be empty");

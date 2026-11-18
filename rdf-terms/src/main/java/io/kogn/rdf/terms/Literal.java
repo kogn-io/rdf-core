@@ -23,8 +23,11 @@ import java.util.Optional;
  *   <li>their {@link #getLexicalForm()} are equal {@link String}s;</li>
  *   <li>their {@link #getDatatype()} IRIs are equal (see {@link IRI});</li>
  *   <li>their {@link #getLanguageTag()} are equal {@link java.util.Optional}s — both
- *       absent, or both present and equal (language tags are compared as-is; case is
- *       not normalised here).</li>
+ *       absent, or both present and equal. A language tag is
+ *       lower case ({@link java.util.Locale#ROOT}), so tags that differ only in case
+ *       name the same literal: an implementation returns the lower-case form from
+ *       {@link #getLanguageTag()} and compares the tags case-insensitively
+ *       (RDF 1.1 Concepts: the value space of language tags is lower case).</li>
  * </ul>
  *
  * <p>{@link Object#hashCode()} <strong>must</strong> be derived from the same three
@@ -49,7 +52,8 @@ public interface Literal extends RDFTerm {
   /**
    * Returns the language tag if present.
    *
-   * @return Optional containing the language tag (e.g., "en", "de"), or empty if not present
+   * @return Optional containing the language tag in lower case (e.g., "en", "de", "en-gb"), or empty if
+   *     not present
    */
   Optional<String> getLanguageTag();
 }
