@@ -27,7 +27,9 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
   /**
    * Creates a SPARQL update port backed by the given RDF4J repository.
    *
-   * @param repository the repository to open connections against
+   * @param repository the repository to open connections against; must be
+   *     initialized — an operation on a repository that is not (shut down, or never initialized)
+   *     fails, it does not initialize the repository again
    */
   public SparqlUpdateRdf4j(final Repository repository) {
     this.repository = repository;
@@ -40,7 +42,7 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
 
   @Override
   public void update(final String sparql, final Map<String, RDFTerm> bindings) {
-    try (RepositoryConnection conn = repository.getConnection()) {
+    try (RepositoryConnection conn = SparqlErrors.translating(() -> Connections.open(repository))) {
       final Update operation = SparqlErrors
           .bound(SparqlErrors.translating(() -> conn.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings);
       SparqlErrors.executing(operation::execute);

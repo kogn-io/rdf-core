@@ -61,7 +61,9 @@ public class DatasetExportRdf4j implements DatasetExport {
   /**
    * Creates an export port backed by the given RDF4J repository.
    *
-   * @param repository the repository to open connections against
+   * @param repository the repository to open connections against; must be
+   *     initialized — an operation on a repository that is not (shut down, or never initialized)
+   *     fails, it does not initialize the repository again
    */
   public DatasetExportRdf4j(final Repository repository) {
     this.repository = repository;
@@ -93,11 +95,12 @@ public class DatasetExportRdf4j implements DatasetExport {
    * @param format the neutral format to serialize in
    * @param contexts the named graphs to export; empty means the entire repository, following
    *     RDF4J's own vararg-context convention
-   * @throws RdfExportException if the writer cannot write to {@code out}, or the connection
-   *     fails while reading the statements to export
+   * @throws RdfExportException if the writer cannot write to {@code out}, the repository is not
+   *     initialized (see {@link Connections}), or the connection fails while reading the
+   *     statements to export
    */
   private void writeTo(final OutputStream out, final RdfFormat format, final Resource... contexts) {
-    try (RepositoryConnection conn = repository.getConnection()) {
+    try (RepositoryConnection conn = Connections.open(repository)) {
       conn.export(Rio.createWriter(toRDF4JFormat(format), out), contexts);
     } catch (final RuntimeException e) {
       // RDFHandlerException is where Rio wraps the sink's IOException; RepositoryException can

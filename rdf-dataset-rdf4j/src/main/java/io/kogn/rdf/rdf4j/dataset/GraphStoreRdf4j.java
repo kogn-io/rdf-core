@@ -39,7 +39,9 @@ public class GraphStoreRdf4j implements GraphStore {
   /**
    * Creates a graph store backed by the given RDF4J repository.
    *
-   * @param repository the repository to open connections against
+   * @param repository the repository to open connections against; must be
+   *     initialized — an operation on a repository that is not (shut down, or never initialized)
+   *     fails, it does not initialize the repository again
    */
   public GraphStoreRdf4j(final Repository repository) {
     this.repository = repository;
@@ -110,7 +112,7 @@ public class GraphStoreRdf4j implements GraphStore {
    * {@link DatasetTransactorRdf4j} for that stronger case.</p>
    */
   private long inTransaction(final ToLongFunction<RepositoryConnection> work) {
-    try (RepositoryConnection conn = repository.getConnection()) {
+    try (RepositoryConnection conn = Connections.open(repository)) {
       conn.begin(IsolationLevels.SNAPSHOT);
       try {
         final long result = work.applyAsLong(conn);
@@ -131,7 +133,7 @@ public class GraphStoreRdf4j implements GraphStore {
   public void clear(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
     StorageErrors.running(() -> {
-      try (RepositoryConnection conn = repository.getConnection()) {
+      try (RepositoryConnection conn = Connections.open(repository)) {
         conn.clear(context);
       }
     });
@@ -149,7 +151,7 @@ public class GraphStoreRdf4j implements GraphStore {
   public ReadableGraph export(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
     final List<Statement> statements = StorageErrors.translating(() -> {
-      try (RepositoryConnection conn = repository.getConnection();
+      try (RepositoryConnection conn = Connections.open(repository);
           RepositoryResult<Statement> result = conn.getStatements(null, null, null, false, context)) {
         return result.asList();
       }
@@ -169,7 +171,7 @@ public class GraphStoreRdf4j implements GraphStore {
   public long count(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
     return StorageErrors.translating(() -> {
-      try (RepositoryConnection conn = repository.getConnection()) {
+      try (RepositoryConnection conn = Connections.open(repository)) {
         return conn.size(context);
       }
     });
@@ -184,7 +186,7 @@ public class GraphStoreRdf4j implements GraphStore {
   @Override
   public long count() {
     return StorageErrors.translating(() -> {
-      try (RepositoryConnection conn = repository.getConnection()) {
+      try (RepositoryConnection conn = Connections.open(repository)) {
         return conn.size();
       }
     });

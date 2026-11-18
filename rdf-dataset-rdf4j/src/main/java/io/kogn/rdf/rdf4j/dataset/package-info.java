@@ -18,5 +18,11 @@
  * only see the port interfaces. These wrappers do not build a store; assembling and owning a
  * {@code Repository} is the job of the hosting adapter ({@code rdf-dataset-hosting-rdf4j}),
  * which composes these same wrappers behind a leased handle (see ADR-0009).</p>
+ *
+ * <p>The repository must be initialized before it is handed in, and the wrappers never initialize
+ * it: an operation on a repository that is shut down — or was never initialized, which RDF4J does
+ * not tell apart — fails with the port's failure type ({@code DatasetStorageException} for the
+ * graph operations and transactions, {@code SparqlEvaluationException} for SPARQL,
+ * {@code RdfExportException} for the export) rather than starting the store again.</p>
  */
 package io.kogn.rdf.rdf4j.dataset;

@@ -133,7 +133,9 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
   /**
    * Creates a transactor backed by the given RDF4J repository.
    *
-   * @param repository the repository to open transactional connections against
+   * @param repository the repository to open transactional connections against; must be
+   *     initialized — an operation on a repository that is not (shut down, or never initialized)
+   *     fails, it does not initialize the repository again
    */
   public DatasetTransactorRdf4j(final Repository repository) {
     this.repository = repository;
@@ -153,7 +155,7 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
   }
 
   private <T> T doInTransaction(final Function<DatasetTx, T> work) {
-    final RepositoryConnection conn = StorageErrors.translating(repository::getConnection);
+    final RepositoryConnection conn = StorageErrors.translating(() -> Connections.open(repository));
     Throwable failure = null;
     try {
       StorageErrors.running(() -> conn.begin(IsolationLevels.SERIALIZABLE));
