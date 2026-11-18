@@ -16,7 +16,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  * surrounding atomic unit-of-work when called through a {@code DatasetTx}, instead of
  * each being its own implicit, single-operation transaction the way it is when one of
  * those ports is used directly. Implementations must guarantee that either all
- * operations are committed together or none are (full rollback on any exception). See
+ * operations are committed together or none are (full rollback on any exception that leaves
+ * {@link DatasetTransactor#inTransaction}; an exception the caller catches inside the
+ * transaction does not roll back what earlier operations wrote). See
  * those interfaces for the documentation of the inherited operations. This interface
  * adds two pattern reads that have no non-transactional equivalent:
  * {@link #contains(IRI, BlankNodeOrIRI, IRI, RDFTerm) contains}, the guard read of
@@ -63,6 +65,8 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * @param predicate the predicate to match, or {@code null} for any predicate
    * @param object the object to match, or {@code null} for any object
    * @return {@code true} if the named graph contains at least one matching triple
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
+   *     the pattern (see {@link GraphStore})
    * @throws DatasetStorageException if the backend fails while carrying out the lookup
    * @throws IllegalStateException if the transaction has already ended
    */
@@ -103,6 +107,8 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * @param predicate the predicate to match, or {@code null} for any predicate
    * @param object the object to match, or {@code null} for any object
    * @return the matching triples, empty if there are none; never {@code null}
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
+   *     the pattern (see {@link GraphStore})
    * @throws DatasetStorageException if the backend fails while carrying out the read
    * @throws IllegalStateException if the transaction has already ended, or a matching
    *     triple holds an RDF 1.2 triple term

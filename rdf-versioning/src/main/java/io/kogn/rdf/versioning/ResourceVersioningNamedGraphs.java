@@ -181,11 +181,19 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     final Graph old = draftOf(tx, proxyIri, replaced);
     requireNoSharedBlankNode(tx, copy, old, proxyIri);
 
-    if (!old.isEmpty()) {
-      tx.remove(contentGraph, old);
-    }
+    // Add before remove: the backend may reject a term of the new content, and it does so before
+    // the first change, so a caller that catches the rejection still holds the old draft.
     if (!copy.isEmpty()) {
       tx.add(contentGraph, copy);
+    }
+    final Graph dropped = new SimpleGraph();
+    for (final Triple triple : old.stream().toList()) {
+      if (!copy.contains(triple)) {
+        dropped.add(triple);
+      }
+    }
+    if (!dropped.isEmpty()) {
+      tx.remove(contentGraph, dropped);
     }
     reindexFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT, oldFragments, newFragments);
     final long next = raiseCounter(tx, proxyIri, counter, current);
@@ -208,8 +216,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       }
       plans.add(planPublish(tx, token));
     }
-    // Every read happens while planning; from here on only writes, so a failure cannot leave
-    // a part of the publish behind (all or nothing).
+    // Every read happens while planning; from here on only writes. The only term among them the
+    // caller passed in is the creator, and the history entry carrying it is the first write, so a
+    // backend that rejects it does so before any change (all or nothing).
     final Map<IRI, IRI> entries = new LinkedHashMap<>();
     final Map<IRI, RevisionToken> tokens = new LinkedHashMap<>();
     final Set<IRI> storedCids = new HashSet<>();
@@ -318,6 +327,15 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     // Every read before the first write, so a failure leaves nothing behind.
     final Set<IRI> publishedFragments = indexedFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT);
     final Graph published = storedSlice(tx, VersioningGraphs.PUBLISHED, proxyIri, publishedFragments);
+    final Optional<StoredEntry> lastVersion = entries.reversed()
+        .stream()
+        .filter(e -> e.content().isPresent())
+        .findFirst();
+    // As in publish: the entry with the caller's creator goes first, so a rejection of it by the
+    // backend comes before any change.
+    final IRI entry = writeEntry(tx, last, proxyIri, EntryKind.TOMBSTONE, lastVersion.flatMap(StoredEntry::content),
+        lastVersion.flatMap(StoredEntry::procedure), lastVersion.map(StoredEntry::versionFragments).orElse(Set.of()),
+        details);
     if (!draft.isEmpty()) {
       tx.remove(contentGraph, draft);
     }
@@ -326,13 +344,6 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       tx.remove(VersioningGraphs.PUBLISHED, published);
     }
     reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, publishedFragments, Set.of());
-    final Optional<StoredEntry> lastVersion = entries.reversed()
-        .stream()
-        .filter(e -> e.content().isPresent())
-        .findFirst();
-    final IRI entry = writeEntry(tx, last, proxyIri, EntryKind.TOMBSTONE, lastVersion.flatMap(StoredEntry::content),
-        lastVersion.flatMap(StoredEntry::procedure), lastVersion.map(StoredEntry::versionFragments).orElse(Set.of()),
-        details);
     return new DeleteResult(entry, new RevisionToken(proxyIri, raiseCounter(tx, proxyIri, counter, current)));
   }
 
@@ -460,6 +471,10 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       final Set<IRI> storedCids) {
     final IRI proxyIri = plan.proxyIri();
     final IRI cid = plan.cid();
+    // The entry carries the caller's creator, which the backend may reject: written first, the
+    // rejection comes before any change.
+    final IRI entry = writeEntry(tx, plan.last(), proxyIri, EntryKind.PUBLISH, Optional.of(cid),
+        Optional.of(generator.procedureTag()), fragmentsOf(plan.version(), cid), details);
     if (!plan.stored() && storedCids.add(cid)) {
       tx.add(VersioningGraphs.CONTENT_STORE, withFreshBlankNodes(plan.version()));
     }
@@ -469,9 +484,6 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     tx.add(VersioningGraphs.PUBLISHED, withFreshBlankNodes(plan.slice()));
     reindexFragments(tx, proxyIri, VocabVersioning.PUBLISHED_FRAGMENT, plan.oldPublishedFragments(),
         plan.newPublishedFragments());
-
-    final IRI entry = writeEntry(tx, plan.last(), proxyIri, EntryKind.PUBLISH, Optional.of(cid),
-        Optional.of(generator.procedureTag()), fragmentsOf(plan.version(), cid), details);
     raiseCounter(tx, proxyIri, plan.counter(), plan.current());
     return entry;
   }

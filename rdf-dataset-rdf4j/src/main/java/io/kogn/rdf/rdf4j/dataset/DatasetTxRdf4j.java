@@ -85,6 +85,15 @@ import io.kogn.rdf.terms.ReadableGraph;
  * Using an instance after its transaction ended is a programming error and is detected up
  * front, by every operation alike, as an {@link IllegalStateException} — never as one of those
  * two failure types, which a caller may treat as transient.</p>
+ *
+ * <p>Every operation converts its terms to RDF4J values before it touches the connection, and
+ * {@link #add}/{@link #remove} convert the whole graph before the first triple. RDF4J validates
+ * terms that {@code rdf-terms} lets through: an IRI it cannot parse (a space, one of
+ * {@code <>"{}|^`}, a second {@code #}), an invalid language tag, and a literal whose lexical
+ * form is not valid for its datatype. The last is a limit of this backend: an ill-typed literal
+ * such as {@code "abc"^^xsd:integer} is legal RDF 1.1 and a valid term of the data model, but
+ * cannot be stored here. A rejected term surfaces as the {@link IllegalArgumentException} of the
+ * conversion, outside the error translation, before anything of the call is written.</p>
  */
 class DatasetTxRdf4j implements DatasetTx {
 
