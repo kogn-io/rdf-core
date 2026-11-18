@@ -36,7 +36,9 @@ import io.kogn.rdf.terms.Triple;
  * cleared data, on the {@code NativeStore} as on the {@code MemoryStore}. RDF4J 6.1.0's
  * {@code NativeStore} did not detect it (the dependent write committed); RDF4J 6.2.0-M2 does. If a
  * future RDF4J version regresses, this test fails and the Javadoc of {@link DatasetTransactorRdf4j}
- * and ARCHITECTURE.md must name the limit again.
+ * and ARCHITECTURE.md must name the limit again. It also pins, on the {@code MemoryStore}, the effect
+ * of a {@code CLEAR GRAPH} of another named graph: a read over all graphs conflicts, a read bound to
+ * one graph commits.
  */
 class ClearAllConflictDetectionTest {
 
@@ -78,6 +80,16 @@ class ClearAllConflictDetectionTest {
         "CLEAR GRAPH <" + OTHER_GRAPH.getIRIString() + ">");
 
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+  }
+
+  @Test
+  @DisplayName("MemoryStore: a concurrent clear of another named graph lets a read bound to one graph commit")
+  void clearOfOtherGraph_concurrentWithBoundGraphRead_onMemoryStore() throws InterruptedException {
+    final Throwable outcome = readThenConcurrentClear(new SailRepository(new MemoryStore()),
+        tx -> assertThat(tx.contains(GRAPH, PREMISE, null, null)).isTrue(),
+        "CLEAR GRAPH <" + OTHER_GRAPH.getIRIString() + ">");
+
+    assertThat(outcome).isNull();
   }
 
   static Stream<Arguments> guardsAndClears() {

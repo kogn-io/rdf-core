@@ -131,7 +131,7 @@ import io.kogn.rdf.dataset.DatasetTx;
  * <li>A concurrent SPARQL {@code CLEAR ALL} / {@code DROP ALL} was not detected on the
  * {@code NativeStore} in 6.1.0 (a transaction that had read the cleared triple committed a triple
  * depending on it; the {@code MemoryStore} detected it). Under 6.2.0-M2 both stores detect it for
- * {@code contains}, {@code count} and {@code ask} reads against both statements; the tests in
+ * {@code contains}, {@code count} and {@code ask} reads against both updates; the tests in
  * {@code ClearAllConflictDetectionTest} pin that, so a regression of a later RDF4J version fails
  * the build.</li>
  * <li>On the {@code NativeStore} (never on the {@code MemoryStore}), a single writer thread
