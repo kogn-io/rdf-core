@@ -31,11 +31,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryException;
+import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -43,6 +45,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.kogn.rdf.dataset.DatasetExport;
+import io.kogn.rdf.dataset.DatasetStorageException;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.GraphStore;
 import io.kogn.rdf.dataset.RdfFormat;
@@ -397,6 +400,44 @@ class DatasetLifecycleRdf4jTest {
   @Nested
   @DisplayName("on-create hook")
   class OnCreateHook {
+
+    @Test
+    @DisplayName("#244: the hook's GraphStore is locked once the hook returns")
+    void onCreate_retainedGraphStore_lockedAfterHookReturns() {
+      final AtomicReference<GraphStore> retained = new AtomicReference<>();
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
+            graphStore.add(GRAPH, singleTriple());
+            retained.set(graphStore);
+          });
+
+      try (DatasetHandle ds = lifecycle.acquire(new DatasetId("hook-kept"))) {
+        assertThatThrownBy(() -> retained.get().add(GRAPH, singleTriple())).isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("onCreate");
+        assertThat(ds.graphStore().count()).isEqualTo(1);
+      }
+    }
+
+    @Test
+    @DisplayName("#244: a write through the hook's GraphStore after delete does not bring the directory back")
+    void onCreate_retainedGraphStore_afterDelete_doesNotResurrectDirectory(@TempDir final Path tmp) {
+      final Path root = tmp.resolve("stores");
+      final AtomicReference<GraphStore> retained = new AtomicReference<>();
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> retained.set(graphStore));
+      final DatasetId id = new DatasetId("deleted");
+      lifecycle.acquire(id).close();
+
+      lifecycle.delete(id);
+      assertThatThrownBy(() -> retained.get().add(GRAPH, singleTriple())).isInstanceOf(IllegalStateException.class);
+
+      assertThat(lifecycle.list()).doesNotContain(id);
+      try (Stream<Path> remaining = Files.list(root)) {
+        assertThat(remaining).isEmpty();
+      } catch (final IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
 
     @Test
     @DisplayName("hook fires once on creation, not on re-acquire, and its seed is visible immediately")
@@ -1323,6 +1364,48 @@ class DatasetLifecycleRdf4jTest {
       Files.createDirectory(root.resolve("ICAg"));
 
       assertThat(lifecycle.list()).containsExactly(own);
+    }
+
+    @Test
+    @DisplayName("#244: a handle kept past shutDownAll fails instead of starting an empty in-memory store")
+    void shutDownAll_inMemory_retainedHandleFails() {
+      final DatasetLifecycleRdf4j lc = inMemory();
+      final DatasetHandle ds = lc.acquire(new DatasetId("kept"));
+      ds.graphStore().add(GRAPH, singleTriple());
+
+      lc.shutDownAll();
+
+      assertThatThrownBy(() -> ds.graphStore().count()).isInstanceOf(DatasetStorageException.class);
+    }
+
+    @Test
+    @DisplayName("#244: a handle kept past shutDownAll fails and does not lock the directory again")
+    void shutDownAll_persistent_retainedHandleFailsAndLeavesDirectoryUnlocked() {
+      final Path root = tmp.resolve("stores");
+      final DatasetId id = new DatasetId("kept-on-disk");
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root);
+      final DatasetHandle ds = lifecycle.acquire(id);
+      ds.graphStore().add(GRAPH, singleTriple());
+
+      lifecycle.shutDownAll();
+
+      assertThatThrownBy(() -> ds.graphStore().count()).isInstanceOf(DatasetStorageException.class);
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root);
+      try (DatasetHandle reopened = lifecycle.acquire(id)) {
+        assertThat(reopened.graphStore().count()).isEqualTo(1);
+      }
+    }
+
+    @Test
+    @DisplayName("#244: a hosted repository refuses to be initialized again once it was shut down")
+    void hostedRepository_refusesReinitialization() {
+      final OneShotSailRepository repository = new OneShotSailRepository(new MemoryStore());
+      repository.init();
+      repository.shutDown();
+
+      assertThatThrownBy(repository::getConnection).isInstanceOf(RepositoryException.class)
+          .hasMessageContaining("shut down");
+      assertThat(repository.isInitialized()).isFalse();
     }
 
     private static void awaitUninterruptibly(final CountDownLatch latch) {

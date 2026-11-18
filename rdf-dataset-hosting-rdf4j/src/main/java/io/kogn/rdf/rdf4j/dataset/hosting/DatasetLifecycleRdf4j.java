@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
-import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 
@@ -176,6 +175,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    */
   private static final String DELETION_MARKER_FILE_NAME = ".deleting";
 
+  /** Message of the failure a port of a closed {@link DatasetHandle} throws. */
+  private static final String HANDLE_CLOSED = "handle is closed";
+
+  /** Message of the failure the {@code onCreate} hook's {@link GraphStore} throws once the hook returned. */
+  private static final String HOOK_RETURNED = "the onCreate hook has returned; its GraphStore is no longer usable";
+
   private final DatasetStoreConfig config;
   private final Path storageRoot;
   private final String indexSpec;
@@ -220,7 +225,9 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    *     {@code PERSISTENT} (e.g. {@link #DEFAULT_INDEX_SPEC})
    * @param onCreate hook run when a dataset's store is first created, before its
    *     handle is handed out; receives the id and a {@link GraphStore} to seed
-   *     through (never an RDF4J type). One-time per store, not per {@link DatasetId}:
+   *     through (never an RDF4J type), usable only while the hook runs: once it returns,
+   *     every call on that {@code GraphStore} throws {@link IllegalStateException}, so it
+   *     cannot be kept to write outside a lease. One-time per store, not per {@link DatasetId}:
    *     for {@code IN_MEMORY} a {@link #close(DatasetId)} destroys the store, so the
    *     next {@link #acquire(DatasetId)} runs the hook again for the same id. It runs
    *     under the per-key map lock, so it must only seed its own
@@ -484,7 +491,10 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * unconditionally, including ones with an open {@link DatasetHandle}. Any handle
    * still open at that point keeps its {@code closed} flag {@code false} — its
    * accessors do not yet throw — but operating on the now-shut-down store fails
-   * with whatever the backend raises for a closed repository. Call this only when
+   * with the port's storage failure ({@code DatasetStorageException},
+   * {@code SparqlEvaluationException} or {@code RdfExportException}); the store is not
+   * started again, so an in-memory store does not come back empty and a persistent one
+   * does not lock its directory again. Call this only when
    * the process is going down anyway (e.g. {@code @PreDestroy} or test tear-down),
    * never as a substitute for releasing leases in the normal course of business. If
    * any dataset still has an open lease, a warning is logged naming it before
@@ -549,21 +559,23 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     final boolean isNew;
     final Repository repository;
     if (config.persistence() == Persistence.IN_MEMORY) {
-      repository = new SailRepository(new MemoryStore());
+      repository = new OneShotSailRepository(new MemoryStore());
       isNew = true;
     } else {
       final File dir = resolveDir(id);
       isNew = isNewStore(dir);
-      repository = new SailRepository(new NativeStore(dir, indexSpec));
+      repository = new OneShotSailRepository(new NativeStore(dir, indexSpec));
     }
     try {
       repository.init();
       final ManagedDataset managed = new ManagedDataset(repository);
       if (isNew && onCreate != null) {
         insideOnCreate.set(Boolean.TRUE);
+        final AtomicBoolean hookReturned = new AtomicBoolean(false);
         try {
-          onCreate.accept(id, managed.graphStore);
+          onCreate.accept(id, new HandleBoundGraphStore(managed.graphStore, hookReturned, HOOK_RETURNED));
         } finally {
+          hookReturned.set(true);
           insideOnCreate.remove();
         }
       }
@@ -880,58 +892,71 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * {@link DatasetHandle}.
    */
   private static void ensureOpen(final AtomicBoolean closed) {
+    ensureOpen(closed, HANDLE_CLOSED);
+  }
+
+  private static void ensureOpen(final AtomicBoolean closed, final String message) {
     if (closed.get()) {
-      throw new IllegalStateException("handle is closed");
+      throw new IllegalStateException(message);
     }
   }
 
   /**
    * Thin, per-handle {@link GraphStore} delegate that checks the owning handle's
-   * {@code closed} flag before every call.
+   * {@code closed} flag before every call. Also hands the {@code onCreate} hook its
+   * {@code GraphStore}, with a flag set once the hook returns: kept beyond the hook, that store
+   * would write outside every lease — after a {@code delete}, a write would bring the deleted
+   * directory back.
    */
   private static final class HandleBoundGraphStore implements GraphStore {
 
     private final GraphStore delegate;
     private final AtomicBoolean closed;
+    private final String closedMessage;
 
     private HandleBoundGraphStore(final GraphStore delegate, final AtomicBoolean closed) {
+      this(delegate, closed, HANDLE_CLOSED);
+    }
+
+    private HandleBoundGraphStore(final GraphStore delegate, final AtomicBoolean closed, final String closedMessage) {
       this.delegate = delegate;
       this.closed = closed;
+      this.closedMessage = closedMessage;
     }
 
     @Override
     public long add(final IRI namedGraph, final ReadableGraph triples) {
-      ensureOpen(closed);
+      ensureOpen(closed, closedMessage);
       return delegate.add(namedGraph, triples);
     }
 
     @Override
     public long remove(final IRI namedGraph, final ReadableGraph triples) {
-      ensureOpen(closed);
+      ensureOpen(closed, closedMessage);
       return delegate.remove(namedGraph, triples);
     }
 
     @Override
     public void clear(final IRI namedGraph) {
-      ensureOpen(closed);
+      ensureOpen(closed, closedMessage);
       delegate.clear(namedGraph);
     }
 
     @Override
     public ReadableGraph export(final IRI namedGraph) {
-      ensureOpen(closed);
+      ensureOpen(closed, closedMessage);
       return delegate.export(namedGraph);
     }
 
     @Override
     public long count(final IRI namedGraph) {
-      ensureOpen(closed);
+      ensureOpen(closed, closedMessage);
       return delegate.count(namedGraph);
     }
 
     @Override
     public long count() {
-      ensureOpen(closed);
+      ensureOpen(closed, closedMessage);
       return delegate.count();
     }
   }
