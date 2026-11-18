@@ -182,6 +182,8 @@ public interface ResourceVersioning {
    *     graph
    * @throws DatasetStorageException if the backend fails while reading or writing the
    *     config graph
+   * @throws IllegalArgumentException if the backend rejects the content graph IRI; nothing
+   *     is written then
    * @throws IllegalStateException if {@code tx} has already ended
    * @throws NullPointerException if {@code tx} is {@code null}
    */
@@ -322,8 +324,9 @@ public interface ResourceVersioning {
    * written (apart from the binding of the content graph on first use): every token is
    * checked, every CID derived, and the published view, its fragment index and the content
    * store are looked up for every proxy IRI, so a failure for any proxy IRI leaves the
-   * transaction as it was. The first write is a history entry, the only one carrying a term
-   * of the caller (the creator), so a backend rejecting that term changes nothing either; if {@code tx} aborts, published view, content store, history
+   * transaction as it was. The first write is a history entry, the only write carrying
+   * terms of the caller (creator, comment), so a backend rejecting one of them changes
+   * nothing either; if {@code tx} aborts, published view, content store, history
    * and counters are unchanged. A stale token is reported, never retried. The first
    * sequence number and the first copy of a CID are looked up with
    * {@link DatasetTx#contains} (ADR-0008). Reading the draft may bind the dataset to the
@@ -560,9 +563,9 @@ public interface ResourceVersioning {
    *     {@code #}
    * @return the state; never {@code null}
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or the
-   *     backend rejects it, or the CID of the draft cannot be derived because it violates a precondition of
-   *     {@code ContentAddressedIriGenerator#generateIri}: a reserved IRI, a term outside
-   *     RDF 1.1
+   *     backend rejects it, or the CID of the draft cannot be derived because it
+   *     violates a precondition of {@code ContentAddressedIriGenerator#generateIri}: a
+   *     reserved IRI, a term outside RDF 1.1
    * @throws io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException if the draft
    *     exceeds the cost limit of ni-rdf/1
    * @throws io.kogn.rdf.cid.ContentAddressingException if the identifier of the draft
