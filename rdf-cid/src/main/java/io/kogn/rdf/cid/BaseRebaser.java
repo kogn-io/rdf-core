@@ -24,7 +24,9 @@ import io.kogn.rdf.terms.Triple;
  * ({@code <new#f>}), in every position: subject, predicate, object and a literal's datatype.
  * The operation works on terms, never on text: an IRI that merely begins with the old base
  * ({@code <old-other>}) and a literal whose lexical form spells the old base are content and
- * stay as they are. Blank nodes, lexical forms and language tags are carried over unchanged.</p>
+ * stay as they are. A literal whose datatype is not given reads as {@code xsd:string}, as in
+ * ni-rdf/1 §4.1, and is renamed as such. Blank nodes, lexical forms and language tags are
+ * carried over unchanged.</p>
  *
  * <p>This is the step between {@link ContentAddressedIriGenerator#generateIri} and a
  * resource that carries its own identifier: describe it under a provisional base, generate the
@@ -40,6 +42,7 @@ public class BaseRebaser {
   private static final String RESERVED_IRI = "RESERVED_IRI";
   private static final String UNSUPPORTED_TERM = "UNSUPPORTED_TERM";
   private static final String BLANK_NODE_PREFIX = "_:";
+  private static final String XSD_STRING = "http://www.w3.org/2001/XMLSchema#string";
 
   private final RDF rdf;
 
@@ -137,10 +140,9 @@ public class BaseRebaser {
     if (literal.getLanguageTag().isPresent()) {
       return rdf.createLiteral(literal.getLexicalForm(), literal.getLanguageTag().get());
     }
-    if (literal.getDatatype() == null) {
-      return rdf.createLiteral(literal.getLexicalForm());
-    }
-    return rdf.createLiteral(literal.getLexicalForm(), renamed(literal.getDatatype(), from, to));
+    final IRI datatype = literal.getDatatype();
+    final String datatypeIri = datatype == null ? XSD_STRING : datatype.getIRIString();
+    return rdf.createLiteral(literal.getLexicalForm(), rdf.createIRI(renamed(datatypeIri, from, to)));
   }
 
   private static String renamed(String iri, String from, String to) {
