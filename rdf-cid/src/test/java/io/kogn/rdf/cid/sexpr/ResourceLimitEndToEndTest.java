@@ -13,17 +13,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.kogn.rdf.cid.AsWrittenLiteral;
+import io.kogn.rdf.cid.AsWrittenRdf;
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
-import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.SimpleRdf;
@@ -43,8 +43,9 @@ class ResourceLimitEndToEndTest {
   private final RDF rdf = new SimpleRdf();
   private final IRI root = rdf.createIRI(EX + "doc");
   private final IRI member = rdf.createIRI(EX + "member");
+  // AsWrittenRdf keeps tags as written, so the lower-casing of section 4.1 is the serializer's own.
   private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
-      new RdfDatasetCanonicalizer(), rdf);
+      new RdfDatasetCanonicalizer(), new AsWrittenRdf());
 
   @Test
   @DisplayName("T_C counts a triple once even if subject and object are both in C")
@@ -127,7 +128,7 @@ class ResourceLimitEndToEndTest {
     IRI label = rdf.createIRI(EX + "label");
     for (int hub = 0; hub < 24; hub++) {
       BlankNode hubNode = rdf.createBlankNode("h" + hub);
-      triples.add(rdf.createTriple(hubNode, label, asWritten("v", "EN")));
+      triples.add(rdf.createTriple(hubNode, label, new AsWrittenLiteral("v", "EN")));
       triples.add(rdf.createTriple(hubNode, label, rdf.createLiteral("v", "en")));
     }
 
@@ -140,7 +141,7 @@ class ResourceLimitEndToEndTest {
     BlankNode child = rdf.createBlankNode("c");
     IRI label = rdf.createIRI(EX + "label");
     List<Triple> both = List.of(rdf.createTriple(root, member, child),
-        rdf.createTriple(child, label, asWritten("v", "EN")),
+        rdf.createTriple(child, label, new AsWrittenLiteral("v", "EN")),
         rdf.createTriple(child, label, rdf.createLiteral("v", "en")));
     List<Triple> one = List.of(rdf.createTriple(root, member, child),
         rdf.createTriple(child, label, rdf.createLiteral("v", "en")));
@@ -212,36 +213,6 @@ class ResourceLimitEndToEndTest {
     return triples;
   }
 
-  /**
-   * A literal that reports its language tag as written, the way a foreign {@link Literal} implementation that does
-   * not normalize would: {@link SimpleRdf} lower-cases on creation, so only such a term still reaches the serializer
-   * with an upper-case tag.
-   */
-  private Literal asWritten(String lexicalForm, String languageTag) {
-    Literal base = rdf.createLiteral(lexicalForm, "en");
-    return new Literal() {
-      @Override
-      public String getLexicalForm() {
-        return base.getLexicalForm();
-      }
-
-      @Override
-      public IRI getDatatype() {
-        return base.getDatatype();
-      }
-
-      @Override
-      public Optional<String> getLanguageTag() {
-        return Optional.of(languageTag);
-      }
-
-      @Override
-      public String ntriplesString() {
-        return "\"" + lexicalForm + "\"@" + languageTag;
-      }
-    };
-  }
-
   private List<Triple> hubsWithTaggedChildren(String firstHalfTag, String secondHalfTag) {
     IRI item = rdf.createIRI(EX + "item");
     IRI label = rdf.createIRI(EX + "label");
@@ -252,7 +223,7 @@ class ResourceLimitEndToEndTest {
       for (int l = 0; l < 8; l++) {
         BlankNode child = rdf.createBlankNode("l" + h + "_" + l);
         triples.add(rdf.createTriple(hub, item, child));
-        triples.add(rdf.createTriple(child, label, asWritten("v", l < 4 ? firstHalfTag : secondHalfTag)));
+        triples.add(rdf.createTriple(child, label, new AsWrittenLiteral("v", l < 4 ? firstHalfTag : secondHalfTag)));
       }
     }
     return triples;

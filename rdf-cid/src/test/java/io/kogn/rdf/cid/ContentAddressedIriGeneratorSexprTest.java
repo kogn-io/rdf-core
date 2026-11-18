@@ -216,8 +216,16 @@ class ContentAddressedIriGeneratorSexprTest {
     @Test
     @DisplayName("regardless of the case of the language tag — RDF 1.1 compares them case-insensitively")
     void regardlessOfLanguageTagCase() {
-      IRI cid1 = cidOf(rdf.createLiteral("Bank", "en"));
-      IRI cid2 = cidOf(rdf.createLiteral("Bank", "EN"));
+      // AsWrittenRdf keeps tags as written, so the lower-casing is the generator's own.
+      ContentAddressedIriGenerator asWritten = new ContentAddressedIriGeneratorSexpr(new AsWrittenRdf());
+      IRI resource = rdf.createIRI(EX + "resource");
+      IRI value = rdf.createIRI(EX + "value");
+      Graph lower = graph();
+      lower.add(resource, value, rdf.createLiteral("Bank", "en"));
+      Graph upper = graph();
+      upper.add(resource, value, new AsWrittenLiteral("Bank", "EN"));
+      IRI cid1 = asWritten.generateIri(resource, lower);
+      IRI cid2 = asWritten.generateIri(resource, upper);
 
       assertThat(cid1).as("\"Bank\"@en and \"Bank\"@EN are the same RDF literal").isEqualTo(cid2);
     }
