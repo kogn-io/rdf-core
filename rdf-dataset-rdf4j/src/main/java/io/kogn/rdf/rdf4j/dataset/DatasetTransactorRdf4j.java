@@ -123,6 +123,28 @@ import io.kogn.rdf.dataset.DatasetTx;
  * measured at 1000 of 1000 above. An {@code ASK} guard remains a legitimate read; it is
  * only the <em>first-insert uniqueness</em> use of it that this backend does not
  * protect.</p>
+ *
+ * <p><strong>NativeStore conflict detection (RDF4J 6.2.0-M2).</strong> Two behaviors of the
+ * {@code NativeStore} deviate from the {@link DatasetTransactor} contract in RDF4J 6.1.0; their
+ * state under 6.2.0-M2 was measured:</p>
+ * <ul>
+ * <li>A concurrent SPARQL {@code CLEAR ALL} / {@code DROP ALL} was not detected on the
+ * {@code NativeStore} in 6.1.0 (a transaction that had read the cleared triple committed a triple
+ * depending on it; the {@code MemoryStore} detected it). Under 6.2.0-M2 both stores detect it for
+ * {@code contains}, {@code count} and {@code ask} reads against both statements; the tests in
+ * {@code ClearAllConflictDetectionTest} pin that, so a regression of a later RDF4J version fails
+ * the build.</li>
+ * <li>On the {@code NativeStore} (never on the {@code MemoryStore}), a single writer thread
+ * occasionally got a {@link ConcurrencyConflictException} without any opposing transaction while
+ * other threads read outside transactions ({@code count}, {@code ask}, {@code export}; rates up
+ * to about 0.05 % of commits, 6.1.0). The mechanism is not established. Runs of 20 s against
+ * 6.2.0-M2 (three reader threads; 231,920 commits with {@code ask}, 11,219 with {@code count},
+ * 18,045 with {@code export}) saw none, which does not prove it gone. The failed transaction is
+ * rolled back cleanly and a retry succeeds.</li>
+ * </ul>
+ * <p>Whatever the version, a caller on the {@code NativeStore} must treat a
+ * {@link ConcurrencyConflictException} as retryable and must not read it as proof that another
+ * transaction wrote what this one read.</p>
  */
 public class DatasetTransactorRdf4j implements DatasetTransactor {
 
