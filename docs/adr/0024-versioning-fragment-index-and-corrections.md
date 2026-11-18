@@ -8,7 +8,7 @@ index to the stored format they fix
 ## Context
 
 ADR-0022 and ADR-0023 were accepted with the first implementation. Checked
-against the code of `rdf-versioning`, three of their statements are wrong, one
+against the code of `rdf-versioning`, four of their statements are wrong, one
 part of the stored format they fix is missing, and one assumption the module
 makes is written down nowhere. The code is right in each case.
 
@@ -66,13 +66,24 @@ ADR-0023 stands.
 4. *ADR-0022, Consequences, "Deleting a proxy IRI":* a delete of a proxy IRI
    that is deleted already (no draft, latest entry a tombstone) is a no-op: it
    writes no second tombstone and returns the existing one.
+5. *ADR-0022, Consequences, "No IRI translation" ("rewrites none … A reference
+   to a proxy IRI is never turned into a CID reference"):* a publish stores the
+   version in the content store rebased onto its CID (`BaseRebaser`, ni-rdf/1
+   §6): the version's own proxy IRI and each of its `#fragment` IRIs, in every
+   position (subject, predicate, object, datatype of a literal without a
+   language tag), become the CID and the CID's fragment IRIs, so the version
+   verifies against its own name. A draft `<A> <p> <A>` is stored as
+   `<cid> <p> <cid>`. Only references to *other* proxy IRIs, and SPARQL text,
+   stay untranslated; the published view keeps the proxy IRI.
 
 **Blank-node labels.** `rdf-versioning` assumes that within one
 `DatasetTx` a blank node read from the store keeps its label: it reads a slice's
 blank nodes as subject and as object and removes them by the labels it read.
 `DatasetTx` does not promise this; the assumption is documented on `DatasetTx`,
 on `BlankNode` and in the `rdf-versioning` package documentation. Nothing is
-assumed across transactions. A backend that renames blank nodes on read cannot
+assumed across transactions. ADR-0023's "not stable across reads" stands for
+reads in different transactions: across transactions a label is not stable,
+within one transaction the module assumes it is. A backend that renames blank nodes on read cannot
 host the module. This is related to
 [#40](https://github.com/kogn-io/rdf-core/issues/40) and restricts a second
 backend.
