@@ -14,6 +14,17 @@ import io.kogn.rdf.terms.ReadableGraph;
  * validate a candidate graph <em>before</em> writing it, without requiring the store
  * itself to be schema-constrained. It is the leaner sibling of a transactional,
  * write-path-enforced SHACL sail: no coupling to a dataset's commit path.</p>
+ *
+ * <h2>Unsupported constructs are rejected, never skipped</h2>
+ *
+ * <p>An implementation whose backend cannot evaluate a construct used in the shapes graph
+ * throws {@link ShaclValidationException}; it must not hand out a report that conforms
+ * because a constraint was never checked. Which constructs a backend rejects is part of its
+ * implementation's documentation. The RDF4J implementation ({@code rdf-shacl-rdf4j}) rejects
+ * repetition paths ({@code sh:zeroOrMorePath}, {@code sh:oneOrMorePath},
+ * {@code sh:zeroOrOnePath}) at any nesting depth, {@code sh:xone}, and SHACL-SPARQL constraint
+ * components ({@code sh:validator}, {@code sh:nodeValidator}, {@code sh:propertyValidator});
+ * {@code sh:sparql} constraints are supported.</p>
  */
 public interface ShaclValidation {
 

@@ -137,6 +137,31 @@ import io.kogn.rdf.terms.SimpleRdf;
  * is always a predicate path, so {@code ex:p sh:inversePath ex:p} is no cycle and stays
  * allowed.</p>
  *
+ * <h2>Constructs RDF4J does not evaluate are rejected</h2>
+ *
+ * <p>RDF4J accepts some SHACL constructs without evaluating them: it switches off a property
+ * shape whose path holds a repetition, has no validation plan for {@code sh:xone}, and never
+ * runs a SHACL-SPARQL constraint component. In each case the report conforms for data the shapes
+ * forbid — or, under {@code sh:not}, fails for data they allow. A shapes graph using any of the
+ * following is therefore rejected with a {@link ShaclValidationException} before RDF4J sees
+ * it:</p>
+ *
+ * <ul>
+ *   <li>a repetition path — {@code sh:zeroOrMorePath}, {@code sh:oneOrMorePath} or
+ *       {@code sh:zeroOrOnePath} — at any depth of a path expression, also inside a sequence,
+ *       an alternative or an inverse path;</li>
+ *   <li>{@code sh:xone}, on a node or a property shape; it is not rewritten into
+ *       {@code sh:or}, {@code sh:and} and {@code sh:not};</li>
+ *   <li>a SHACL-SPARQL constraint component, i.e. any {@code sh:validator},
+ *       {@code sh:nodeValidator} or {@code sh:propertyValidator}.</li>
+ * </ul>
+ *
+ * <p>The check runs over the whole shapes graph, so the construct is rejected wherever it sits —
+ * nested in {@code sh:or}, {@code sh:and}, {@code sh:not}, {@code sh:node} or
+ * {@code sh:qualifiedValueShape}, or in a statement no shape reaches.
+ * SPARQL-based constraints ({@code sh:sparql}) are evaluated and stay allowed, as do sequence,
+ * alternative and inverse paths.</p>
+ *
  * <h2>Shapes-graph links are ignored</h2>
  *
  * <p>The shapes to validate against are exactly the {@code shapes} argument. A
@@ -162,6 +187,14 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
   /** Path operators whose operand is itself a path expression. */
   private static final List<IRI> PATH_OPERATORS = List.of(SHACL.INVERSE_PATH, SHACL.ZERO_OR_MORE_PATH,
       SHACL.ONE_OR_MORE_PATH, SHACL.ZERO_OR_ONE_PATH);
+
+  /**
+   * Predicates of the SHACL constructs RDF4J accepts without evaluating them: the repetition path
+   * operators, {@code sh:xone} and the validator properties of a SHACL-SPARQL constraint
+   * component.
+   */
+  private static final List<IRI> IGNORED_CONSTRUCTS = List.of(SHACL.ZERO_OR_MORE_PATH, SHACL.ONE_OR_MORE_PATH,
+      SHACL.ZERO_OR_ONE_PATH, SHACL.XONE, SHACL.VALIDATOR_PROP, SHACL.NODE_VALIDATOR, SHACL.PROPERTY_VALIDATOR);
 
   /** Supplies a fresh, uninitialized sail for each input graph of one validation run. */
   private final Supplier<Sail> sailFactory;
@@ -207,6 +240,7 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
       Sail dataSail = toSail(toModel(data, "data"), sails);
       Model shapesModel = toModel(shapes, "shapes");
       requireWellFormedLists(shapesModel);
+      rejectIgnoredConstructs(shapesModel);
       Sail shapesSail = toSail(withoutShapesGraphLinks(shapesModel), sails);
       ValidationReport report = ShaclValidator.builder()
           .setRdfsSubClassReasoning(options.rdfsSubClassReasoning())
@@ -302,6 +336,21 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     }
     for (Value path : shapes.filter(null, SHACL.PATH, null).objects()) {
       requireWellFormedPath(shapes, path, new HashSet<>(), checkedPaths);
+    }
+  }
+
+  /**
+   * Rejects a shapes graph that uses a construct RDF4J would silently ignore, as described on the
+   * class. Like the list check, it runs over the whole shapes graph, whether or not a shape reaches
+   * the statement.
+   */
+  private static void rejectIgnoredConstructs(Model shapes) {
+    for (IRI construct : IGNORED_CONSTRUCTS) {
+      Optional<Resource> user = shapes.filter(null, construct, null).subjects().stream().findFirst();
+      if (user.isPresent()) {
+        throw new ShaclValidationException("the shapes graph uses " + construct.stringValue() + " (on " + user.get()
+            + "), which the RDF4J backend does not evaluate; it would report conformance it never checked", null);
+      }
     }
   }
 

@@ -657,9 +657,9 @@ class ShaclValidationRdf4jTest {
   }
 
   /*
-   * RDF4J's SHACL engine does not report a result for a violated shape whose sh:path is a repetition
-   * (sh:zeroOrMorePath, sh:oneOrMorePath, sh:zeroOrOnePath): the report conforms. These renderings are therefore pinned
-   * on the Model-level renderer, not end to end.
+   * The adapter rejects a shapes graph with a repetition path (sh:zeroOrMorePath, sh:oneOrMorePath, sh:zeroOrOnePath),
+   * since RDF4J's engine would skip the shape, so no report ever carries one. These renderings are therefore pinned on
+   * the Model-level renderer, not end to end.
    */
   private static final String P = "https://example.org/p";
 
