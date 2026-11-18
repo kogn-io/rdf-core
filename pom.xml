@@ -57,7 +57,7 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<maven.compiler.release>25</maven.compiler.release>
 		<maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
-		<rdf4j.version>6.1.0</rdf4j.version>
+		<rdf4j.version>6.2.0-M2</rdf4j.version>
 		<slf4j.version>2.0.20</slf4j.version>
 		<lombok.version>1.18.48</lombok.version>
 		<jmolecules.version>2.0.1</jmolecules.version>
