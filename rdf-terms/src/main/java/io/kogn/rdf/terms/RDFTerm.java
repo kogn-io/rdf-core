@@ -15,7 +15,7 @@ public interface RDFTerm {
    * Returns this term as <a href="https://www.w3.org/TR/n-triples/">RDF 1.1 N-Triples</a>: an IRI in
    * angle brackets, a literal quoted and escaped as the grammar requires with {@code @tag} or
    * {@code ^^<datatype>}, a blank node as {@code _:label}. All implementations produce the same string for
-   * equal terms as defined by {@code equals}; the language tag is written as given, its case is preserved.
+   * equal terms as defined by {@code equals}; the language tag is written in lower case, as {@link Literal#getLanguageTag()} returns it.
    *
    * @return the N-Triples representation
    * @throws IllegalArgumentException if the term cannot be written as N-Triples (an IRI with a character the
