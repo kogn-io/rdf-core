@@ -36,6 +36,19 @@ class SimpleGraphTest {
   }
 
   @Test
+  void literalsWithLanguageTagsDifferingInCaseAreOneTriple() {
+    Graph graph = rdf.createGraph();
+
+    graph.add(alice, knows, rdf.createLiteral("o", "EN"));
+    graph.add(alice, knows, rdf.createLiteral("o", "en"));
+
+    assertThat(rdf.createLiteral("o", "EN")).isEqualTo(rdf.createLiteral("o", "en"));
+    assertThat(rdf.createLiteral("o", "EN").hashCode()).isEqualTo(rdf.createLiteral("o", "en").hashCode());
+    assertThat(rdf.createLiteral("o", "EN").getLanguageTag()).contains("en");
+    assertThat(graph.size()).isEqualTo(1);
+  }
+
+  @Test
   void duplicateTriplesAreDeduplicated() {
     Graph graph = rdf.createGraph();
 
