@@ -170,12 +170,14 @@ concern:
   or dropping a whole named graph is the exception, depending on the store: on
   RDF4J's `NativeStore` a concurrent `clear` of the graph (or a SPARQL `CLEAR`/
   `DROP` of it) conflicts with every pattern read in it, matched or not, while
-  the `MemoryStore` lets a pattern the clear did not touch commit. On both stores, clearing any one graph
-  makes every concurrent read across all graphs (`GRAPH ?g { … }`) fail with a
-  conflict at commit, while a read bound to another graph commits. A SPARQL `CLEAR ALL`/`DROP ALL` fails
-  every concurrent read of the cleared data on both stores (RDF4J 6.1.0's `NativeStore` missed it; 6.2.0-M2
-  does not). On a `NativeStore` a conflict can also come without any opposing
-  writer when other threads read outside transactions; retry every conflict there.
+  the `MemoryStore` lets a pattern the clear did not touch commit. On both
+  stores, clearing any one graph makes a concurrent `contains`/`count`/`ask`
+  read across all graphs (`GRAPH ?g { … }`) fail with a conflict at commit,
+  while a read bound to another graph commits. A SPARQL `CLEAR ALL`/`DROP ALL`
+  fails a concurrent `contains`/`count`/`ask` read of the cleared data on both
+  stores (RDF4J 6.1.0's `NativeStore` missed it; 6.2.0-M2 does not). On a
+  `NativeStore` a conflict can also come without any opposing writer when other
+  threads read outside transactions; retry every conflict there.
   Optimistic-concurrency guards belong
   here, not in `ask` — see the "Limits" notes on `DatasetTransactorRdf4j`. The
   loser of such a race fails at commit with the port's neutral

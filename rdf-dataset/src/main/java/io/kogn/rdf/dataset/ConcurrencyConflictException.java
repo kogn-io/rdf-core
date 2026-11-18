@@ -8,7 +8,8 @@ package io.kogn.rdf.dataset;
  *
  * <p>Thrown by {@link DatasetTransactor#inTransaction} when the transaction could not
  * be committed because a concurrently committed transaction on the same dataset
- * changed state this one had observed. Nothing of the losing transaction was written:
+ * changed state this one had observed (or, on some backends, was conservatively taken to have
+ * done so; see below). Nothing of the losing transaction was written:
  * it was rolled back in full.</p>
  *
  * <p>This is the neutral, backend-independent form of the isolation guarantee stated on
