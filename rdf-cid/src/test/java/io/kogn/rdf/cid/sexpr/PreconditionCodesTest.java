@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.SimpleRdf;
@@ -201,6 +203,47 @@ class PreconditionCodesTest {
   void everyCodeHasItsTypeAndPrefix(String code, String base, List<Triple> triples, Class<? extends Throwable> type) {
     assertThatThrownBy(() -> serializer.serializeWithIri(iri(base), triples)).isExactlyInstanceOf(type)
         .hasMessageStartingWith("[" + code + "] ");
+  }
+
+  private static final String DIR_LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString";
+
+  /** A literal of a foreign implementation; the term factory itself refuses {@code rdf:dirLangString}. */
+  private static Literal foreignLiteral(String datatype, String languageTag) {
+    return new Literal() {
+      @Override
+      public String ntriplesString() {
+        return "\"x\"";
+      }
+
+      @Override
+      public String getLexicalForm() {
+        return "x";
+      }
+
+      @Override
+      public IRI getDatatype() {
+        return iri(datatype);
+      }
+
+      @Override
+      public Optional<String> getLanguageTag() {
+        return Optional.ofNullable(languageTag);
+      }
+    };
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("dirLangStringLiterals")
+  @DisplayName("a literal of datatype rdf:dirLangString is an RDF 1.2 term, with or without a language tag")
+  void dirLangStringIsUnsupported(String name, Literal literal) {
+    assertThatThrownBy(() -> serializer.serializeWithIri(iri(BASE), List.of(triple(BASE, EX + "p", literal))))
+        .isExactlyInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("[UNSUPPORTED_TERM] ");
+  }
+
+  static Stream<Arguments> dirLangStringLiterals() {
+    return Stream.of(Arguments.of("without tag", foreignLiteral(DIR_LANG_STRING, null)),
+        Arguments.of("with tag", foreignLiteral(DIR_LANG_STRING, "en")));
   }
 
   @Test
