@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
@@ -287,6 +289,45 @@ class BaseRebaserTest {
         return object;
       }
     };
+  }
+
+  @Test
+  @DisplayName("a literal without a datatype reads as xsd:string, so renaming the XSD namespace renames it too")
+  void literalWithoutDatatypeIsRenamedAsXsdString() {
+    final IRI xsd = rdf.createIRI("http://www.w3.org/2001/XMLSchema");
+    final Graph graph = rdf.createGraph();
+    graph.add(rdf.createTriple(xsd, p, new LiteralWithoutDatatype("v")));
+    final IRI identifier = generator.generateIri(xsd, graph);
+
+    final Graph rebased = rebaser.rebase(graph, xsd, identifier);
+
+    assertThat(generator.generateIri(identifier, rebased)).isEqualTo(identifier);
+    final IRI renamedString = rdf.createIRI(identifier.getIRIString() + "#string");
+    assertThat(rebased.contains(rdf.createTriple(identifier, p, rdf.createLiteral("v", renamedString)))).isTrue();
+  }
+
+  /** A literal whose datatype is not given, which RDF 1.1 reads as {@code xsd:string}. */
+  private record LiteralWithoutDatatype(String lexicalForm) implements Literal {
+
+    @Override
+    public String ntriplesString() {
+      return "foreign";
+    }
+
+    @Override
+    public String getLexicalForm() {
+      return lexicalForm;
+    }
+
+    @Override
+    public IRI getDatatype() {
+      return null;
+    }
+
+    @Override
+    public Optional<String> getLanguageTag() {
+      return Optional.empty();
+    }
   }
 
   private static ReadableGraph graphOf(final Triple triple) {
