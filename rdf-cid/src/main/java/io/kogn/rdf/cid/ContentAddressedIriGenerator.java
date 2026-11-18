@@ -50,7 +50,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * <p>Keeping the base out is what lets a resource carry its own identifier: describe it under
  * any provisional IRI, generate the identifier, rename the base to it (and every
  * {@code <base#part>} to {@code <ni:///sha3-256;...#part>}), in every position including
- * datatypes; generating again over the renamed graph, with the identifier as base, returns the
+ * the datatype of a literal without a language tag; generating again over the renamed graph, with the identifier as base, returns the
  * same identifier, so a reader can verify it. Two graphs that describe the same thing under
  * different base IRIs are therefore the same content. Every other IRI the data uses is part of
  * the content.</p>
