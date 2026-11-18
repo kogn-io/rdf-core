@@ -157,10 +157,22 @@ final class Preconditions {
       literal.getLanguageTag().ifPresent(tag -> requireCodePoints(tag, position, "language tag"));
       if (literal.getDatatype() != null) {
         requireString(literal.getDatatype().getIRIString(), "datatype IRI string", position, term);
+        rejectDirLangString(literal, position);
       }
     }
     default -> {
     }
+    }
+  }
+
+  /**
+   * Rejects a literal whose datatype is {@code rdf:dirLangString}: that datatype marks an RDF 1.2
+   * literal with a base direction, with or without a language tag in the foreign term.
+   */
+  private static void rejectDirLangString(Literal literal, String position) {
+    if (Terms.RDF_DIR_LANG_STRING.equals(literal.getDatatype().getIRIString())) {
+      throw failure(UNSUPPORTED_TERM, "The " + position + " is a literal of datatype rdf:dirLangString, "
+          + "an RDF 1.2 term that ni-rdf/1 does not admit");
     }
   }
 

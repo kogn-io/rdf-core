@@ -19,6 +19,7 @@ final class Terms {
 
   /** Datatype IRI of every language-tagged literal (RDF 1.1). */
   static final String RDF_LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString";
+  static final String RDF_DIR_LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString";
 
   /** Prefix that marks a blank node identifier in the titanium quad API and in N-Quads. */
   static final String BLANK_NODE_PREFIX = "_:";
