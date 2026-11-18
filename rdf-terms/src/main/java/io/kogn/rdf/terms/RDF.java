@@ -42,8 +42,8 @@ public interface RDF extends IRIFactory {
    * Creates a new literal with a string value and language tag.
    *
    * @param lexicalForm the string value
-   * @param languageTag the language tag (e.g., "en", "de"); stored in lower case, so tags differing only in case
-   *     yield equal literals
+   * @param languageTag the language tag (e.g., "en", "de"); the literal reports it in lower case, so tags differing
+   *     only in case yield equal literals
    * @return the literal instance
    * @throws NullPointerException if {@code lexicalForm} or {@code languageTag} is {@code null}
    * @throws IllegalArgumentException if {@code languageTag} is empty
