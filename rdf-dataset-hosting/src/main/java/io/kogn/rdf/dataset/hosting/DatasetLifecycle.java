@@ -192,8 +192,10 @@ public interface DatasetLifecycle {
    * <p><strong>Last resort — does not honour open leases.</strong> Unlike
    * {@link #close(DatasetId)} and {@link #delete(DatasetId)}, this call tears every
    * store down unconditionally, including ones with an open {@link DatasetHandle};
-   * such a handle keeps pointing at the shut-down store and fails with whatever the
-   * backend raises for it. Call it only when the process is going down anyway, never
+   * such a handle keeps pointing at the shut-down store, and using it fails with the
+   * port's storage failure ({@code DatasetStorageException} for the graph operations and
+   * transactions, {@code SparqlEvaluationException} for SPARQL, {@code RdfExportException}
+   * for the export) — it never starts the store again. Call it only when the process is going down anyway, never
    * as a substitute for releasing leases in the normal course of business. Persisted storage stays
    * untouched; the contents of an {@code IN_MEMORY} dataset are lost, as with
    * {@link #close(DatasetId)}. Calling it when nothing is open is a no-op.</p>
