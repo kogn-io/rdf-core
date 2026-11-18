@@ -181,19 +181,19 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     final Graph old = draftOf(tx, proxyIri, replaced);
     requireNoSharedBlankNode(tx, copy, old, proxyIri);
 
-    // Add before remove: the backend may reject a term of the new content, and it does so before
-    // the first change, so a caller that catches the rejection still holds the old draft.
+    // Add first: the backend may reject a term of the new content, and it does so before the
+    // first change, so a caller that catches the rejection still holds the old draft. Then
+    // remove the whole old slice and add again: computing old minus new here would compare by
+    // the data model's equality, which can differ from the backend's, and lose a triple the
+    // first add skipped as present. The second add cannot fail on a term the first accepted.
     if (!copy.isEmpty()) {
       tx.add(contentGraph, copy);
     }
-    final Graph dropped = new SimpleGraph();
-    for (final Triple triple : old.stream().toList()) {
-      if (!copy.contains(triple)) {
-        dropped.add(triple);
+    if (!old.isEmpty()) {
+      tx.remove(contentGraph, old);
+      if (!copy.isEmpty()) {
+        tx.add(contentGraph, copy);
       }
-    }
-    if (!dropped.isEmpty()) {
-      tx.remove(contentGraph, dropped);
     }
     reindexFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT, oldFragments, newFragments);
     final long next = raiseCounter(tx, proxyIri, counter, current);

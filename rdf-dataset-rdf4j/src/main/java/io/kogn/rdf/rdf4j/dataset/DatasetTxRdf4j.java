@@ -86,7 +86,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * front, by every operation alike, as an {@link IllegalStateException} — never as one of those
  * two failure types, which a caller may treat as transient.</p>
  *
- * <p>Every operation converts its terms to RDF4J values before it touches the connection, and
+ * <p>Every operation converts its terms to RDF4J values before it writes anything, and
  * {@link #add}/{@link #remove} convert the whole graph before the first triple. RDF4J validates
  * terms that {@code rdf-terms} lets through: an IRI it cannot parse (a space, one of
  * {@code <>"{}|^`}, a second {@code #}), an invalid language tag, and a literal whose lexical
