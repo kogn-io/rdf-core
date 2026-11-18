@@ -35,6 +35,16 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@link DatasetTx#contains(IRI, io.kogn.rdf.terms.BlankNodeOrIRI, IRI,
  * io.kogn.rdf.terms.RDFTerm) contains}, not {@code ASK} (ADR-0008).</p>
  *
+ * <p><strong>Terms the backend rejects.</strong> A backend may refuse a term the data model
+ * accepts (see {@link io.kogn.rdf.dataset.GraphStore#add GraphStore#add}): the RDF4J backend
+ * rejects an IRI it cannot parse, such as one with a space or a second {@code #}, an ill-typed
+ * literal and an invalid language tag. The operations report that as an
+ * {@link IllegalArgumentException} and raise it before their first write, so a caller that
+ * catches it inside the transaction and commits still finds the dataset as it was (apart from
+ * the binding of the content graph on first use): {@link #replaceSlice} hands the new content
+ * to the store before it removes the old draft, {@link #publish} and {@link #delete} write the
+ * history entry, which carries the caller's creator, before anything else.</p>
+ *
  * <p><strong>Concurrency and cost.</strong> The sole implementation reads by statement
  * pattern ({@link DatasetTx#match}, {@link DatasetTx#contains}), every pattern bound to the
  * proxy IRI of the operation or to the CID, history entries, fragment IRIs and blank nodes
@@ -216,7 +226,8 @@ public interface ResourceVersioning {
    * @return the slice and its token; never {@code null}
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
-   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or the
+   *     backend rejects it
    * @throws IllegalStateException if {@code tx} has already ended, or the revision
    *     counter or the fragment index in the history graph is malformed
    * @throws DatasetStorageException if the backend fails
@@ -266,8 +277,9 @@ public interface ResourceVersioning {
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
    * @throws IllegalArgumentException if {@code content} holds a triple outside the slice,
-   *     if {@code proxyIri} contains a {@code #} or if {@code expected} belongs to
-   *     another proxy IRI
+   *     if {@code proxyIri} contains a {@code #}, if {@code expected} belongs to another
+   *     proxy IRI, or if the backend rejects a term of {@code content} or {@code proxyIri};
+   *     the draft and the counter are then unchanged
    * @throws IllegalStateException if {@code tx} has already ended, or the revision
    *     counter or the fragment index in the history graph is malformed
    * @throws DatasetStorageException if the backend fails
@@ -310,7 +322,8 @@ public interface ResourceVersioning {
    * written (apart from the binding of the content graph on first use): every token is
    * checked, every CID derived, and the published view, its fragment index and the content
    * store are looked up for every proxy IRI, so a failure for any proxy IRI leaves the
-   * transaction as it was; if {@code tx} aborts, published view, content store, history
+   * transaction as it was. The first write is a history entry, the only one carrying a term
+   * of the caller (the creator), so a backend rejecting that term changes nothing either; if {@code tx} aborts, published view, content store, history
    * and counters are unchanged. A stale token is reported, never retried. The first
    * sequence number and the first copy of a CID are looked up with
    * {@link DatasetTx#contains} (ADR-0008). Reading the draft may bind the dataset to the
@@ -328,7 +341,8 @@ public interface ResourceVersioning {
    * @throws IllegalArgumentException if two tokens belong to the same proxy IRI, or the
    *     CID of a draft cannot be derived because it violates a precondition of
    *     {@code ContentAddressedIriGenerator#generateIri}: an empty draft, a reserved
-   *     IRI, a term outside RDF 1.1
+   *     IRI, a term outside RDF 1.1; or the backend rejects the creator of {@code details},
+   *     before anything is written
    * @throws io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException if a draft
    *     exceeds the cost limit of ni-rdf/1
    * @throws io.kogn.rdf.cid.ContentAddressingException if the identifier of a draft
@@ -380,8 +394,9 @@ public interface ResourceVersioning {
    *     a triple of the content graph outside this slice
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
-   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
-   *     {@code expected} belongs to another proxy IRI
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #},
+   *     {@code expected} belongs to another proxy IRI, or the backend rejects
+   *     {@code proxyIri} or the creator of {@code details}, before anything is written
    * @throws IllegalStateException if {@code tx} has already ended, or the history graph
    *     is malformed: a revision counter, an entry or a fragment index of the proxy IRI
    *     that does not read back
@@ -411,7 +426,8 @@ public interface ResourceVersioning {
    *     {@link #delete delete}; never {@code null}
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
-   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or the backend
+   *     rejects it
    * @throws IllegalStateException if {@code tx} has already ended, or the fragment index
    *     of the proxy IRI in the history graph is malformed
    * @throws DatasetStorageException if the backend fails
@@ -444,7 +460,8 @@ public interface ResourceVersioning {
    *     none under {@code cid}
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
-   * @throws IllegalArgumentException if {@code cid} contains a {@code #}
+   * @throws IllegalArgumentException if {@code cid} contains a {@code #} or the backend
+   *     rejects it
    * @throws IllegalStateException if {@code tx} has already ended, a subject of a
    *     {@code versioning:content} triple naming the CID in the history is not an IRI, or
    *     a history entry naming the CID, of any proxy IRI, records malformed fragment IRIs
@@ -479,8 +496,8 @@ public interface ResourceVersioning {
    *     it is a tombstone, or the store holds no content for it
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
-   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or
-   *     {@code sequence} is less than 1
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or the backend
+   *     rejects it, or {@code sequence} is less than 1
    * @throws IllegalStateException if {@code tx} has already ended, the history of the
    *     proxy IRI is malformed or not gapless, a subject of a {@code versioning:content}
    *     triple naming the CID of the entry is not an IRI, or a history entry naming that
@@ -507,7 +524,8 @@ public interface ResourceVersioning {
    * @return the entries by ascending sequence number; never {@code null}
    * @throws ContentGraphMismatchException if the dataset is bound to another content
    *     graph
-   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or the backend
+   *     rejects it
    * @throws IllegalStateException if {@code tx} has already ended, or the history of the
    *     proxy IRI is malformed or not gapless
    * @throws DatasetStorageException if the backend fails
@@ -541,8 +559,8 @@ public interface ResourceVersioning {
    * @param proxyIri the proxy IRI; must not be {@code null} and must not contain a
    *     {@code #}
    * @return the state; never {@code null}
-   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #}, or the CID
-   *     of the draft cannot be derived because it violates a precondition of
+   * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or the
+   *     backend rejects it, or the CID of the draft cannot be derived because it violates a precondition of
    *     {@code ContentAddressedIriGenerator#generateIri}: a reserved IRI, a term outside
    *     RDF 1.1
    * @throws io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException if the draft

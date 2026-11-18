@@ -28,6 +28,15 @@ import io.kogn.rdf.terms.ReadableGraph;
  * caller as the neutral {@link DatasetStorageException} on every operation, never as a backend
  * type; the original is kept as cause. A defect of the call ({@code null} arguments) is not a
  * storage failure and keeps its own type.</p>
+ *
+ * <p>A backend may reject a term the data model accepts: {@link io.kogn.rdf.terms} checks
+ * little more than RDF 1.1 requires, a backend may check more. The RDF4J backend, for one,
+ * rejects an IRI it cannot parse (a space, one of {@code <>"{}|^`}, a second {@code #}), a
+ * literal whose lexical form is not valid for its datatype (an ill-typed literal, legal in
+ * RDF 1.1, such as {@code "abc"^^xsd:integer}) and an invalid language tag. Such a term is a
+ * defect of the call, not a failure of the store: it is reported as an
+ * {@link IllegalArgumentException}, and a writing operation reports it before it writes the
+ * first triple of the call.</p>
  */
 public interface GraphStore {
 
@@ -47,6 +56,8 @@ public interface GraphStore {
    *     delta shares the exactness guarantee of {@link #count(IRI)}: it is exact
    *     wherever the implementation's triple count is exact, and no more precise
    *     than an estimate where the count is one.
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
+   *     {@code triples}; nothing of the call is written then
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   long add(IRI namedGraph, ReadableGraph triples);
@@ -67,6 +78,8 @@ public interface GraphStore {
    *     the exactness guarantee of {@link #count(IRI)}: it is exact wherever the
    *     implementation's triple count is exact, and no more precise than an
    *     estimate where the count is one.
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
+   *     {@code triples}; nothing of the call is removed then
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   long remove(IRI namedGraph, ReadableGraph triples);
@@ -78,6 +91,7 @@ public interface GraphStore {
    * enumeration if the underlying store only tracks non-empty graphs.</p>
    *
    * @param namedGraph IRI identifying the named graph to clear; must not be {@code null}
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   void clear(IRI namedGraph);
@@ -94,6 +108,7 @@ public interface GraphStore {
    * @param namedGraph IRI identifying the named graph to export; must not be {@code null}
    * @return a snapshot of all triples in the named graph
    * @throws IllegalStateException if the named graph holds an RDF 1.2 triple term
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    * @see DatasetExport#export(java.io.OutputStream, RdfFormat, IRI)
    */
@@ -111,6 +126,7 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the named graph; must not be {@code null}
    * @return triple count; {@code 0} if the named graph does not exist
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
   long count(IRI namedGraph);
