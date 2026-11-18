@@ -137,7 +137,7 @@ import io.kogn.rdf.terms.SimpleRdf;
  * is always a predicate path, so {@code ex:p sh:inversePath ex:p} is no cycle and stays
  * allowed.</p>
  *
- * <h2>Constructs RDF4J does not evaluate are rejected</h2>
+ * <h2>SHACL Core and SHACL-SPARQL constructs RDF4J does not evaluate are rejected</h2>
  *
  * <p>RDF4J accepts some SHACL constructs without evaluating them: it switches off a property
  * shape whose path holds a repetition, has no validation plan for {@code sh:xone}, and never
@@ -161,6 +161,22 @@ import io.kogn.rdf.terms.SimpleRdf;
  * {@code sh:qualifiedValueShape}, or in a statement no shape reaches.
  * SPARQL-based constraints ({@code sh:sparql}) are evaluated and stay allowed, as do sequence,
  * alternative and inverse paths.</p>
+ *
+ * <p>This list is complete for SHACL Core and the SHACL-SPARQL constraints, the scope of the
+ * port's promise. Outside that scope RDF4J still accepts constructs without evaluating them, and
+ * this adapter does not reject them; a shape relying on one can yield a <strong>silently
+ * conforming report</strong>:</p>
+ *
+ * <ul>
+ *   <li>a SHACL Advanced Features target other than {@code sh:SPARQLTarget} — a value of
+ *       {@code sh:target} typed with a custom {@code sh:SPARQLTargetType}, for instance, selects
+ *       nothing;</li>
+ *   <li>any {@code sh:} predicate RDF4J does not know, such as SHACL-JS ({@code sh:js},
+ *       {@code sh:jsValidator}, ...) or the SHACL Advanced Features' {@code sh:expression} —
+ *       RDF4J only logs a warning;</li>
+ *   <li>DASH, constraints ({@code dash:hasValueIn}, ...) as well as targets, and RDF4J's own
+ *       {@code rdf4j-ext:} vocabulary, both switched off as described above.</li>
+ * </ul>
  *
  * <h2>Shapes-graph links are ignored</h2>
  *
