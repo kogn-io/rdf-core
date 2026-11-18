@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import io.kogn.rdf.cid.AsWrittenLiteral;
+import io.kogn.rdf.cid.AsWrittenRdf;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDF;
@@ -37,8 +39,9 @@ class ContentAddressableRdfSerializerTest {
 
   private static final String RESERVED = ContentAddressableRdfSerializer.RESERVED_IRI;
 
+  // AsWrittenRdf keeps tags as written, so the lower-casing tested here is the serializer's own.
   private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
-      new RdfDatasetCanonicalizer());
+      new RdfDatasetCanonicalizer(), new AsWrittenRdf());
   private final RDF rdf = new SimpleRdf();
   private final IRI self = rdf.createIRI("http://example.org/doc");
   private final IRI p = rdf.createIRI("http://example.org/p");
@@ -149,7 +152,7 @@ class ContentAddressableRdfSerializerTest {
   @Test
   @DisplayName("two spellings of one language tag are one literal, and one triple")
   void twoSpellingsOfOneLanguageTagCollapse() {
-    List<Triple> both = List.of(rdf.createTriple(self, p, rdf.createLiteral("x", "EN")),
+    List<Triple> both = List.of(rdf.createTriple(self, p, new AsWrittenLiteral("x", "EN")),
         rdf.createTriple(self, p, rdf.createLiteral("x", "en")));
     List<Triple> one = List.of(rdf.createTriple(self, p, rdf.createLiteral("x", "en")));
 
@@ -167,7 +170,7 @@ class ContentAddressableRdfSerializerTest {
     BlankNode other = rdf.createBlankNode("other");
     IRI q = rdf.createIRI("http://example.org/q");
     return List.of(rdf.createTriple(self, p, tagged), rdf.createTriple(self, p, other),
-        rdf.createTriple(tagged, q, rdf.createLiteral("v" + value, tag)),
+        rdf.createTriple(tagged, q, new AsWrittenLiteral("v" + value, tag)),
         rdf.createTriple(other, q, rdf.createLiteral("v" + value, "de")));
   }
 
