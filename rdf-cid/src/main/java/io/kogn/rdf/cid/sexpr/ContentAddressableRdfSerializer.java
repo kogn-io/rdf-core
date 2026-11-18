@@ -40,8 +40,8 @@ import io.kogn.rdf.terms.Triple;
  *       the terms are recreated through the term factory, so no later step depends on the
  *       {@code equals} of a foreign term implementation;</li>
  *   <li>language tags are lower-cased (§4.1);</li>
- *   <li>the base IRI and its fragment IRIs are mapped, in every position including datatype
- *       IRIs, onto the reserved IRI {@value #RESERVED_IRI} and its fragment IRIs (§4.2), so
+ *   <li>the base IRI and its fragment IRIs are mapped, in every position including the datatype
+ *       IRI of a literal without a language tag ({@code rdf:langString} is never mapped), onto the reserved IRI {@value #RESERVED_IRI} and its fragment IRIs (§4.2), so
  *       neither the blank node labels nor the digest can depend on the base IRI;</li>
  *   <li>the resource limit of §4.3 is checked and the blank nodes are labelled with RDFC-1.0
  *       (§4.4), both by {@link RdfDatasetCanonicalizer};</li>
@@ -185,7 +185,8 @@ public class ContentAddressableRdfSerializer {
 
   /**
    * Applies §4.1 and §4.2 to a triple: language tags lower-cased, the base IRI and its fragment
-   * IRIs mapped onto the reserved IRI in every position, a literal's datatype IRI included.
+   * IRIs mapped onto the reserved IRI in every position, the datatype IRI of a literal without a
+   * language tag included ({@code rdf:langString} is never mapped).
    * Mapped triples that become equal (two spellings of one language tag) collapse into one, as
    * RDF 1.1 compares language tags case-insensitively.
    */

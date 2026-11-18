@@ -35,8 +35,8 @@
  *
  * <p>One IRI is the exception: the <em>base IRI</em> of the described resource, which the
  * caller passes in rather than having it inferred from the triples. It goes into
- * the digest as a fixed self placeholder in every position — subject, predicate, object and a
- * literal's datatype — and its fragment IRIs ({@code <base#part>}) by their fragment alone, the
+ * the digest as a fixed self placeholder in every position — subject, predicate, object and the
+ * datatype of a literal without a language tag ({@code rdf:langString} is never mapped) — and its fragment IRIs ({@code <base#part>}) by their fragment alone, the
  * part after the first {@code #}. Two graphs describing the same thing under
  * different base IRIs are therefore the same content — which is what lets a resource be
  * renamed to its own identifier and still verify against it. Every other IRI in the data is
