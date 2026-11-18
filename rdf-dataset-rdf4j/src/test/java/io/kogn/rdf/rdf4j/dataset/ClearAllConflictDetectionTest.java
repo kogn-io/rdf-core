@@ -104,9 +104,10 @@ class ClearAllConflictDetectionTest {
   }
 
   /**
-   * Seeds the graph with one premise triple, lets a transaction read it, then a second transaction
-   * {@code CLEAR ALL} and commit, then the first writes a triple depending on the premise and commits;
-   * returns what the first transaction ended with, {@code null} for a commit.
+   * Seeds one premise triple in {@code GRAPH} and one triple in {@code OTHER_GRAPH}, lets a transaction
+   * run {@code guard}, then a second transaction runs the SPARQL update {@code clear} and commits, then
+   * the first writes a triple depending on the premise into {@code GRAPH} and commits; returns what the
+   * first transaction ended with, {@code null} for a commit.
    */
   private Throwable readThenConcurrentClear(final Repository repository, final Consumer<DatasetTx> guard,
       final String clear) throws InterruptedException {
