@@ -2276,8 +2276,10 @@ class DatasetRdf4jTest {
         + " (issue #238)")
     void inTransaction_readOverAllGraphsThenConcurrentClear_onNativeStore_commitFailsAsConflict(
         @TempDir final Path tempDir) throws InterruptedException {
-      // given — GRAPH ?g makes the read observe its pattern over all contexts, the cleared GRAPH_2
-      // included, so the clear is a change the read could have seen.
+      // given — GRAPH ?g makes the read observe its pattern over all contexts. GRAPH_2 holds no
+      // triple about SUBJECT, so the clear removes nothing the read matched; RDF4J's sail-base
+      // Changeset still counts a pattern observed over all contexts as changed by any cleared
+      // context, whatever the clear removed.
       final String anyGraph = "ASK { GRAPH ?g { <" + SUBJECT.getIRIString() + "> ?p ?o } }";
 
       // when
@@ -2327,8 +2329,12 @@ class DatasetRdf4jTest {
         Throwable outcome = null;
         try {
           backendTransactor.inTransaction(tx -> {
-            reader.accept(tx);
-            readDone.countDown();
+            try {
+              reader.accept(tx);
+            } finally {
+              // a failing read must still release the clearer, or join() below never returns
+              readDone.countDown();
+            }
             awaitUninterruptibly(clearCommitted);
             return null;
           });
