@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -23,6 +24,7 @@ import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
 import io.kogn.rdf.terms.SimpleGraph;
@@ -43,6 +45,7 @@ class ResourceVersioningSliceTest {
   private static final IRI AB = new SimpleIRI("https://example.org/res/AB");
   private static final IRI P = new SimpleIRI("https://example.org/vocab/p");
   private static final IRI Q = new SimpleIRI("https://example.org/vocab/q");
+  private static final IRI LANG_STRING = new SimpleIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
 
   private final SimpleRdf rdf = new SimpleRdf();
   private Repository repository;
@@ -303,6 +306,48 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
+  void aTripleTheBackendHoldsUnderAnotherSpellingOfItsLanguageTagStaysInTheDraft() {
+    // given: a draft whose language tag the store holds in mixed case, written past rdf-terms,
+    // which RDF4J treats as equal to the lower-case tag and rdf-terms does not
+    transactor.inTransaction(tx -> {
+      tx.update("INSERT DATA { GRAPH <" + CONTENT.getIRIString() + "> { <" + A.getIRIString() + "> <" + P.getIRIString()
+          + "> \"x\"@en-US } }");
+      return null;
+    });
+    final Graph content = graph();
+    content.add(A, P, rdf.createLiteral("x", "en-us"));
+    content.add(A, Q, rdf.createLiteral("y"));
+
+    // when
+    write(A, content, read(A).token());
+
+    // then
+    final ReadableGraph draft = read(A).triples();
+    assertThat(draft.size()).isEqualTo(2);
+    assertThat(draft.stream(A, P, null).count()).isEqualTo(1);
+  }
+
+  @Test
+  void aTripleTheBackendTakesForAnOldOneStaysInTheDraftEvenIfTheDataModelTellsThemApart() {
+    // given: the same literal in the draft and, under a tag spelled in mixed case, in the new
+    // content; RDF4J takes them for one triple, a Literal that keeps the case does not
+    final Graph old = graph();
+    old.add(A, P, rdf.createLiteral("x", "en-us"));
+    final RevisionToken token = write(A, old, read(A).token());
+    final Graph content = graph();
+    content.add(A, P, new CaseKeepingLiteral("x", "en-US"));
+    content.add(A, Q, rdf.createLiteral("y"));
+
+    // when
+    write(A, content, token);
+
+    // then
+    final ReadableGraph draft = read(A).triples();
+    assertThat(draft.size()).isEqualTo(2);
+    assertThat(draft.stream(A, P, null).count()).isEqualTo(1);
+  }
+
+  @Test
   void aBlankNodeOfTheReplacedSliceThatAnotherSliceUsesIsRejectedEvenIfTheNewContentDropsIt() {
     final BlankNode shared = rdf.createBlankNode("shared");
     final Graph existing = graph();
@@ -445,5 +490,32 @@ class ResourceVersioningSliceTest {
 
   private long historyCounters() {
     return transactor.inTransaction(tx -> tx.count(VersioningGraphs.HISTORY));
+  }
+
+  /**
+   * A literal that keeps the case of its language tag and compares it case-sensitively, against
+   * the contract of {@link Literal}: stands for any term whose equality differs from the backend's.
+   */
+  private record CaseKeepingLiteral(String lexicalForm, String tag) implements Literal {
+
+    @Override
+    public String getLexicalForm() {
+      return lexicalForm;
+    }
+
+    @Override
+    public IRI getDatatype() {
+      return LANG_STRING;
+    }
+
+    @Override
+    public Optional<String> getLanguageTag() {
+      return Optional.of(tag);
+    }
+
+    @Override
+    public String ntriplesString() {
+      return "\"" + lexicalForm + "\"@" + tag;
+    }
   }
 }
