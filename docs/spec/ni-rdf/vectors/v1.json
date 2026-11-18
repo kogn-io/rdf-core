@@ -354,6 +354,22 @@
       "input": "<http://example.org/a> <http://example.org/vocab#p> _:b .\n_:b <http://example.org/vocab#q> \"v\"^^<http://example.org/a> .\n_:b <http://example.org/vocab#q> \"w\"^^<http://example.org/a#t> .\n",
       "name": "ni:///sha3-256;da4FFz0F0YzRmdCB7_IopjVchWuoI1Mo3UcBFPQlnG0",
       "hashed": "(8:ni-rdf/1(1:B5:c14n01:I26:http://example.org/vocab#q1:L1:v1:S0:)(1:B5:c14n01:I26:http://example.org/vocab#q1:L1:w1:F1:t0:)(1:S1:I26:http://example.org/vocab#p1:B5:c14n0))"
+    },
+    {
+      "id": "base-rdf-namespace-language-tag",
+      "description": "The base IRI is the RDF namespace and a literal carries a language tag: §4.2 never maps the datatype rdf:langString of a tagged literal, so it stays an ordinary IRI (I) in the hashed input and is not the placeholder S.",
+      "base": "http://www.w3.org/1999/02/22-rdf-syntax-ns",
+      "input": "<http://www.w3.org/1999/02/22-rdf-syntax-ns> <http://example.org/vocab#label> \"type\"@en .\n",
+      "name": "ni:///sha3-256;PtwLeN7S1zr_d3jjX7E8RzBVraMZdmgzg0b9-Qc_Olc",
+      "hashed": "(8:ni-rdf/1(1:S1:I30:http://example.org/vocab#label1:L4:type1:I53:http://www.w3.org/1999/02/22-rdf-syntax-ns#langString2:en))"
+    },
+    {
+      "id": "base-xsd-namespace-plain-literal",
+      "description": "The base IRI is the XML Schema namespace and a literal has no language tag: its datatype xsd:string is a fragment IRI of the base and is mapped to F (§4.2), unlike rdf:langString in \"base-rdf-namespace-language-tag\".",
+      "base": "http://www.w3.org/2001/XMLSchema",
+      "input": "<http://www.w3.org/2001/XMLSchema> <http://example.org/vocab#label> \"type\" .\n",
+      "name": "ni:///sha3-256;h093TPB3oJIr3FzikvUtSY-w8Q1Y9NkA3y-hqdWYEO0",
+      "hashed": "(8:ni-rdf/1(1:S1:I30:http://example.org/vocab#label1:L4:type1:F6:string0:))"
     }
   ]
 }

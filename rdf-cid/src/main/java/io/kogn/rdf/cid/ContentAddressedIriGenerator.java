@@ -35,7 +35,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  * {@code #}) that the caller passes alongside it: the identifier is that of a resource, not of
  * an arbitrary graph, and which resource is meant is the caller's to say, never inferred from
  * the triples. The base IRI itself stays out of the hash: wherever it occurs — subject,
- * predicate, object or a literal's datatype — it goes in as a fixed self placeholder, and each
+ * predicate, object or the datatype of a literal without a language tag — it goes in as a fixed
+ * self placeholder (the datatype {@code rdf:langString} of a tagged literal is never mapped,
+ * even if the base IRI is the RDF namespace), and each
  * of its fragment IRIs ({@code <base#part>}) as its fragment alone: everything after the first
  * {@code #}, further {@code #} characters included, possibly empty. Every other term goes in
  * in full: an IRI by its IRI string, a literal by its lexical form, its datatype <em>and</em>
