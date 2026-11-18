@@ -70,7 +70,8 @@ public interface DatasetExport {
    * @throws NullPointerException if {@code out} or {@code format} is {@code null}
    * @throws IllegalArgumentException if {@code format} is not
    *     {@linkplain RdfFormat#isQuadCapable() quad-capable}
-   * @throws RdfExportException if writing to {@code out} fails
+   * @throws RdfExportException if writing to {@code out} fails, or the store cannot be read —
+   *     for instance because it is shut down
    */
   void export(OutputStream out, RdfFormat format);
 
@@ -93,7 +94,8 @@ public interface DatasetExport {
    *     {@code null}
    * @throws NullPointerException if {@code out}, {@code format} or {@code namedGraph} is
    *     {@code null}
-   * @throws RdfExportException if writing to {@code out} fails
+   * @throws RdfExportException if writing to {@code out} fails, or the store cannot be read —
+   *     for instance because it is shut down
    */
   void export(OutputStream out, RdfFormat format, IRI namedGraph);
 }

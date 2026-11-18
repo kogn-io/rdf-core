@@ -226,8 +226,11 @@ RDF4J types to callers ([ADR-0005](docs/adr/0005-rdf4j-backend-for-dataset-ports
 - `GraphStoreRdf4j` / `SparqlQueryRdf4j` / `SparqlUpdateRdf4j` /
   `DatasetExportRdf4j` / `DatasetTransactorRdf4j` (with the package-private
   `DatasetTxRdf4j`) each wrap a *caller-supplied* `Repository` and are
-  store-agnostic — hand them a `Repository` from anywhere and they work. They do
-  not build a store; assembling one is the hosting adapter's job (below).
+  store-agnostic — hand them an initialized `Repository` from anywhere and they
+  work. They never initialize it themselves: on a repository that is shut down
+  (or was never initialized) every operation fails with the port's failure type
+  instead of starting the store again. They do not build a store; assembling one
+  is the hosting adapter's job (below).
 - `DatasetExportRdf4j` streams: `RepositoryConnection#export` feeds a `Rio`
   writer that writes straight to the caller's stream, so no intermediate `Model`
   is built and a dataset larger than memory can still be dumped. The four writer

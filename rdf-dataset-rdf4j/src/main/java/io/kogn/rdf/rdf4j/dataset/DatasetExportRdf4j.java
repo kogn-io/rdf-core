@@ -111,7 +111,7 @@ public class DatasetExportRdf4j implements DatasetExport {
       // so a blanket catch here cannot mask them — it only closes the door on RDF4J types, known
       // or not yet encountered, that would otherwise leak through a port whose contract is to
       // keep the backend out of the consumer. Kept as cause so the caller can see what happened.
-      throw new RdfExportException("failed to write the " + format + " export to the output stream", e);
+      throw new RdfExportException("failed to export the dataset as " + format, e);
     }
   }
 
