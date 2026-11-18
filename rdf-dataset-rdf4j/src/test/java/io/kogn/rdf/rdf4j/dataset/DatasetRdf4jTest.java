@@ -22,6 +22,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.common.iteration.CloseableIteration;
@@ -65,6 +66,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.ConcurrencyConflictException;
 import io.kogn.rdf.dataset.DatasetStorageException;
+import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.dataset.MalformedSparqlException;
 import io.kogn.rdf.dataset.RdfExportException;
 import io.kogn.rdf.dataset.RdfFormat;
@@ -2251,6 +2253,96 @@ class DatasetRdf4jTest {
 
       // then
       assertThat(outcome).isNull();
+    }
+
+    @Test
+    @DisplayName("NativeStore — a concurrent clear of another named graph lets a match in GRAPH_1 commit"
+        + " (issue #238)")
+    void inTransaction_matchThenConcurrentClearOfOtherGraph_onNativeStore_commits(@TempDir final Path tempDir)
+        throws InterruptedException {
+      // given — the match observes a pattern in GRAPH_1 only, the clear removes GRAPH_2. RDF4J
+      // 6.1.0's Changeset records the cleared context without a deprecated-statement set and
+      // throws a NullPointerException at commit for every pattern observed in another context.
+      // when
+      final Throwable outcome = readThenConcurrentClearOfGraph2(tempDir,
+          tx -> assertThat(tx.match(GRAPH_1, SUBJECT, null, null).size()).isEqualTo(1L));
+
+      // then
+      assertThat(outcome).isNull();
+    }
+
+    @Test
+    @DisplayName("NativeStore — a concurrent clear of a named graph fails a read over all graphs as a conflict"
+        + " (issue #238)")
+    void inTransaction_readOverAllGraphsThenConcurrentClear_onNativeStore_commitFailsAsConflict(
+        @TempDir final Path tempDir) throws InterruptedException {
+      // given — GRAPH ?g makes the read observe its pattern over all contexts, the cleared GRAPH_2
+      // included, so the clear is a change the read could have seen.
+      final String anyGraph = "ASK { GRAPH ?g { <" + SUBJECT.getIRIString() + "> ?p ?o } }";
+
+      // when
+      final Throwable outcome = readThenConcurrentClearOfGraph2(tempDir, tx -> assertThat(tx.ask(anyGraph)).isTrue());
+
+      // then
+      assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class)
+          .hasRootCauseInstanceOf(SailConflictException.class);
+    }
+
+    /**
+     * On a {@code NativeStore}, seeds {@code GRAPH_1} with the single triple about {@code SUBJECT}
+     * and {@code GRAPH_2} with one about another subject, runs {@code reader} in a transaction, lets
+     * a second transaction clear {@code GRAPH_2} and commit, then commits; returns what the first
+     * transaction ended with, {@code null} for a commit.
+     */
+    private Throwable readThenConcurrentClearOfGraph2(final Path tempDir, final Consumer<DatasetTx> reader)
+        throws InterruptedException {
+      final Repository backendRepository = Backend.NATIVE.create(tempDir);
+      backendRepository.init();
+      try {
+        final GraphStoreRdf4j backendStore = new GraphStoreRdf4j(backendRepository);
+        final DatasetTransactorRdf4j backendTransactor = new DatasetTransactorRdf4j(backendRepository);
+        final Graph other = rdf.createGraph();
+        other
+            .add(rdf.createTriple(RDF4JIRI.of("https://example.org/other-subject"), PREDICATE, rdf.createLiteral("x")));
+        backendStore.add(GRAPH_1, singleTripleGraph());
+        backendStore.add(GRAPH_2, other);
+        final CountDownLatch readDone = new CountDownLatch(1);
+        final CountDownLatch clearCommitted = new CountDownLatch(1);
+        final AtomicReference<Throwable> clearFailure = new AtomicReference<>();
+        final Thread clearer = new Thread(() -> {
+          try {
+            awaitUninterruptibly(readDone);
+            backendTransactor.inTransaction(tx -> {
+              tx.clear(GRAPH_2);
+              return null;
+            });
+          } catch (RuntimeException e) {
+            clearFailure.set(e);
+          } finally {
+            clearCommitted.countDown();
+          }
+        });
+        clearer.start();
+
+        Throwable outcome = null;
+        try {
+          backendTransactor.inTransaction(tx -> {
+            reader.accept(tx);
+            readDone.countDown();
+            awaitUninterruptibly(clearCommitted);
+            return null;
+          });
+        } catch (RuntimeException e) {
+          outcome = e;
+        }
+        clearer.join();
+        assertThat(clearFailure.get()).isNull();
+        assertThat(backendStore.count(GRAPH_2)).isZero();
+        assertThat(backendStore.count(GRAPH_1)).isEqualTo(1L);
+        return outcome;
+      } finally {
+        backendRepository.shutDown();
+      }
     }
 
     /**
