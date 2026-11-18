@@ -276,6 +276,14 @@
       "hashed": "(8:ni-rdf/1(1:B5:c14n01:I26:http://example.org/vocab#q1:L2:x\t1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:B5:c14n11:I26:http://example.org/vocab#q1:L1:x1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:B5:c14n21:I26:http://example.org/vocab#q1:L2:x\u00071:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I26:http://example.org/vocab#p1:B5:c14n0)(1:S1:I26:http://example.org/vocab#p1:B5:c14n1)(1:S1:I26:http://example.org/vocab#p1:B5:c14n2))"
     },
     {
+      "id": "control-characters-hex-case",
+      "description": "Blank nodes told apart only by literals with U+001F and U+007F; canonical N-Quads write them as \\u001F and \\u007F with upper-case hex digits, and lower-case digits would swap the labels.",
+      "base": "http://example.org/a",
+      "input": "<http://example.org/a> <http://example.org/vocab#p> _:us .\n_:us <http://example.org/vocab#q> \"a\\u001F\" .\n<http://example.org/a> <http://example.org/vocab#p> _:del .\n_:del <http://example.org/vocab#q> \"a\\u007F\" .\n",
+      "name": "ni:///sha3-256;LwkD0EZE0QwuuykeBbAw59d0b3Wl7CPaPUvrgDyIEkE",
+      "hashed": "(8:ni-rdf/1(1:B5:c14n01:I26:http://example.org/vocab#q1:L2:a\u007F1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:B5:c14n11:I26:http://example.org/vocab#q1:L2:a\u001F1:I39:http://www.w3.org/2001/XMLSchema#string0:)(1:S1:I26:http://example.org/vocab#p1:B5:c14n0)(1:S1:I26:http://example.org/vocab#p1:B5:c14n1))"
+    },
+    {
       "id": "non-ascii",
       "description": "Non-ASCII characters in a literal, an IRI and a fragment: lengths count UTF-8 bytes.",
       "base": "http://example.org/a",
