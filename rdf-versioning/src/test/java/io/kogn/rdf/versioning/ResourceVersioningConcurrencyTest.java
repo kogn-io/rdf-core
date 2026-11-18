@@ -195,6 +195,18 @@ class ResourceVersioningConcurrencyTest {
     assertThat(token(A)).isEqualTo(tokenOfA);
   }
 
+  /** The two deletes of a live proxy IRI both write a tombstone and raise the counter, so they must not both commit. */
+  @RepeatedTest(RUNS)
+  void twoDeletesOfALiveProxyIriDoNotBothCommit() throws InterruptedException {
+    final RevisionToken tokenOfA = token(A);
+
+    final Throwable outcome = outcomeAgainst(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE),
+        () -> transactor.inTransaction(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE)));
+
+    assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
+    assertThat(historyOf(A)).hasSize(2);
+  }
+
   @RepeatedTest(RUNS)
   void publishesOfDisjointProxyIrisWithDifferentContentBothCommit() throws InterruptedException {
     draft(A, resource(A, "a2"));

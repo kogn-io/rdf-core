@@ -1,6 +1,7 @@
 # ADR-0023: A versioned dataset keeps views, versions and history as fixed named graphs in one dataset
 
-Status: Accepted (2026-10-31) — accepted with the merge of the implementation (#201–#206)
+Status: Accepted (2026-10-31) — accepted with the merge of the implementation (#201–#206);
+corrected by [ADR-0024](0024-versioning-fragment-index-and-corrections.md)
 
 ## Context
 

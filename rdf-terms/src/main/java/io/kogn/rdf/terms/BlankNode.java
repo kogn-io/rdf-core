@@ -23,6 +23,15 @@ package io.kogn.rdf.terms;
  * equal only when they carry the same {@link #uniqueReference()}. As that reference is
  * only meaningful within a single graph (see {@link #uniqueReference()}), blank nodes
  * from different graphs must not be compared for identity.</p>
+ *
+ * <h2>Labels read from a store</h2>
+ *
+ * <p>The label of a blank node read from a store is the store's. Nothing in this interface
+ * promises that a store hands out the same label for the same node on a later read. A caller
+ * that passes such a node back to the store, as {@code rdf-versioning} does within one
+ * transaction (see {@code DatasetTx} in {@code rdf-dataset}), assumes that within that scope the
+ * label still denotes the same node and that distinct nodes have distinct labels; the
+ * assumption is the caller's, not a guarantee of this type.</p>
  */
 public interface BlankNode extends BlankNodeOrIRI {
   /**
