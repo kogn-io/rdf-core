@@ -15,6 +15,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import io.kogn.rdf.terms.BlankNode;
+import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
@@ -80,6 +81,33 @@ class RDFTermContractCrossBackendTest {
     assertThatThrownBy(space::ntriplesString).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(angle::ntriplesString).isInstanceOf(IllegalArgumentException.class);
     assertThat(space.toString()).contains("http://a b");
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("backends")
+  void languageTagsDifferingInCaseAreOneLiteralAndOneTriple(final String name, final RDF rdf) {
+    final IRI s = rdf.createIRI(EX + "s");
+    final Literal upper = rdf.createLiteral("o", "EN-gb");
+    final Literal lower = rdf.createLiteral("o", "en-gb");
+    final Graph graph = rdf.createGraph();
+
+    graph.add(s, s, upper);
+    graph.add(s, s, lower);
+
+    assertThat(upper).isEqualTo(lower);
+    assertThat(upper.hashCode()).isEqualTo(lower.hashCode());
+    assertThat(upper.getLanguageTag()).contains("en-gb");
+    assertThat(graph.size()).isEqualTo(1);
+  }
+
+  @Test
+  void languageTagsDifferingInCaseAreEqualAcrossBackends() {
+    final Literal simple = new SimpleRdf().createLiteral("o", "EN");
+    final Literal rdf4j = new RDF4JFactory().createLiteral("o", "en");
+
+    assertThat(simple).isEqualTo(rdf4j);
+    assertThat(rdf4j).isEqualTo(simple);
+    assertThat(simple.hashCode()).isEqualTo(rdf4j.hashCode());
   }
 
   @Test

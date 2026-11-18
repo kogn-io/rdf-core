@@ -78,8 +78,8 @@ class SimpleRdfNTriplesTest {
   }
 
   @Test
-  void languageTagCaseIsPreserved() {
-    assertThat(rdf.createLiteral("hi", "EN-gb").ntriplesString()).isEqualTo("\"hi\"@EN-gb");
+  void languageTagIsLowerCased() {
+    assertThat(rdf.createLiteral("hi", "EN-gb").ntriplesString()).isEqualTo("\"hi\"@en-gb");
   }
 
   @ParameterizedTest
