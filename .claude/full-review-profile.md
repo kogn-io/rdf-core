@@ -141,9 +141,9 @@ New traps and rules:
 - **Deterministic races instead of `@RepeatedTest`:** a blocking hook (`onCreate`) plus a
   thread-state check (`BLOCKED`) proves a race without sleeps (R2-3); a barrier in the input
   graph's `stream()` makes an overlap deterministic.
-- **Javadoc measures against 6.0.0, the POM is on 6.1.0** (`DatasetTransactorRdf4j`): the
+- **Javadoc measures against 6.0.0, the POM is on 6.2.0-M2** (`DatasetTransactorRdf4j`): the
   #23/#52 rates were not re-measured in round 4.
-- **RDF4J source jars** (`~/.m2/.../6.1.0/*-sources.jar`, `unzip -p`) settled `SailUpdateExecutor`,
+- **RDF4J source jars** (`~/.m2/.../<rdf4j.version>/*-sources.jar`, `unzip -p`) settled `SailUpdateExecutor`,
   `MemorySailStore`, `ShaclAstLists`, `readShapes` in one pass each.
 - **Verifier lesson:** reviewer claims about "changes every run" or "silently wrong value"
   need their own repro — R3-4 and R4-3/A1 were each partly refuted that way.
