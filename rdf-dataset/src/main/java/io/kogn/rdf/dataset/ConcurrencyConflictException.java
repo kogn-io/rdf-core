@@ -20,7 +20,10 @@ package io.kogn.rdf.dataset;
  *
  * <p>The failure is transient by nature: the state the transaction read has moved on,
  * so re-running the whole unit of work — guard read included — is the intended
- * response.</p>
+ * response. A backend may also report a conflict conservatively, with no opposing
+ * transaction that actually changed what this one read; the RDF4J {@code NativeStore}
+ * did so occasionally while other threads read outside transactions. Treat the
+ * exception as "retry", never as proof of a concurrent writer.</p>
  *
  * <pre>{@code
  * for (int attempt = 0; ; attempt++) {
