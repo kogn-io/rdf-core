@@ -306,6 +306,22 @@ class BaseRebaserTest {
     assertThat(rebased.contains(rdf.createTriple(identifier, p, rdf.createLiteral("v", renamedString)))).isTrue();
   }
 
+  @Test
+  @DisplayName("a tagged literal keeps rdf:langString under the RDF namespace as base, so the identifier matches the vector")
+  void taggedLiteralKeepsLangStringUnderRdfNamespaceBase() {
+    final IRI rdfNamespace = rdf.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns");
+    final Graph graph = rdf.createGraph();
+    final IRI label = rdf.createIRI(EX + "vocab#label");
+    graph.add(rdfNamespace, label, rdf.createLiteral("type", "en"));
+    final IRI identifier = generator.generateIri(rdfNamespace, graph);
+
+    final Graph rebased = rebaser.rebase(graph, rdfNamespace, identifier);
+
+    assertThat(identifier.getIRIString()).isEqualTo("ni:///sha3-256;PtwLeN7S1zr_d3jjX7E8RzBVraMZdmgzg0b9-Qc_Olc");
+    assertThat(generator.generateIri(identifier, rebased)).isEqualTo(identifier);
+    assertThat(rebased.contains(rdf.createTriple(identifier, label, rdf.createLiteral("type", "en")))).isTrue();
+  }
+
   /** A literal whose datatype is not given, which RDF 1.1 reads as {@code xsd:string}. */
   private record LiteralWithoutDatatype(String lexicalForm) implements Literal {
 

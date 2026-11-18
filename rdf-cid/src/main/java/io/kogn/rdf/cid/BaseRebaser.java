@@ -21,7 +21,8 @@ import io.kogn.rdf.terms.Triple;
  *
  * <p>The old base IRI becomes the new one and every fragment IRI of the old base
  * ({@code <old#f>}) becomes the new base followed by {@code #} and the same fragment
- * ({@code <new#f>}), in every position: subject, predicate, object and a literal's datatype.
+ * ({@code <new#f>}), in every position: subject, predicate, object and the datatype of a literal without a language
+ * tag (the datatype {@code rdf:langString} of a tagged literal is not renamed).
  * The operation works on terms, never on text: an IRI that merely begins with the old base
  * ({@code <old-other>}) and a literal whose lexical form spells the old base are content and
  * stay as they are. A literal whose datatype is not given reads as {@code xsd:string}, as in

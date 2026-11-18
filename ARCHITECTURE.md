@@ -457,8 +457,8 @@ Two things callers need to know before persisting the result anywhere:
   because deduplication and integrity checks both read "same identifier" as "same
   content".
 - **The graph's own name is not content; everything else is.** While hashing,
-  the base IRI is replaced in every position (subject, predicate, object, a
-  literal's datatype) by a self placeholder under kind tag `S`, and a fragment
+  the base IRI is replaced in every position (subject, predicate, object, the
+  datatype of a literal without a language tag; `rdf:langString` is never mapped) by a self placeholder under kind tag `S`, and a fragment
   IRI of the base by kind tag `F` plus the fragment string. Every other term
   goes in in full — an IRI by its IRI string, a literal by lexical form,
   datatype IRI *and* language tag (lower-cased). The replacement runs *before*
@@ -470,7 +470,7 @@ Two things callers need to know before persisting the result anywhere:
 
 **Renaming to the identifier.** `BaseRebaser.rebase(graph, from, to)` is the
 step after `generateIri`: it replaces the base IRI and every fragment IRI of it
-(`<from#f>` becomes `<to#f>`) in every position, datatype IRIs included, and
+(`<from#f>` becomes `<to#f>`) in every position, the datatype IRI of a literal without a language tag included, and
 works on terms, never on text, so an IRI that merely begins with the old base
 stays. Generating over the result with the identifier as base returns the same
 identifier, which is how a reader verifies description against name (spec §6).
