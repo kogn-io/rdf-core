@@ -31,6 +31,18 @@ import io.kogn.rdf.terms.ReadableGraph;
  * the graph ones, fails with an {@link IllegalStateException}. This is a programming error, not a
  * failure of the store, so it is deliberately neither a {@link SparqlEvaluationException} nor a
  * {@link DatasetStorageException}: a caller that retries on those types must not retry it.</p>
+ *
+ * <h2>Blank-node labels</h2>
+ *
+ * <p>This interface does not promise that a blank node read from the store keeps its label. A
+ * caller that hands a {@link io.kogn.rdf.terms.BlankNode} obtained from {@link #match} or
+ * {@link #export(IRI) export} back to a later pattern read, {@code add} or {@code remove} of the
+ * same transaction relies on more than that: that the node still denotes the same node in the
+ * store, and that two distinct nodes keep distinct labels. {@code rdf-versioning} does exactly
+ * this (it reads a slice's blank nodes as subject and as object and removes them again by the
+ * labels it read). The RDF4J implementation keeps that, a backend that renames blank nodes on
+ * read does not and cannot host such a caller. Across transactions nothing is assumed: a label
+ * read in one transaction means nothing in another.</p>
  */
 public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
 

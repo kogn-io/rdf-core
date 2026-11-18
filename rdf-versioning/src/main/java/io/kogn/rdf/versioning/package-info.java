@@ -36,5 +36,14 @@
  * hosting layer. It runs on any {@code DatasetTx}, including one over a repository the
  * caller wraps itself, and port and implementation share the module, as in
  * {@code rdf-cid}.</p>
+ *
+ * <h2>Blank-node labels</h2>
+ *
+ * <p>The module assumes, and {@code DatasetTx} does not promise, that within one transaction a
+ * blank node read from the store keeps its label: a slice's blank nodes are read as subject and
+ * as object, and removed again, by the labels an earlier read of the same transaction returned,
+ * and distinct nodes must keep distinct labels. Nothing is assumed across transactions; every
+ * operation reads the slice anew. A second backend has to keep that within a transaction
+ * (ADR-0024).</p>
  */
 package io.kogn.rdf.versioning;

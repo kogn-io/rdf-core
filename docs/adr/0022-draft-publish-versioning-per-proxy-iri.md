@@ -1,6 +1,7 @@
 # ADR-0022: Draft/publish versioning per proxy IRI over a library-owned slice
 
-Status: Accepted (2026-10-31) — accepted with the merge of the implementation (#201–#206)
+Status: Accepted (2026-10-31) — accepted with the merge of the implementation (#201–#206);
+corrected by [ADR-0024](0024-versioning-fragment-index-and-corrections.md)
 
 ## Context
 

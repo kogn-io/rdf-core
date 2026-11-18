@@ -307,8 +307,9 @@ class ResourceVersioningSliceTest {
 
   @Test
   void aTripleTheBackendHoldsUnderAnotherSpellingOfItsLanguageTagStaysInTheDraft() {
-    // given: a draft whose language tag the store holds in mixed case, written past rdf-terms,
-    // which RDF4J treats as equal to the lower-case tag and rdf-terms does not
+    // given: a draft whose language tag the store holds in mixed case, written past rdf-terms;
+    // reading lower-cases the tag, so the draft and the new content agree on it
+    // (the case where the data model still tells two triples apart is the CaseKeepingLiteral test below)
     transactor.inTransaction(tx -> {
       tx.update("INSERT DATA { GRAPH <" + CONTENT.getIRIString() + "> { <" + A.getIRIString() + "> <" + P.getIRIString()
           + "> \"x\"@en-US } }");
