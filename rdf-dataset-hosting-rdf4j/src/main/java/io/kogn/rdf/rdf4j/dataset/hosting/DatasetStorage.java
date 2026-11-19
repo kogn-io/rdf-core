@@ -69,10 +69,10 @@ class DatasetStorage {
   private final Path root;
 
   /**
-   * In-process fallback for ids whose directory could not be marked on disk; see the class
-   * documentation.
+   * Ids whose delete failed in this process, kept beside the on-disk marker so the leftover
+   * stays barred even if writing the marker failed; see the class documentation.
    */
-  private final Set<DatasetId> unmarkedDeletionLeftovers = ConcurrentHashMap.newKeySet();
+  private final Set<DatasetId> inProcessDeletionLeftovers = ConcurrentHashMap.newKeySet();
 
   /**
    * Creates the storage over {@code root}.
@@ -157,15 +157,15 @@ class DatasetStorage {
   }
 
   /**
-   * The ids whose directory carries the {@value #DELETION_MARKER_FILE_NAME} marker, plus the
-   * in-process fallback for a marker that could not be written.
+   * The ids whose directory carries the {@value #DELETION_MARKER_FILE_NAME} marker, plus the ids
+   * whose delete failed in this process, the fallback for a marker that could not be written.
    *
    * @return the ids carrying a deletion leftover; never {@code null}
    * @throws UncheckedIOException if the storage root cannot be listed or a marker's presence
    *     cannot be determined
    */
   Set<DatasetId> listDeletionLeftovers() {
-    final Set<DatasetId> result = new HashSet<>(unmarkedDeletionLeftovers);
+    final Set<DatasetId> result = new HashSet<>(inProcessDeletionLeftovers);
     if (Files.isDirectory(root)) {
       try (Stream<Path> entries = Files.list(root)) {
         entries.filter(Files::isDirectory)
@@ -189,7 +189,7 @@ class DatasetStorage {
    * @throws UncheckedIOException if the marker's presence cannot be determined
    */
   boolean hasDeletionLeftover(final DatasetId id) {
-    if (unmarkedDeletionLeftovers.contains(id)) {
+    if (inProcessDeletionLeftovers.contains(id)) {
       return true;
     }
     return carriesDeletionMarker(directoryOf(id).toPath());
@@ -217,14 +217,14 @@ class DatasetStorage {
     try {
       deleteDirectory(id);
     } catch (final RuntimeException e) {
-      unmarkedDeletionLeftovers.add(id);
+      inProcessDeletionLeftovers.add(id);
       log.error("Deleting the storage of dataset {} failed; the identifier is marked as carrying a deletion leftover,"
           + " regardless of how far the on-disk teardown got. It cannot be acquired until the leftover is"
           + " gone — the next acquire() or clearDeletionLeftover() retries the cleanup and fails if it"
           + " cannot complete it.", id.value(), e);
       throw e;
     }
-    unmarkedDeletionLeftovers.remove(id);
+    inProcessDeletionLeftovers.remove(id);
   }
 
   /**
