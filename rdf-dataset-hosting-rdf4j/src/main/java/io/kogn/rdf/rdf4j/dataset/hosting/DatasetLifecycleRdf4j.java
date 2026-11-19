@@ -3,65 +3,36 @@
 
 package io.kogn.rdf.rdf4j.dataset.hosting;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CodingErrorAction;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Base64;
-import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 
-import io.kogn.rdf.dataset.BindingSet;
-import io.kogn.rdf.dataset.DatasetExport;
-import io.kogn.rdf.dataset.DatasetTransactor;
-import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.dataset.GraphStore;
-import io.kogn.rdf.dataset.RdfFormat;
-import io.kogn.rdf.dataset.SparqlQuery;
-import io.kogn.rdf.dataset.SparqlUpdate;
 import io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome;
-import io.kogn.rdf.dataset.hosting.DatasetCloseOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
 import io.kogn.rdf.dataset.hosting.DatasetId;
 import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
 import io.kogn.rdf.dataset.hosting.DatasetMaintenance;
+import io.kogn.rdf.dataset.hosting.DatasetShutdownOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
-import io.kogn.rdf.rdf4j.dataset.DatasetExportRdf4j;
-import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
-import io.kogn.rdf.rdf4j.dataset.GraphStoreRdf4j;
-import io.kogn.rdf.rdf4j.dataset.SparqlQueryRdf4j;
-import io.kogn.rdf.rdf4j.dataset.SparqlUpdateRdf4j;
-import io.kogn.rdf.terms.IRI;
-import io.kogn.rdf.terms.RDFTerm;
-import io.kogn.rdf.terms.ReadableGraph;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * RDF4J-backed {@link DatasetLifecycle}, and the {@link DatasetMaintenance} for the remains a failed
+ * RDF4J-backed {@link DatasetLifecycle}, and the {@link DatasetMaintenance} for the deletion leftover a failed
  * delete leaves behind in it.
  *
  * <p>Builds the backing store from a {@link DatasetStoreConfig}
@@ -71,10 +42,10 @@ import lombok.extern.slf4j.Slf4j;
  * types via a leased {@link DatasetHandle}.</p>
  *
  * <p>For {@code IN_MEMORY} datasets a {@link MemoryStore} holds the only copy of
- * the data, so {@link #close(DatasetId)} is destructive rather than a cheap,
+ * the data, so {@link #shutDown(DatasetId)} is destructive rather than a cheap,
  * resumable eviction: the store and its contents are gone, and the next
  * {@link #acquire(DatasetId)} builds a brand-new, empty one and re-runs the
- * on-create hook. See {@link DatasetLifecycle#close(DatasetId)} for the full
+ * on-create hook. See {@link DatasetLifecycle#shutDown(DatasetId)} for the full
  * contract.</p>
  *
  * <h2>One instance per storage location</h2>
@@ -100,7 +71,7 @@ import lombok.extern.slf4j.Slf4j;
  * {@link #acquire(DatasetId)} takes its lease inside the same
  * {@link ConcurrentHashMap#compute(Object, java.util.function.BiFunction)} call
  * that creates-or-finds the dataset, so the count is incremented under the
- * per-key lock before the handle is handed out. {@link #close(DatasetId)} and
+ * per-key lock before the handle is handed out. {@link #shutDown(DatasetId)} and
  * {@link #delete(DatasetId)} run under the same per-key lock and inspect the
  * lease count, so a store can never be shut down or deleted while a handle is
  * open — this closes the time-of-check-to-time-of-use race that a bare
@@ -109,15 +80,15 @@ import lombok.extern.slf4j.Slf4j;
  * <h2>A delete that fails</h2>
  *
  * <p>Removing a persistent dataset's storage is a directory walk, so it can fail
- * in the middle — a locked file, a permission problem — and leave remains behind.
- * Those remains must never be handed out: the directory is no longer empty, so the
+ * in the middle — a locked file, a permission problem — and leave a <em>deletion leftover</em>
+ * behind. A deletion leftover must never be handed out: the directory is no longer empty, so the
  * store would be opened over whatever survived and the on-create hook would
  * <em>not</em> run, giving the caller a dataset that is neither the old one nor a
  * freshly seeded new one.</p>
  *
  * <p>{@link #delete(DatasetId)} therefore logs the failure at {@code ERROR} (in
- * addition to rethrowing it, which a caller may swallow) and marks the id as having
- * an unfinished delete — every failed delete marks it this way, regardless of how
+ * addition to rethrowing it, which a caller may swallow) and marks the id as a deletion
+ * leftover — every failed delete marks it this way, regardless of how
  * far the on-disk teardown got, even one that failed on its very first file. The
  * mark itself is a {@code .deleting} file written inside the dataset's own
  * directory before the teardown starts and removed by it on success, so it survives
@@ -125,22 +96,23 @@ import lombok.extern.slf4j.Slf4j;
  * same {@code storageRoot} — not just this instance. Writing that file is
  * best-effort: if it fails too (most likely for the same reason the deletion is
  * about to fail), an in-process set is the fallback, upholding the guarantee for
- * the rest of this process's life but not across a restart.</p>
+ * the rest of this process's life but not across a restart. The marker, the walk and the set
+ * are the business of {@link DatasetStorage}.</p>
  *
  * <p>The next {@link #acquire(DatasetId)} first retries the cleanup: if it succeeds
  * the dataset is created afresh and seeded as usual, and if it fails again
  * {@code acquire} refuses the dataset with an {@link IllegalStateException} rather
- * than open the remains. The same applies to the rollback of a failed creation.</p>
+ * than open the leftover. The same applies to the rollback of a failed creation.</p>
  *
- * <p>{@link #list()} leaves a marked id out for as long as the remains are there,
+ * <p>{@link #list()} leaves a marked id out for as long as the leftover is there,
  * even though its directory still exists: the listing reports what this
  * implementation can rule out, not a promise that {@link #acquire(DatasetId)}
  * would open everything it does not rule out — a marked id whose cleanup would in
  * fact now succeed is left out just the same.</p>
  *
- * <p>The marked ids are named instead by {@link #listUnfinishedDeletes()}, and
- * {@link #clearUnfinishedDelete(DatasetId)} retries the cleanup without creating
- * anything in place of the remains — the way to clear them away when no caller
+ * <p>The marked ids are named instead by {@link #listDeletionLeftovers()}, and
+ * {@link #clearDeletionLeftover(DatasetId)} retries the cleanup without creating
+ * anything in its place — the way to clear it away when no caller
  * wants the dataset back. It refuses an id with a directory but no mark, which is an
  * intact dataset, and an id held open by this instance.</p>
  *
@@ -150,7 +122,7 @@ import lombok.extern.slf4j.Slf4j;
  * Base64url-encoded into a single directory segment, so values such as
  * {@code "../etc"} cannot escape the storage root.</p>
  *
- * <p>{@link #list()} and {@link #listUnfinishedDeletes()} read the ids back from the directory
+ * <p>{@link #list()} and {@link #listDeletionLeftovers()} read the ids back from the directory
  * names, and the storage root may hold directories this lifecycle did not create ({@code data},
  * {@code logs}). A directory name counts as ours only if it decodes as canonical Base64url, as
  * strictly valid UTF-8 (malformed input is rejected, not replaced), to a value {@link DatasetId}
@@ -164,27 +136,19 @@ import lombok.extern.slf4j.Slf4j;
  * an acceptable trade for correctness.</p>
  */
 @Slf4j
-public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenance {
+public final class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenance {
 
   /** Default RDF4J NativeStore triple-index specification. */
   public static final String DEFAULT_INDEX_SPEC = "spoc,posc,cosp";
-
-  /**
-   * Name of the on-disk marker file written inside a dataset's directory while its deletion is
-   * unfinished — see the class documentation.
-   */
-  private static final String DELETION_MARKER_FILE_NAME = ".deleting";
-
-  /** Message of the failure a port of a closed {@link DatasetHandle} throws. */
-  private static final String HANDLE_CLOSED = "handle is closed";
 
   /** Message of the failure the {@code onCreate} hook's {@link GraphStore} throws once the hook returned. */
   private static final String HOOK_RETURNED = "the onCreate hook has returned; its GraphStore is no longer usable";
 
   private final DatasetStoreConfig config;
-  private final Path storageRoot;
+  private final DatasetStorage storage;
   private final String indexSpec;
   private final BiConsumer<DatasetId, GraphStore> onCreate;
+  private final Consumer<Repository> repositoryShutdown;
 
   private final ConcurrentHashMap<DatasetId, ManagedDataset> datasets = new ConcurrentHashMap<>();
 
@@ -198,15 +162,6 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   private final ReentrantReadWriteLock shutdownLock = new ReentrantReadWriteLock();
 
   /**
-   * In-process fallback for ids whose delete() is unfinished, used when writing the on-disk
-   * {@value #DELETION_MARKER_FILE_NAME} marker itself fails. The marker file is the source of
-   * truth that survives a process restart and a second instance over the same
-   * {@code storageRoot}; this set only covers the rest of this process's life — see the class
-   * documentation.
-   */
-  private final Set<DatasetId> deletionUnfinished = ConcurrentHashMap.newKeySet();
-
-  /**
    * Set on the thread that is currently inside the {@code onCreate} hook, so a call back into this
    * lifecycle from that hook can be refused instead of re-entering {@code datasets.compute}.
    */
@@ -215,9 +170,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   /**
    * Creates a lifecycle.
    *
-   * @param config backend-neutral store configuration; must not be {@code null}.
-   *     {@code fullTextSearch == true} is rejected until full-text-search store
-   *     assembly is implemented
+   * @param config backend-neutral store configuration; must not be {@code null}
    * @param storageRoot root directory under which persistent datasets live;
    *     required (non-{@code null}) for {@code PERSISTENT}, ignored for
    *     {@code IN_MEMORY}
@@ -228,11 +181,11 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    *     through (never an RDF4J type), usable only while the hook runs: once it returns,
    *     every call on that {@code GraphStore} throws {@link IllegalStateException}, so it
    *     cannot be kept to write outside a lease. One-time per store, not per {@link DatasetId}:
-   *     for {@code IN_MEMORY} a {@link #close(DatasetId)} destroys the store, so the
+   *     for {@code IN_MEMORY} a {@link #shutDown(DatasetId)} destroys the store, so the
    *     next {@link #acquire(DatasetId)} runs the hook again for the same id. It runs
    *     under the per-key map lock, so it must only seed its own
    *     {@code GraphStore} and must not call back into this
-   *     lifecycle ({@code acquire}/{@code close}/{@code delete}/{@code list}, nor the
+   *     lifecycle ({@code acquire}/{@code shutDown}/{@code delete}/{@code list}, nor the
    *     maintenance calls or {@code shutDownAll}). A call back on the hook's own thread is
    *     refused with an {@link IllegalStateException}, which then propagates as described below;
    *     a call from another thread that the hook starts and waits for is not detected and
@@ -242,23 +195,39 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * @throws NullPointerException if {@code config} is {@code null}, or if
    *     {@code config.persistence()} is {@code PERSISTENT} and {@code storageRoot} or
    *     {@code indexSpec} is {@code null}
-   * @throws UnsupportedOperationException if {@code config.fullTextSearch()} is
-   *     {@code true}
    */
   public DatasetLifecycleRdf4j(final DatasetStoreConfig config, final Path storageRoot, final String indexSpec,
       final BiConsumer<DatasetId, GraphStore> onCreate) {
+    this(config, storageFor(config, storageRoot), indexSpec, onCreate, DatasetLifecycleRdf4j::shutDownIfInitialized);
+  }
+
+  /**
+   * Creates a lifecycle over a given {@link DatasetStorage} and repository-shutdown step; the seam
+   * through which a test replaces what a failing disk or a failing store teardown would do.
+   *
+   * @param config backend-neutral store configuration; must not be {@code null}
+   * @param storage the on-disk side; required for {@code PERSISTENT}, ignored for {@code IN_MEMORY}
+   * @param indexSpec RDF4J NativeStore index specification; required for {@code PERSISTENT}
+   * @param onCreate the on-create hook; may be {@code null}
+   * @param repositoryShutdown shuts a store down; must not be {@code null}
+   */
+  DatasetLifecycleRdf4j(final DatasetStoreConfig config, final DatasetStorage storage, final String indexSpec,
+      final BiConsumer<DatasetId, GraphStore> onCreate, final Consumer<Repository> repositoryShutdown) {
     this.config = Objects.requireNonNull(config, "config");
-    if (config.fullTextSearch()) {
-      throw new UnsupportedOperationException("FTS store assembly lands with #6");
-    }
     if (config.persistence() == Persistence.PERSISTENT) {
-      this.storageRoot = Objects.requireNonNull(storageRoot, "storageRoot is required for PERSISTENT").normalize();
+      this.storage = Objects.requireNonNull(storage, "storage is required for PERSISTENT");
       this.indexSpec = Objects.requireNonNull(indexSpec, "indexSpec is required for PERSISTENT");
     } else {
-      this.storageRoot = storageRoot == null ? null : storageRoot.normalize();
+      this.storage = null;
       this.indexSpec = indexSpec;
     }
     this.onCreate = onCreate;
+    this.repositoryShutdown = Objects.requireNonNull(repositoryShutdown, "repositoryShutdown");
+  }
+
+  private static DatasetStorage storageFor(final DatasetStoreConfig config, final Path storageRoot) {
+    Objects.requireNonNull(config, "config");
+    return config.persistence() == Persistence.PERSISTENT ? new DatasetStorage(storageRoot) : null;
   }
 
   /**
@@ -269,8 +238,6 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * @param storageRoot root directory for persistent datasets
    * @throws NullPointerException if {@code config} is {@code null}, or if
    *     {@code config.persistence()} is {@code PERSISTENT} and {@code storageRoot} is {@code null}
-   * @throws UnsupportedOperationException if {@code config.fullTextSearch()} is
-   *     {@code true}
    */
   public DatasetLifecycleRdf4j(final DatasetStoreConfig config, final Path storageRoot) {
     this(config, storageRoot, DEFAULT_INDEX_SPEC, null);
@@ -279,12 +246,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   /**
    * {@inheritDoc}
    *
-   * <p>If an earlier {@link #delete(DatasetId)} left an unfinished on-disk teardown, this first
-   * retries that cleanup and throws {@link IllegalStateException} if the remains are still there
+   * <p>If an earlier {@link #delete(DatasetId)} left a deletion leftover, this first
+   * retries that cleanup and throws {@link IllegalStateException} if the leftover is still there
    * — see the class documentation.</p>
    *
    * @throws NullPointerException if {@code id} is {@code null}
-   * @throws IllegalStateException if a failed delete left remains that could not be cleaned up
+   * @throws IllegalStateException if a failed delete left a deletion leftover that could not be cleaned up
    * @throws UncheckedIOException if the state of the dataset's storage cannot be determined
    *     (the storage is then left untouched)
    */
@@ -296,7 +263,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     shutdownLock.readLock().lock();
     try {
       managed = datasets.compute(id, (key, existing) -> {
-        requireNoRemainsOfFailedDelete(key);
+        requireNoDeletionLeftover(key);
         final ManagedDataset md = existing != null ? existing : createAndSeed(key);
         md.leaseCount.incrementAndGet();
         return md;
@@ -308,24 +275,24 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
   }
 
   @Override
-  public DatasetCloseOutcome close(final DatasetId id) {
+  public DatasetShutdownOutcome shutDown(final DatasetId id) {
     Objects.requireNonNull(id, "id");
-    requireNotInsideOnCreate("close");
+    requireNotInsideOnCreate("shutDown");
     final RuntimeException[] teardownFailure = new RuntimeException[1];
-    final DatasetCloseOutcome[] outcome = new DatasetCloseOutcome[1];
+    final DatasetShutdownOutcome[] outcome = new DatasetShutdownOutcome[1];
     datasets.compute(id, (key, md) -> {
       if (md == null) {
-        outcome[0] = DatasetCloseOutcome.NOT_OPEN;
+        outcome[0] = DatasetShutdownOutcome.NOT_OPEN;
         return null;
       }
       if (md.leaseCount.get() > 0) {
-        outcome[0] = DatasetCloseOutcome.STILL_LEASED;
+        outcome[0] = DatasetShutdownOutcome.STILL_LEASED;
         return md; // in use — eviction is a no-op; policy retries later
       }
       try {
-        shutDownRepository(md.repository);
-        log.debug("Closed dataset {}", key.value());
-        outcome[0] = DatasetCloseOutcome.CLOSED;
+        repositoryShutdown.accept(md.repository);
+        log.debug("Shut down dataset {}", key.value());
+        outcome[0] = DatasetShutdownOutcome.SHUT_DOWN;
       } catch (final RuntimeException e) {
         // shutDown() is not exception-free; the store may now be half torn-down and unusable, so
         // the cache must not keep serving it to the next acquire() — drop the entry regardless and
@@ -333,7 +300,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
         teardownFailure[0] = e;
         // Unreachable today (teardownFailure wins below), but keeps the port's "never null"
         // promise true even if this path is ever reduced to a log statement.
-        outcome[0] = DatasetCloseOutcome.CLOSED;
+        outcome[0] = DatasetShutdownOutcome.SHUT_DOWN;
       }
       return null;
     });
@@ -347,8 +314,8 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * {@inheritDoc}
    *
    * <p>A failure of the on-disk teardown is logged at {@code ERROR} as well as rethrown, and
-   * marks the dataset as having an unfinished delete so the next {@link #acquire(DatasetId)}
-   * does not open its remains — see the class documentation.</p>
+   * marks the dataset as a deletion leftover so the next {@link #acquire(DatasetId)}
+   * does not open it — see the class documentation.</p>
    *
    * <p>If removing the storage fails part-way, the failure is an {@link UncheckedIOException}
    * naming the path that could not be deleted; a failure of the store's own shutdown propagates
@@ -367,10 +334,10 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
       }
       try {
         if (md != null) {
-          shutDownRepository(md.repository);
+          repositoryShutdown.accept(md.repository);
         }
-        if (config.persistence() != Persistence.IN_MEMORY) {
-          deleteStorageOrMarkPartial(key);
+        if (storage != null) {
+          storage.deleteOrMarkDeletionLeftover(key);
         }
         log.debug("Deleted dataset {}", key.value());
       } catch (final RuntimeException e) {
@@ -393,27 +360,20 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * {@code storageRoot} whose name this lifecycle itself would have produced for the id it
    * decodes to (canonical Base64url of strictly valid UTF-8 that {@link DatasetId} accepts) — a
    * foreign directory such as {@code data} or {@code logs} is skipped. Ids whose storage carries
-   * the unfinished-deletion mark are left out — see the class documentation for what that
+   * the deletion-leftover mark are left out — see the class documentation for what that
    * does, and does not, promise about {@link #acquire(DatasetId)}.</p>
    *
    * @throws UncheckedIOException if the storage root cannot be listed, or if whether an
-   *     id's storage carries the unfinished-deletion mark cannot be determined
+   *     id's storage carries the deletion-leftover mark cannot be determined
    */
   @Override
   public Set<DatasetId> list() {
     requireNotInsideOnCreate("list");
     final Set<DatasetId> result = new HashSet<>(datasets.keySet());
-    if (config.persistence() != Persistence.IN_MEMORY && storageRoot != null && Files.isDirectory(storageRoot)) {
-      try (Stream<Path> entries = Files.list(storageRoot)) {
-        entries.filter(Files::isDirectory)
-            .map(p -> decodeSegment(p.getFileName().toString()))
-            .filter(Objects::nonNull)
-            .forEach(result::add);
-      } catch (final IOException e) {
-        throw new UncheckedIOException("failed to list datasets under " + storageRoot, e);
-      }
+    if (storage != null) {
+      result.addAll(storage.listDatasets());
     }
-    result.removeIf(this::hasRemainsOfFailedDelete);
+    result.removeIf(this::hasDeletionLeftover);
     return result;
   }
 
@@ -421,29 +381,17 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * {@inheritDoc}
    *
    * <p>The identifiers come from every directory under the {@code storageRoot} that carries the
-   * {@value #DELETION_MARKER_FILE_NAME} marker, plus the in-process fallback for a marker that could
+   * {@value DatasetStorage#DELETION_MARKER_FILE_NAME} marker, plus the in-process fallback for a marker that could
    * not be written — see the class documentation. An {@code IN_MEMORY} lifecycle has no storage and
    * never reports any.</p>
    */
   @Override
-  public Set<DatasetId> listUnfinishedDeletes() {
-    requireNotInsideOnCreate("listUnfinishedDeletes");
-    if (config.persistence() == Persistence.IN_MEMORY) {
+  public Set<DatasetId> listDeletionLeftovers() {
+    requireNotInsideOnCreate("listDeletionLeftovers");
+    if (storage == null) {
       return Set.of();
     }
-    final Set<DatasetId> result = new HashSet<>(deletionUnfinished);
-    if (Files.isDirectory(storageRoot)) {
-      try (Stream<Path> entries = Files.list(storageRoot)) {
-        entries.filter(Files::isDirectory)
-            .filter(DatasetLifecycleRdf4j::carriesDeletionMarker)
-            .map(p -> decodeSegment(p.getFileName().toString()))
-            .filter(Objects::nonNull)
-            .forEach(result::add);
-      } catch (final IOException e) {
-        throw new UncheckedIOException("failed to list unfinished deletes under " + storageRoot, e);
-      }
-    }
-    return result;
+    return storage.listDeletionLeftovers();
   }
 
   /**
@@ -454,25 +402,25 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * and rethrown, exactly as for a failed {@link #delete(DatasetId)}, and the mark stays.</p>
    *
    * @throws IllegalStateException if this instance holds the dataset open, or its directory exists
-   *     without the unfinished-delete mark
+   *     without the deletion-leftover mark
    */
   @Override
-  public DatasetCleanupOutcome clearUnfinishedDelete(final DatasetId id) {
+  public DatasetCleanupOutcome clearDeletionLeftover(final DatasetId id) {
     Objects.requireNonNull(id, "id");
-    requireNotInsideOnCreate("clearUnfinishedDelete");
+    requireNotInsideOnCreate("clearDeletionLeftover");
     final DatasetCleanupOutcome[] outcome = new DatasetCleanupOutcome[1];
     datasets.compute(id, (key, md) -> {
       if (md != null) {
         throw new IllegalStateException(
             "dataset '" + key.value() + "' is open; it is an intact dataset, which only delete() removes");
       }
-      if (hasRemainsOfFailedDelete(key)) {
-        deleteStorageOrMarkPartial(key);
-        log.info("Cleared the remains of the failed delete of dataset {}", key.value());
+      if (hasDeletionLeftover(key)) {
+        storage.deleteOrMarkDeletionLeftover(key);
+        log.info("Cleared the deletion leftover of dataset {}", key.value());
         outcome[0] = DatasetCleanupOutcome.CLEARED;
-      } else if (config.persistence() != Persistence.IN_MEMORY && Files.exists(resolveDir(key).toPath())) {
-        throw new IllegalStateException("dataset '" + key.value() + "' is an intact dataset, not the remains of"
-            + " a failed delete; only delete() removes it");
+      } else if (storage != null && storage.hasDirectory(key)) {
+        throw new IllegalStateException("dataset '" + key.value() + "' is an intact dataset, not a deletion"
+            + " leftover; only delete() removes it");
       } else {
         outcome[0] = DatasetCleanupOutcome.NOTHING_TO_CLEAR;
       }
@@ -486,7 +434,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * orderly shutdown (e.g. {@code @PreDestroy} / test tear-down).
    *
    * <p><strong>Last resort — does not honour open leases.</strong> Unlike
-   * {@link #close(DatasetId)} and {@link #delete(DatasetId)}, this method does not
+   * {@link #shutDown(DatasetId)} and {@link #delete(DatasetId)}, this method does not
    * consult {@code leaseCount} or take the per-key lock: it tears every store down
    * unconditionally, including ones with an open {@link DatasetHandle}. Any handle
    * still open at that point keeps its {@code closed} flag {@code false} — its
@@ -526,7 +474,7 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
       }
       for (final ManagedDataset md : datasets.values()) {
         try {
-          shutDownRepository(md.repository);
+          repositoryShutdown.accept(md.repository);
         } catch (final RuntimeException e) {
           // the process is going down: one stuck store must not keep the rest open (a NativeStore
           // would keep its directory locked), so carry on and report every failure at the end.
@@ -562,9 +510,8 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
       repository = new OneShotSailRepository(new MemoryStore());
       isNew = true;
     } else {
-      final File dir = resolveDir(id);
-      isNew = isNewStore(dir);
-      repository = new OneShotSailRepository(new NativeStore(dir, indexSpec));
+      isNew = storage.isNew(id);
+      repository = new OneShotSailRepository(new NativeStore(storage.directoryOf(id), indexSpec));
     }
     try {
       repository.init();
@@ -573,7 +520,8 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
         insideOnCreate.set(Boolean.TRUE);
         final AtomicBoolean hookReturned = new AtomicBoolean(false);
         try {
-          onCreate.accept(id, new HandleBoundGraphStore(managed.graphStore, hookReturned, HOOK_RETURNED));
+          onCreate.accept(id,
+              new LeasedDatasetHandle.HandleBoundGraphStore(managed.graphStore, hookReturned, HOOK_RETURNED));
         } finally {
           hookReturned.set(true);
           insideOnCreate.remove();
@@ -583,20 +531,20 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     } catch (final RuntimeException | Error e) {
       // init or the on-create seed failed (an Error from the hook included): don't leak the (possibly)
       // initialised store, and don't leave a half-created persistent store on disk — that would make
-      // isNewStore false on the next acquire, so onCreate would never run again and the dataset would
+      // isNew false on the next acquire, so onCreate would never run again and the dataset would
       // stay unseeded. Restore the invariant: a dataset is created-and-seeded atomically, or not at all.
       try {
-        shutDownRepository(repository);
+        repositoryShutdown.accept(repository);
       } catch (final RuntimeException teardownFailure) {
         // as below: report the failure that started this, and still try to remove the storage.
         e.addSuppressed(teardownFailure);
       }
-      if (isNew && config.persistence() != Persistence.IN_MEMORY) {
+      if (isNew && storage != null) {
         try {
-          deleteStorageOrMarkPartial(id);
+          storage.deleteOrMarkDeletionLeftover(id);
         } catch (final RuntimeException rollbackFailure) {
           // the rollback itself failed, so the invariant cannot be restored here: the mark keeps
-          // the remains from being handed out. Report the failure that started this, not the one
+          // the leftover from being handed out. Report the failure that started this, not the one
           // from cleaning up after it.
           e.addSuppressed(rollbackFailure);
         }
@@ -605,195 +553,30 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     }
   }
 
-  /**
-   * Deletes a dataset's storage, marking the id on any failure — via the on-disk
-   * {@value #DELETION_MARKER_FILE_NAME} file and, as a fallback, {@link #deletionUnfinished} —
-   * regardless of how far the teardown got: {@link #acquire(DatasetId)} must not open the
-   * directory as though it were an intact dataset.
-   *
-   * <p>The failure is logged at {@code ERROR} because rethrowing alone is not enough to make it
-   * findable in operation — a caller that swallows the exception would otherwise leave no trace
-   * that a dataset is now in a broken intermediate state.</p>
-   */
-  private void deleteStorageOrMarkPartial(final DatasetId id) {
-    final Path dir = resolveDir(id).toPath();
-    if (Files.isDirectory(dir)) {
-      // written before the teardown starts (not inside deleteStorageOnDisk, which a test in this
-      // package overrides wholesale) so the mark is unconditional; the reverse-order walk in
-      // deleteStorageOnDisk removes it again along with the rest of the directory on success.
-      markDeletionInProgress(id, dir);
-    }
-    try {
-      deleteStorageOnDisk(id);
-    } catch (final RuntimeException e) {
-      deletionUnfinished.add(id);
-      log.error("Deleting the storage of dataset {} failed; the identifier is marked as having an unfinished"
-          + " delete, regardless of how far the on-disk teardown got. It cannot be acquired until the remains"
-          + " are gone — the next acquire() or clearUnfinishedDelete() retries the cleanup and fails if it"
-          + " cannot complete it.", id.value(), e);
-      throw e;
-    }
-    deletionUnfinished.remove(id);
+  private boolean hasDeletionLeftover(final DatasetId id) {
+    return storage != null && storage.hasDeletionLeftover(id);
   }
 
   /**
-   * Writes the {@value #DELETION_MARKER_FILE_NAME} marker inside {@code dir}, ignoring it if
-   * already present (a retry of an earlier failed attempt).
-   *
-   * <p>Best-effort: if writing it fails — most likely for the same reason the deletion that is
-   * about to run will also fail, e.g. a permission problem in the directory — the in-process
-   * {@link #deletionUnfinished} set remains as the fallback; see the class documentation.</p>
-   */
-  private void markDeletionInProgress(final DatasetId id, final Path dir) {
-    try {
-      Files.createFile(dir.resolve(DELETION_MARKER_FILE_NAME));
-    } catch (final FileAlreadyExistsException e) {
-      // already marked by an earlier failed attempt — fine, this is a retry.
-    } catch (final IOException e) {
-      log.warn("Could not write the deletion marker for dataset {}; falling back to in-process tracking, which"
-          + " does not survive a process restart.", id.value(), e);
-    }
-  }
-
-  /**
-   * Refuses to hand {@code id} out while a previous {@link #delete(DatasetId)} left it with an
-   * unfinished on-disk teardown — retrying the cleanup first, so that no caller is ever handed
-   * the remains.
+   * Refuses to hand {@code id} out while a previous {@link #delete(DatasetId)} left it as a
+   * deletion leftover — retrying the cleanup first, so that no caller is ever handed
+   * the leftover.
    *
    * <p>Retrying the cleanup is the outcome to prefer: it leaves an empty directory, which
-   * {@link #isNewStore(File)} reads as "new dataset", so the store is created afresh and the
+   * {@link DatasetStorage#isNew(DatasetId)} reads as "new dataset", so the store is created afresh and the
    * on-create hook runs. Cleaning up is not always available, though — the deletion may fail
    * again for the very reason it failed the first time — so refusing the dataset is the fallback
    * that always holds.</p>
    */
-  private void requireNoRemainsOfFailedDelete(final DatasetId id) {
-    if (!hasRemainsOfFailedDelete(id)) {
+  private void requireNoDeletionLeftover(final DatasetId id) {
+    if (!hasDeletionLeftover(id)) {
       return;
     }
     try {
-      deleteStorageOrMarkPartial(id);
+      storage.deleteOrMarkDeletionLeftover(id);
     } catch (final RuntimeException e) {
-      throw new IllegalStateException("dataset '" + id.value() + "' has an unfinished delete() and the remains"
-          + " could not be cleaned up; it cannot be acquired while they are there", e);
-    }
-  }
-
-  /**
-   * Whether {@code id} was left with an unfinished delete — the on-disk
-   * {@value #DELETION_MARKER_FILE_NAME} marker is authoritative and survives a process restart
-   * and a second instance over the same {@code storageRoot}; {@link #deletionUnfinished} is
-   * consulted too, as the fallback for when writing that marker itself failed. {@code IN_MEMORY}
-   * has no storage and is never marked either way.
-   */
-  private boolean hasRemainsOfFailedDelete(final DatasetId id) {
-    if (config.persistence() == Persistence.IN_MEMORY) {
-      return false;
-    }
-    if (deletionUnfinished.contains(id)) {
-      return true;
-    }
-    return carriesDeletionMarker(resolveDir(id).toPath());
-  }
-
-  /**
-   * Whether the dataset directory {@code dir} carries the {@value #DELETION_MARKER_FILE_NAME}
-   * marker. Unlike a bare {@link Files#exists}, which answers {@code false} when it cannot tell,
-   * this fails if the marker's presence cannot be determined — {@link #listUnfinishedDeletes()}
-   * must not drop an id it could not check.
-   */
-  private static boolean carriesDeletionMarker(final Path dir) {
-    final Path marker = dir.resolve(DELETION_MARKER_FILE_NAME);
-    if (Files.exists(marker)) {
-      return true;
-    }
-    if (Files.notExists(marker)) {
-      return false;
-    }
-    throw new UncheckedIOException(new IOException("cannot tell whether " + marker + " exists"));
-  }
-
-  /**
-   * Whether {@code dir} holds no dataset yet: absent, or readable and empty. A directory that
-   * cannot be read is neither — it may well hold an intact dataset — so this fails instead of
-   * answering "new", which would let a failed {@code init} roll back (delete) the dataset.
-   */
-  private static boolean isNewStore(final File dir) {
-    final Path path = dir.toPath();
-    if (Files.notExists(path)) {
-      return true;
-    }
-    try (Stream<Path> entries = Files.list(path)) {
-      return entries.findAny().isEmpty();
-    } catch (final IOException e) {
-      throw new UncheckedIOException("cannot tell whether the dataset storage " + path + " is new", e);
-    }
-  }
-
-  /**
-   * Maps an opaque dataset id to a single, traversal-safe directory under the
-   * storage root by Base64url-encoding its value.
-   */
-  private File resolveDir(final DatasetId id) {
-    final String segment = Base64.getUrlEncoder()
-        .withoutPadding()
-        .encodeToString(id.value().getBytes(StandardCharsets.UTF_8));
-    final Path dir = storageRoot.resolve(segment).normalize();
-    if (!dir.startsWith(storageRoot)) {
-      // unreachable for a Base64url segment; defends the invariant if encoding changes
-      throw new IllegalArgumentException("datasetId maps outside storage root: " + id.value());
-    }
-    return dir.toFile();
-  }
-
-  /**
-   * Recognises a directory name this lifecycle produced: it must decode as canonical Base64url,
-   * as strictly valid UTF-8, to a value {@link DatasetId} accepts, and map back to exactly this
-   * name through {@link #resolveDir(DatasetId)}. Anything else is a foreign directory and yields
-   * {@code null}.
-   */
-  private DatasetId decodeSegment(final String segment) {
-    try {
-      final byte[] decoded = Base64.getUrlDecoder().decode(segment);
-      final String value = StandardCharsets.UTF_8.newDecoder()
-          .onMalformedInput(CodingErrorAction.REPORT)
-          .onUnmappableCharacter(CodingErrorAction.REPORT)
-          .decode(ByteBuffer.wrap(decoded))
-          .toString();
-      final DatasetId id = new DatasetId(value);
-      if (!resolveDir(id).getName().equals(segment)) {
-        return null; // not the encoding resolveDir produces — foreign directory, skip
-      }
-      return id;
-    } catch (final IllegalArgumentException | CharacterCodingException e) {
-      return null; // foreign directory not produced by this lifecycle — skip
-    }
-  }
-
-  /**
-   * Package-private (not {@code private}) so a test in this package can override it to force a
-   * deterministic on-disk teardown failure — see {@code DatasetLifecycleRdf4jTest}.
-   *
-   * <p>{@code Files.walk} lists {@code dir}'s current contents, so this also deletes a
-   * {@value #DELETION_MARKER_FILE_NAME} marker written into it beforehand: on the reverse-order
-   * walk below, a proper prefix of a path sorts before it, so the parent directory is always
-   * deleted last, after every entry inside it — the marker included, whatever position among its
-   * siblings it happens to sort into.</p>
-   */
-  void deleteStorageOnDisk(final DatasetId id) {
-    final Path dir = resolveDir(id).toPath();
-    if (!Files.exists(dir)) {
-      return;
-    }
-    try (Stream<Path> walk = Files.walk(dir)) {
-      walk.sorted(Comparator.reverseOrder()).forEach(path -> {
-        try {
-          Files.delete(path);
-        } catch (final IOException e) {
-          throw new UncheckedIOException("failed to delete " + path, e);
-        }
-      });
-    } catch (final IOException e) {
-      throw new UncheckedIOException("failed to delete storage for " + id.value(), e);
+      throw new IllegalStateException("dataset '" + id.value() + "' has a deletion leftover and it"
+          + " could not be cleaned up; it cannot be acquired while it is there", e);
     }
   }
 
@@ -801,294 +584,12 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
    * Shuts {@code repository} down if it is initialised. Any failure of the backend's
    * {@code shutDown()} propagates; each caller decides what that means for the cache.
    *
-   * <p>Package-private (not {@code private}) so a test in this package can override it to force a
-   * deterministic repository-teardown failure — see {@code DatasetLifecycleRdf4jTest}.</p>
+   * <p>The default of the repository-shutdown step that a package-private constructor lets a test
+   * replace, to force a deterministic repository-teardown failure.</p>
    */
-  void shutDownRepository(final Repository repository) {
+  static void shutDownIfInitialized(final Repository repository) {
     if (repository.isInitialized()) {
       repository.shutDown();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-
-  /** A cached, leasable dataset: its store and the five port wrappers over it. */
-  private static final class ManagedDataset {
-
-    private final Repository repository;
-    private final GraphStore graphStore;
-    private final SparqlQuery sparqlQuery;
-    private final SparqlUpdate sparqlUpdate;
-    private final DatasetExport datasetExport;
-    private final DatasetTransactor transactor;
-    private final AtomicInteger leaseCount = new AtomicInteger();
-
-    private ManagedDataset(final Repository repository) {
-      this.repository = repository;
-      this.graphStore = new GraphStoreRdf4j(repository);
-      this.sparqlQuery = new SparqlQueryRdf4j(repository);
-      this.sparqlUpdate = new SparqlUpdateRdf4j(repository);
-      this.datasetExport = new DatasetExportRdf4j(repository);
-      this.transactor = new DatasetTransactorRdf4j(repository);
-    }
-  }
-
-  /** Lease handle: releases its lease exactly once on {@link #close()}. */
-  private static final class LeasedDatasetHandle implements DatasetHandle {
-
-    private final ManagedDataset managed;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final GraphStore graphStore;
-    private final SparqlQuery sparqlQuery;
-    private final SparqlUpdate sparqlUpdate;
-    private final DatasetExport datasetExport;
-    private final DatasetTransactor transactor;
-
-    private LeasedDatasetHandle(final ManagedDataset managed) {
-      this.managed = managed;
-      this.graphStore = new HandleBoundGraphStore(managed.graphStore, closed);
-      this.sparqlQuery = new HandleBoundSparqlQuery(managed.sparqlQuery, closed);
-      this.sparqlUpdate = new HandleBoundSparqlUpdate(managed.sparqlUpdate, closed);
-      this.datasetExport = new HandleBoundDatasetExport(managed.datasetExport, closed);
-      this.transactor = new HandleBoundDatasetTransactor(managed.transactor, closed);
-    }
-
-    @Override
-    public GraphStore graphStore() {
-      return graphStore;
-    }
-
-    @Override
-    public SparqlQuery sparqlQuery() {
-      return sparqlQuery;
-    }
-
-    @Override
-    public SparqlUpdate sparqlUpdate() {
-      return sparqlUpdate;
-    }
-
-    @Override
-    public DatasetExport datasetExport() {
-      return datasetExport;
-    }
-
-    @Override
-    public DatasetTransactor transactor() {
-      return transactor;
-    }
-
-    @Override
-    public void close() {
-      if (closed.compareAndSet(false, true)) {
-        managed.leaseCount.decrementAndGet();
-      }
-    }
-  }
-
-  /**
-   * Throws {@link IllegalStateException} if {@code closed} has already been set,
-   * enforcing the "do not retain beyond the handle" rule stated on
-   * {@link DatasetHandle}.
-   */
-  private static void ensureOpen(final AtomicBoolean closed) {
-    ensureOpen(closed, HANDLE_CLOSED);
-  }
-
-  private static void ensureOpen(final AtomicBoolean closed, final String message) {
-    if (closed.get()) {
-      throw new IllegalStateException(message);
-    }
-  }
-
-  /**
-   * Thin, per-handle {@link GraphStore} delegate that checks the owning handle's
-   * {@code closed} flag before every call. Also hands the {@code onCreate} hook its
-   * {@code GraphStore}, with a flag set once the hook returns: kept beyond the hook, that store
-   * would write outside every lease — after a {@code delete}, a write would bring the deleted
-   * directory back.
-   */
-  private static final class HandleBoundGraphStore implements GraphStore {
-
-    private final GraphStore delegate;
-    private final AtomicBoolean closed;
-    private final String closedMessage;
-
-    private HandleBoundGraphStore(final GraphStore delegate, final AtomicBoolean closed) {
-      this(delegate, closed, HANDLE_CLOSED);
-    }
-
-    private HandleBoundGraphStore(final GraphStore delegate, final AtomicBoolean closed, final String closedMessage) {
-      this.delegate = delegate;
-      this.closed = closed;
-      this.closedMessage = closedMessage;
-    }
-
-    @Override
-    public long add(final IRI namedGraph, final ReadableGraph triples) {
-      ensureOpen(closed, closedMessage);
-      return delegate.add(namedGraph, triples);
-    }
-
-    @Override
-    public long remove(final IRI namedGraph, final ReadableGraph triples) {
-      ensureOpen(closed, closedMessage);
-      return delegate.remove(namedGraph, triples);
-    }
-
-    @Override
-    public void clear(final IRI namedGraph) {
-      ensureOpen(closed, closedMessage);
-      delegate.clear(namedGraph);
-    }
-
-    @Override
-    public ReadableGraph snapshot(final IRI namedGraph) {
-      ensureOpen(closed, closedMessage);
-      return delegate.snapshot(namedGraph);
-    }
-
-    @Override
-    public long count(final IRI namedGraph) {
-      ensureOpen(closed, closedMessage);
-      return delegate.count(namedGraph);
-    }
-
-    @Override
-    public long count() {
-      ensureOpen(closed, closedMessage);
-      return delegate.count();
-    }
-  }
-
-  /**
-   * Thin, per-handle {@link SparqlQuery} delegate that checks the owning handle's
-   * {@code closed} flag before every call.
-   */
-  private static final class HandleBoundSparqlQuery implements SparqlQuery {
-
-    private final SparqlQuery delegate;
-    private final AtomicBoolean closed;
-
-    private HandleBoundSparqlQuery(final SparqlQuery delegate, final AtomicBoolean closed) {
-      this.delegate = delegate;
-      this.closed = closed;
-    }
-
-    @Override
-    public Stream<BindingSet> select(final String sparql) {
-      ensureOpen(closed);
-      return delegate.select(sparql);
-    }
-
-    @Override
-    public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
-      ensureOpen(closed);
-      return delegate.select(sparql, bindings);
-    }
-
-    @Override
-    public ReadableGraph construct(final String sparql) {
-      ensureOpen(closed);
-      return delegate.construct(sparql);
-    }
-
-    @Override
-    public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
-      ensureOpen(closed);
-      return delegate.construct(sparql, bindings);
-    }
-
-    @Override
-    public boolean ask(final String sparql) {
-      ensureOpen(closed);
-      return delegate.ask(sparql);
-    }
-
-    @Override
-    public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
-      ensureOpen(closed);
-      return delegate.ask(sparql, bindings);
-    }
-  }
-
-  /**
-   * Thin, per-handle {@link SparqlUpdate} delegate that checks the owning handle's
-   * {@code closed} flag before every call.
-   */
-  private static final class HandleBoundSparqlUpdate implements SparqlUpdate {
-
-    private final SparqlUpdate delegate;
-    private final AtomicBoolean closed;
-
-    private HandleBoundSparqlUpdate(final SparqlUpdate delegate, final AtomicBoolean closed) {
-      this.delegate = delegate;
-      this.closed = closed;
-    }
-
-    @Override
-    public void update(final String sparql) {
-      ensureOpen(closed);
-      delegate.update(sparql);
-    }
-
-    @Override
-    public void update(final String sparql, final Map<String, RDFTerm> bindings) {
-      ensureOpen(closed);
-      delegate.update(sparql, bindings);
-    }
-  }
-
-  /**
-   * Thin, per-handle {@link DatasetExport} delegate that checks the owning handle's
-   * {@code closed} flag before every call.
-   *
-   * <p>The check is made when the call starts, as in every wrapper here. That matters more
-   * for an export than for the others: a dump streams at the pace of the caller's sink, so a
-   * handle closed while one is running does not stop it — it only releases the lease that
-   * was keeping the store from being evicted or deleted underneath it.</p>
-   */
-  private static final class HandleBoundDatasetExport implements DatasetExport {
-
-    private final DatasetExport delegate;
-    private final AtomicBoolean closed;
-
-    private HandleBoundDatasetExport(final DatasetExport delegate, final AtomicBoolean closed) {
-      this.delegate = delegate;
-      this.closed = closed;
-    }
-
-    @Override
-    public void export(final OutputStream out, final RdfFormat format) {
-      ensureOpen(closed);
-      delegate.export(out, format);
-    }
-
-    @Override
-    public void export(final OutputStream out, final RdfFormat format, final IRI namedGraph) {
-      ensureOpen(closed);
-      delegate.export(out, format, namedGraph);
-    }
-  }
-
-  /**
-   * Thin, per-handle {@link DatasetTransactor} delegate that checks the owning
-   * handle's {@code closed} flag before every call.
-   */
-  private static final class HandleBoundDatasetTransactor implements DatasetTransactor {
-
-    private final DatasetTransactor delegate;
-    private final AtomicBoolean closed;
-
-    private HandleBoundDatasetTransactor(final DatasetTransactor delegate, final AtomicBoolean closed) {
-      this.delegate = delegate;
-      this.closed = closed;
-    }
-
-    @Override
-    public <T> T inTransaction(final Function<DatasetTx, T> work) {
-      ensureOpen(closed);
-      return delegate.inTransaction(work);
     }
   }
 }

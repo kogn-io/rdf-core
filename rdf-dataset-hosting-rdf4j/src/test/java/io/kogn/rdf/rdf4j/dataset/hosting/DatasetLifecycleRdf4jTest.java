@@ -52,10 +52,10 @@ import io.kogn.rdf.dataset.RdfFormat;
 import io.kogn.rdf.dataset.SparqlQuery;
 import io.kogn.rdf.dataset.SparqlUpdate;
 import io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome;
-import io.kogn.rdf.dataset.hosting.DatasetCloseOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetHandle;
 import io.kogn.rdf.dataset.hosting.DatasetId;
 import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
+import io.kogn.rdf.dataset.hosting.DatasetShutdownOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
@@ -86,7 +86,7 @@ class DatasetLifecycleRdf4jTest {
   }
 
   private DatasetLifecycleRdf4j inMemory() {
-    lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null);
+    lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY), null);
     return lifecycle;
   }
 
@@ -146,20 +146,20 @@ class DatasetLifecycleRdf4jTest {
         ds.graphStore().add(GRAPH, singleTriple());
 
         // must not tear the store down under the open lease
-        assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.STILL_LEASED);
+        assertThat(lc.shutDown(id)).isEqualTo(DatasetShutdownOutcome.STILL_LEASED);
 
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
       }
     }
 
     @Test
-    @DisplayName("close reports CLOSED once the lease holding it open is released")
+    @DisplayName("shutDown reports SHUT_DOWN once the lease holding it open is released")
     void close_afterLeaseReleased_reportsClosed() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("idle");
       lc.acquire(id).close();
 
-      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED);
+      assertThat(lc.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN);
     }
 
     @Test
@@ -167,7 +167,7 @@ class DatasetLifecycleRdf4jTest {
     void close_unknownId_reportsNotOpen() {
       final DatasetLifecycleRdf4j lc = inMemory();
 
-      assertThat(lc.close(new DatasetId("never-opened"))).isEqualTo(DatasetCloseOutcome.NOT_OPEN);
+      assertThat(lc.shutDown(new DatasetId("never-opened"))).isEqualTo(DatasetShutdownOutcome.NOT_OPEN);
     }
 
     @Test
@@ -240,7 +240,7 @@ class DatasetLifecycleRdf4jTest {
         final Future<?> evictor = pool.submit(() -> {
           for (int i = 0; i < iterations * workers; i++) {
             try {
-              lc.close(id);
+              lc.shutDown(id);
             } catch (final RuntimeException e) {
               failures.add(e);
             }
@@ -405,7 +405,7 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("#244: the hook's GraphStore is locked once the hook returns")
     void onCreate_retainedGraphStore_lockedAfterHookReturns() {
       final AtomicReference<GraphStore> retained = new AtomicReference<>();
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY), null,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
             graphStore.add(GRAPH, singleTriple());
             retained.set(graphStore);
@@ -423,7 +423,7 @@ class DatasetLifecycleRdf4jTest {
     void onCreate_retainedGraphStore_afterDelete_doesNotResurrectDirectory(@TempDir final Path tmp) {
       final Path root = tmp.resolve("stores");
       final AtomicReference<GraphStore> retained = new AtomicReference<>();
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> retained.set(graphStore));
       final DatasetId id = new DatasetId("deleted");
       lifecycle.acquire(id).close();
@@ -443,7 +443,7 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("hook fires once on creation, not on re-acquire, and its seed is visible immediately")
     void onCreate_firesOnceAndSeedVisible() {
       final AtomicInteger calls = new AtomicInteger();
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY), null,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
             calls.incrementAndGet();
             graphStore.add(GRAPH, singleTriple());
@@ -464,7 +464,7 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("concurrent first-acquire seeds exactly once and both callers see the seed")
     void onCreate_concurrentFirstAcquire_seedsOnce() throws Exception {
       final AtomicInteger calls = new AtomicInteger();
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY), null,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
             calls.incrementAndGet();
             graphStore.add(GRAPH, singleTriple());
@@ -498,7 +498,7 @@ class DatasetLifecycleRdf4jTest {
     void onCreate_throwsFirstTime_rollsBackAndRetrySucceeds(@TempDir final Path tmp) {
       final AtomicInteger calls = new AtomicInteger();
       final Path root = tmp.resolve("stores");
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
             if (calls.incrementAndGet() == 1) {
               throw new IllegalStateException("boom");
@@ -524,8 +524,8 @@ class DatasetLifecycleRdf4jTest {
     void onCreate_throwsError_rollsBackAndPropagatesUnchanged(@TempDir final Path tmp) {
       final AtomicInteger calls = new AtomicInteger();
       final AssertionError failure = new AssertionError("boom");
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          tmp.resolve("stores"), DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), tmp.resolve("stores"),
+          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
             if (calls.incrementAndGet() == 1) {
               throw failure;
             }
@@ -549,13 +549,13 @@ class DatasetLifecycleRdf4jTest {
     void onCreate_reentry_failsFastAndRollsBack() {
       final DatasetId other = new DatasetId("other");
       final List<Consumer<DatasetLifecycleRdf4j>> callbacks = List.of(lc -> lc.acquire(other),
-          lc -> lc.acquire(new DatasetId("reenter")), lc -> lc.close(other), lc -> lc.delete(other),
-          DatasetLifecycleRdf4j::list, DatasetLifecycleRdf4j::listUnfinishedDeletes,
-          lc -> lc.clearUnfinishedDelete(other), DatasetLifecycleRdf4j::shutDownAll);
+          lc -> lc.acquire(new DatasetId("reenter")), lc -> lc.shutDown(other), lc -> lc.delete(other),
+          DatasetLifecycleRdf4j::list, DatasetLifecycleRdf4j::listDeletionLeftovers,
+          lc -> lc.clearDeletionLeftover(other), DatasetLifecycleRdf4j::shutDownAll);
       for (final Consumer<DatasetLifecycleRdf4j> callback : callbacks) {
         final AtomicBoolean reenter = new AtomicBoolean(true);
         final AtomicInteger calls = new AtomicInteger();
-        lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+        lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY), null,
             DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> {
               calls.incrementAndGet();
               if (reenter.get()) {
@@ -592,7 +592,7 @@ class DatasetLifecycleRdf4jTest {
     Path tmp;
 
     private DatasetLifecycleRdf4j persistent(final Path storageRoot) {
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), storageRoot);
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), storageRoot);
       return lifecycle;
     }
 
@@ -604,7 +604,7 @@ class DatasetLifecycleRdf4jTest {
       final DatasetId id = new DatasetId("on-disk");
       lc.acquire(id).close();
 
-      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED); // evict from cache; storage stays
+      assertThat(lc.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN); // evict from cache; storage stays
 
       assertThat(lc.list()).contains(id);
     }
@@ -617,8 +617,8 @@ class DatasetLifecycleRdf4jTest {
       final DatasetId id = new DatasetId("closed-twice");
       lc.acquire(id).close(); // release the lease
 
-      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED);
-      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.NOT_OPEN);
+      assertThat(lc.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN);
+      assertThat(lc.shutDown(id)).isEqualTo(DatasetShutdownOutcome.NOT_OPEN);
 
       // the storage is still there — an idle/TTL policy iterating list() must find it
       assertThat(lc.list()).contains(id);
@@ -628,7 +628,7 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("close discards data for an in-memory store — there is no storage to resume")
     void close_discardsData_forInMemoryStore() {
       final AtomicInteger calls = new AtomicInteger();
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, false), null,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY), null,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> calls.incrementAndGet());
       final DatasetId id = new DatasetId("in-memory-evicted");
       try (DatasetHandle ds = lifecycle.acquire(id)) {
@@ -637,7 +637,7 @@ class DatasetLifecycleRdf4jTest {
       }
 
       // evict — but for IN_MEMORY there is no persisted state to resume
-      assertThat(lifecycle.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED);
+      assertThat(lifecycle.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN);
 
       try (DatasetHandle ds = lifecycle.acquire(id)) {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isFalse(); // data is gone
@@ -666,16 +666,16 @@ class DatasetLifecycleRdf4jTest {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("undeletable");
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
-      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
-        @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
-          if (toDelete.equals(id)) {
-            throw diskFailure; // the OS refuses to remove the storage — this time and every time
-          }
-          super.deleteStorageOnDisk(toDelete);
-        }
-      };
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root) {
+            @Override
+            void deleteDirectory(final DatasetId toDelete) {
+              if (toDelete.equals(id)) {
+                throw diskFailure; // the OS refuses to remove the storage — this time and every time
+              }
+              super.deleteDirectory(toDelete);
+            }
+          }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null, DatasetLifecycleRdf4j::shutDownIfInitialized);
       lifecycle = lc;
       try (DatasetHandle ds = lc.acquire(id)) {
         ds.graphStore().add(GRAPH, singleTriple()); // handle released, but the entry stays cached
@@ -686,28 +686,28 @@ class DatasetLifecycleRdf4jTest {
       // the cleanup cannot be finished — so the dataset is refused rather than opened over
       // whatever remains, and it stays refused for as long as they are there.
       assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("unfinished delete")
+          .hasMessageContaining("deletion leftover")
           .hasCauseReference(diskFailure);
       assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    @DisplayName("list omits the remains of a failed delete while still reporting an intact dataset alongside them")
+    @DisplayName("list omits a deletion leftover while still reporting an intact dataset alongside them")
     void list_omitsRemainsOfFailedDelete_butKeepsTheIntactDataset() throws Exception {
       final Path root = tmp.resolve("stores");
       final DatasetId broken = new DatasetId("half-deleted");
       final DatasetId intact = new DatasetId("still-there");
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
-      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
-        @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
-          if (toDelete.equals(broken)) {
-            throw diskFailure; // the OS refuses to remove the storage — this time and every time
-          }
-          super.deleteStorageOnDisk(toDelete);
-        }
-      };
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root) {
+            @Override
+            void deleteDirectory(final DatasetId toDelete) {
+              if (toDelete.equals(broken)) {
+                throw diskFailure; // the OS refuses to remove the storage — this time and every time
+              }
+              super.deleteDirectory(toDelete);
+            }
+          }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null, DatasetLifecycleRdf4j::shutDownIfInitialized);
       lifecycle = lc;
       lc.acquire(broken).close();
       lc.acquire(intact).close();
@@ -733,20 +733,20 @@ class DatasetLifecycleRdf4jTest {
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
       final AtomicBoolean failNext = new AtomicBoolean(true);
       final AtomicInteger seeds = new AtomicInteger();
-      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> {
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root) {
+            @Override
+            void deleteDirectory(final DatasetId toDelete) {
+              if (toDelete.equals(id) && failNext.compareAndSet(true, false)) {
+                deleteOneFileOfTheSoleDataset(root); // gets part-way through, then gives up
+                throw diskFailure;
+              }
+              super.deleteDirectory(toDelete); // the cleanup retried by acquire succeeds
+            }
+          }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> {
             seeds.incrementAndGet();
             graphStore.add(GRAPH, singleTriple());
-          }) {
-        @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
-          if (toDelete.equals(id) && failNext.compareAndSet(true, false)) {
-            deleteOneFileOfTheSoleDataset(root); // gets part-way through, then gives up
-            throw diskFailure;
-          }
-          super.deleteStorageOnDisk(toDelete); // the cleanup retried by acquire succeeds
-        }
-      };
+          }, DatasetLifecycleRdf4j::shutDownIfInitialized);
       lifecycle = lc;
       final GraphStore firstStore;
       try (DatasetHandle ds = lc.acquire(id)) {
@@ -771,22 +771,22 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("a repeated delete that succeeds clears the unfinished-delete mark")
+    @DisplayName("a repeated delete that succeeds clears the deletion-leftover mark")
     void delete_retriedSuccessfully_clearsTheMark() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("retry-delete");
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
       final AtomicBoolean failNext = new AtomicBoolean(true);
-      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
-        @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
-          if (toDelete.equals(id) && failNext.compareAndSet(true, false)) {
-            throw diskFailure;
-          }
-          super.deleteStorageOnDisk(toDelete);
-        }
-      };
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root) {
+            @Override
+            void deleteDirectory(final DatasetId toDelete) {
+              if (toDelete.equals(id) && failNext.compareAndSet(true, false)) {
+                throw diskFailure;
+              }
+              super.deleteDirectory(toDelete);
+            }
+          }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null, DatasetLifecycleRdf4j::shutDownIfInitialized);
       lifecycle = lc;
       lc.acquire(id).close();
 
@@ -798,48 +798,48 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("the unfinished-delete mark survives a restart: a second instance over the same storage root"
+    @DisplayName("the deletion-leftover mark survives a restart: a second instance over the same storage root"
         + " still refuses the remains if the cleanup keeps failing")
     void delete_diskTeardownFails_secondInstanceOverSameRoot_stillRefusesTheRemains() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("restart-refused");
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
-      final DatasetLifecycleRdf4j first = new DatasetLifecycleRdf4j(
-          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
-        @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
-          if (toDelete.equals(id)) {
-            throw diskFailure; // the OS refuses to remove the storage
-          }
-          super.deleteStorageOnDisk(toDelete);
-        }
-      };
+      final DatasetLifecycleRdf4j first = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root) {
+            @Override
+            void deleteDirectory(final DatasetId toDelete) {
+              if (toDelete.equals(id)) {
+                throw diskFailure; // the OS refuses to remove the storage
+              }
+              super.deleteDirectory(toDelete);
+            }
+          }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null, DatasetLifecycleRdf4j::shutDownIfInitialized);
       first.acquire(id).close();
       assertThatThrownBy(() -> first.delete(id)).isSameAs(diskFailure);
       first.shutDownAll(); // the process goes down with the mark still unresolved
 
       // a brand-new instance — its in-process tracking starts empty, so only the on-disk marker
       // can be what makes it refuse the remains too.
-      final DatasetLifecycleRdf4j second = new DatasetLifecycleRdf4j(
-          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
-        @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
-          if (toDelete.equals(id)) {
-            throw diskFailure; // still refuses to remove the storage after the "restart"
-          }
-          super.deleteStorageOnDisk(toDelete);
-        }
-      };
+      final DatasetLifecycleRdf4j second = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root) {
+            @Override
+            void deleteDirectory(final DatasetId toDelete) {
+              if (toDelete.equals(id)) {
+                throw diskFailure; // still refuses to remove the storage after the "restart"
+              }
+              super.deleteDirectory(toDelete);
+            }
+          }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null, DatasetLifecycleRdf4j::shutDownIfInitialized);
       lifecycle = second;
 
       assertThat(second.list()).doesNotContain(id); // the marker keeps it out of the listing too
       assertThatThrownBy(() -> second.acquire(id)).isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("unfinished delete")
+          .hasMessageContaining("deletion leftover")
           .hasCauseReference(diskFailure);
     }
 
     @Test
-    @DisplayName("the unfinished-delete mark survives a restart: a second instance over the same storage root"
+    @DisplayName("the deletion-leftover mark survives a restart: a second instance over the same storage root"
         + " cleans up the remains and seeds a fresh dataset once the cleanup succeeds")
     void delete_diskTeardownFails_secondInstanceOverSameRoot_cleansUpAndSeedsAfresh() throws Exception {
       final Path root = tmp.resolve("stores");
@@ -848,20 +848,19 @@ class DatasetLifecycleRdf4jTest {
       final String askOther = "ASK { GRAPH <" + otherGraph.getIRIString() + "> { ?s ?p ?o } }";
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
       final AtomicInteger seeds = new AtomicInteger();
-      final DatasetLifecycleRdf4j first = new DatasetLifecycleRdf4j(
-          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC,
-          (seeded, graphStore) -> {
+      final DatasetLifecycleRdf4j first = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root) {
+            @Override
+            void deleteDirectory(final DatasetId toDelete) {
+              if (toDelete.equals(id)) {
+                throw diskFailure; // the OS refuses to remove the storage, and never gets to try again
+              }
+              super.deleteDirectory(toDelete);
+            }
+          }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> {
             seeds.incrementAndGet();
             graphStore.add(GRAPH, singleTriple());
-          }) {
-        @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
-          if (toDelete.equals(id)) {
-            throw diskFailure; // the OS refuses to remove the storage, and never gets to try again
-          }
-          super.deleteStorageOnDisk(toDelete);
-        }
-      };
+          }, DatasetLifecycleRdf4j::shutDownIfInitialized);
       try (DatasetHandle ds = first.acquire(id)) {
         ds.graphStore().add(otherGraph, singleTriple()); // written after seeding — tells old from new
       }
@@ -875,9 +874,8 @@ class DatasetLifecycleRdf4jTest {
       // failure has cleared, so its retry of the cleanup — triggered by the marker it finds on
       // disk, not by any in-process state, since this instance never attempted the delete itself
       // — succeeds.
-      final DatasetLifecycleRdf4j second = new DatasetLifecycleRdf4j(
-          new DatasetStoreConfig(Persistence.PERSISTENT, false), root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC,
-          (seeded, graphStore) -> {
+      final DatasetLifecycleRdf4j second = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> {
             seeds.incrementAndGet();
             graphStore.add(GRAPH, singleTriple());
           });
@@ -914,16 +912,14 @@ class DatasetLifecycleRdf4jTest {
       final DatasetId id = new DatasetId("close-fails");
       final RepositoryException teardownFailure = new RepositoryException("simulated shutdown failure");
       final AtomicBoolean failNext = new AtomicBoolean(true);
-      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
-        @Override
-        void shutDownRepository(final Repository repository) {
-          super.shutDownRepository(repository); // real teardown succeeds — lock released, data flushed
-          if (failNext.compareAndSet(true, false)) {
-            throw teardownFailure; // ...but shutDown() itself is reported as having failed, once
-          }
-        }
-      };
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root), DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null, repository -> {
+            DatasetLifecycleRdf4j.shutDownIfInitialized(repository); // real teardown succeeds — lock released, data
+                                                                     // flushed
+            if (failNext.compareAndSet(true, false)) {
+              throw teardownFailure; // ...but shutDown() itself is reported as having failed, once
+            }
+          });
       lifecycle = lc;
       final GraphStore firstStore;
       try (DatasetHandle ds = lc.acquire(id)) {
@@ -931,7 +927,7 @@ class DatasetLifecycleRdf4jTest {
         firstStore = ds.graphStore();
       }
 
-      assertThatThrownBy(() -> lc.close(id)).isSameAs(teardownFailure);
+      assertThatThrownBy(() -> lc.shutDown(id)).isSameAs(teardownFailure);
 
       // the cache must not keep serving the (already shut-down but now dangling) store: a fresh
       // acquire creates a brand new one — same identity would mean the dead cached entry survived
@@ -948,19 +944,16 @@ class DatasetLifecycleRdf4jTest {
       final Path root = tmp.resolve("stores");
       final List<Repository> tornDown = new ArrayList<>();
       final List<RepositoryException> failures = new ArrayList<>();
-      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null) {
-        @Override
-        void shutDownRepository(final Repository repository) {
-          super.shutDownRepository(repository);
-          tornDown.add(repository);
-          if (failures.size() < 2) { // the first two stores in iteration order report a failure
-            final RepositoryException failure = new RepositoryException("simulated shutdown failure");
-            failures.add(failure);
-            throw failure;
-          }
-        }
-      };
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root), DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null, repository -> {
+            DatasetLifecycleRdf4j.shutDownIfInitialized(repository);
+            tornDown.add(repository);
+            if (failures.size() < 2) { // the first two stores in iteration order report a failure
+              final RepositoryException failure = new RepositoryException("simulated shutdown failure");
+              failures.add(failure);
+              throw failure;
+            }
+          });
       lifecycle = lc;
       for (final String name : List.of("one", "two", "three")) {
         lc.acquire(new DatasetId(name)).close();
@@ -983,21 +976,18 @@ class DatasetLifecycleRdf4jTest {
       final RepositoryException teardownFailure = new RepositoryException("simulated shutdown failure");
       final AtomicBoolean failNext = new AtomicBoolean(true);
       final AtomicInteger seeds = new AtomicInteger();
-      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false),
-          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (datasetId, graphStore) -> {
+      final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          new DatasetStorage(root), DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (datasetId, graphStore) -> {
             if (seeds.incrementAndGet() == 1) {
               throw seedFailure;
             }
             graphStore.add(GRAPH, singleTriple());
-          }) {
-        @Override
-        void shutDownRepository(final Repository repository) {
-          super.shutDownRepository(repository); // real teardown succeeds — lock released
-          if (failNext.compareAndSet(true, false)) {
-            throw teardownFailure;
-          }
-        }
-      };
+          }, repository -> {
+            DatasetLifecycleRdf4j.shutDownIfInitialized(repository); // real teardown succeeds — lock released
+            if (failNext.compareAndSet(true, false)) {
+              throw teardownFailure;
+            }
+          });
       lifecycle = lc;
 
       assertThatThrownBy(() -> lc.acquire(id)).isSameAs(seedFailure)
@@ -1048,39 +1038,39 @@ class DatasetLifecycleRdf4jTest {
      */
     private DatasetLifecycleRdf4j failingFor(final Path root, final DatasetId id, final AtomicBoolean failing,
         final AtomicInteger seeds) {
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
-          DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> seeds.incrementAndGet()) {
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), new DatasetStorage(root) {
         @Override
-        void deleteStorageOnDisk(final DatasetId toDelete) {
+        void deleteDirectory(final DatasetId toDelete) {
           if (toDelete.equals(id) && failing.get()) {
             throw new UncheckedIOException(new IOException("simulated disk failure"));
           }
-          super.deleteStorageOnDisk(toDelete);
+          super.deleteDirectory(toDelete);
         }
-      };
+      }, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (seeded, graphStore) -> seeds.incrementAndGet(),
+          DatasetLifecycleRdf4j::shutDownIfInitialized);
       return lifecycle;
     }
 
     @Test
-    @DisplayName("the remains of a failed delete are enumerated, and only they")
-    void listUnfinishedDeletes_namesTheRemains_butNotAnIntactDataset() {
+    @DisplayName("deletion leftovers are enumerated, and only they")
+    void listDeletionLeftovers_namesTheRemains_butNotAnIntactDataset() {
       final Path root = tmp.resolve("stores");
       final DatasetId broken = new DatasetId("half-deleted");
       final DatasetId intact = new DatasetId("still-there");
       final DatasetLifecycleRdf4j lc = failingFor(root, broken, new AtomicBoolean(true), new AtomicInteger());
       lc.acquire(broken).close();
       lc.acquire(intact).close();
-      assertThat(lc.listUnfinishedDeletes()).isEmpty(); // precondition: nothing has failed yet
+      assertThat(lc.listDeletionLeftovers()).isEmpty(); // precondition: nothing has failed yet
 
       assertThatThrownBy(() -> lc.delete(broken)).isInstanceOf(UncheckedIOException.class);
 
-      assertThat(lc.listUnfinishedDeletes()).containsExactly(broken);
+      assertThat(lc.listDeletionLeftovers()).containsExactly(broken);
       assertThat(lc.list()).containsExactly(intact); // the two listings do not overlap
     }
 
     @Test
     @DisplayName("the remains are still enumerated after a restart — the on-disk marker is what names them")
-    void listUnfinishedDeletes_secondInstanceOverSameRoot_findsTheRemains() {
+    void listDeletionLeftovers_secondInstanceOverSameRoot_findsTheRemains() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("restart-listed");
       final DatasetLifecycleRdf4j first = failingFor(root, id, new AtomicBoolean(true), new AtomicInteger());
@@ -1090,12 +1080,12 @@ class DatasetLifecycleRdf4jTest {
 
       final DatasetLifecycleRdf4j second = persistent(root);
 
-      assertThat(second.listUnfinishedDeletes()).containsExactly(id);
+      assertThat(second.listDeletionLeftovers()).containsExactly(id);
     }
 
     @Test
     @DisplayName("clearing the remains creates nothing in their place, and the identifier is free again")
-    void clearUnfinishedDelete_removesTheRemains_withoutCreatingADataset() throws Exception {
+    void clearDeletionLeftover_removesTheRemains_withoutCreatingADataset() throws Exception {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("to-clear");
       final AtomicBoolean failing = new AtomicBoolean(true);
@@ -1105,14 +1095,14 @@ class DatasetLifecycleRdf4jTest {
       assertThatThrownBy(() -> lc.delete(id)).isInstanceOf(UncheckedIOException.class);
       failing.set(false); // the cause — a locked file, a permission problem — has since cleared
 
-      assertThat(lc.clearUnfinishedDelete(id)).isEqualTo(DatasetCleanupOutcome.CLEARED);
+      assertThat(lc.clearDeletionLeftover(id)).isEqualTo(DatasetCleanupOutcome.CLEARED);
 
       // nothing was created in place of the remains: no directory, no seeding, in neither listing
       try (Stream<Path> children = Files.list(root)) {
         assertThat(children).isEmpty();
       }
       assertThat(seeds).hasValue(1); // only the original creation
-      assertThat(lc.listUnfinishedDeletes()).isEmpty();
+      assertThat(lc.listDeletionLeftovers()).isEmpty();
       assertThat(lc.list()).doesNotContain(id);
       // and the identifier is an ordinary unknown one again: acquire creates and seeds it afresh
       lc.acquire(id).close();
@@ -1121,33 +1111,33 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("a cleanup that fails again reports the failure and leaves the identifier barred")
-    void clearUnfinishedDelete_failsAgain_reportsTheFailureAndKeepsTheIdBarred() {
+    void clearDeletionLeftover_failsAgain_reportsTheFailureAndKeepsTheIdBarred() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("still-undeletable");
       final DatasetLifecycleRdf4j lc = failingFor(root, id, new AtomicBoolean(true), new AtomicInteger());
       lc.acquire(id).close();
       assertThatThrownBy(() -> lc.delete(id)).isInstanceOf(UncheckedIOException.class);
 
-      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(UncheckedIOException.class)
+      assertThatThrownBy(() -> lc.clearDeletionLeftover(id)).isInstanceOf(UncheckedIOException.class)
           .hasMessageContaining("simulated disk failure");
 
-      assertThat(lc.listUnfinishedDeletes()).containsExactly(id);
+      assertThat(lc.listDeletionLeftovers()).containsExactly(id);
       assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("unfinished delete");
+          .hasMessageContaining("deletion leftover");
     }
 
     @Test
     @DisplayName("clearing refuses an intact persisted dataset — getting rid of one is delete()")
-    void clearUnfinishedDelete_intactPersistedDataset_isRefusedAndLeftAlone() {
+    void clearDeletionLeftover_intactPersistedDataset_isRefusedAndLeftAlone() {
       final Path root = tmp.resolve("stores");
       final DatasetLifecycleRdf4j lc = persistent(root);
       final DatasetId id = new DatasetId("intact");
       try (DatasetHandle ds = lc.acquire(id)) {
         ds.graphStore().add(GRAPH, singleTriple());
       }
-      assertThat(lc.close(id)).isEqualTo(DatasetCloseOutcome.CLOSED); // on disk only, not held open
+      assertThat(lc.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN); // on disk only, not held open
 
-      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class)
+      assertThatThrownBy(() -> lc.clearDeletionLeftover(id)).isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("intact");
 
       try (DatasetHandle ds = lc.acquire(id)) {
@@ -1157,15 +1147,15 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("clearing refuses a dataset that is open, leased or not")
-    void clearUnfinishedDelete_openDataset_isRefused() {
+    void clearDeletionLeftover_openDataset_isRefused() {
       final DatasetLifecycleRdf4j lc = persistent(tmp.resolve("stores"));
       final DatasetId id = new DatasetId("open");
 
       try (DatasetHandle ds = lc.acquire(id)) {
         ds.graphStore().add(GRAPH, singleTriple());
-        assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> lc.clearDeletionLeftover(id)).isInstanceOf(IllegalStateException.class);
       }
-      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class);
+      assertThatThrownBy(() -> lc.clearDeletionLeftover(id)).isInstanceOf(IllegalStateException.class);
 
       try (DatasetHandle ds = lc.acquire(id)) {
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
@@ -1174,10 +1164,10 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("an identifier with neither a dataset nor remains reports that there was nothing to clear")
-    void clearUnfinishedDelete_unknownId_reportsNothingToClear() {
+    void clearDeletionLeftover_unknownId_reportsNothingToClear() {
       final DatasetLifecycleRdf4j lc = persistent(tmp.resolve("stores"));
 
-      assertThat(lc.clearUnfinishedDelete(new DatasetId("never-seen")))
+      assertThat(lc.clearDeletionLeftover(new DatasetId("never-seen")))
           .isEqualTo(DatasetCleanupOutcome.NOTHING_TO_CLEAR);
     }
 
@@ -1188,15 +1178,15 @@ class DatasetLifecycleRdf4jTest {
       final DatasetId id = new DatasetId("in-memory");
       lc.acquire(id).close();
 
-      assertThat(lc.listUnfinishedDeletes()).isEmpty();
-      assertThatThrownBy(() -> lc.clearUnfinishedDelete(id)).isInstanceOf(IllegalStateException.class);
+      assertThat(lc.listDeletionLeftovers()).isEmpty();
+      assertThatThrownBy(() -> lc.clearDeletionLeftover(id)).isInstanceOf(IllegalStateException.class);
       lc.delete(id);
-      assertThat(lc.clearUnfinishedDelete(id)).isEqualTo(DatasetCleanupOutcome.NOTHING_TO_CLEAR);
+      assertThat(lc.clearDeletionLeftover(id)).isEqualTo(DatasetCleanupOutcome.NOTHING_TO_CLEAR);
     }
 
     @Test
     @DisplayName("enumeration fails as a whole when the storage location cannot be read")
-    void listUnfinishedDeletes_unreadableStorageRoot_fails() throws Exception {
+    void listDeletionLeftovers_unreadableStorageRoot_fails() throws Exception {
       final Path root = tmp.resolve("stores");
       final DatasetLifecycleRdf4j lc = persistent(root);
       lc.acquire(new DatasetId("any")).close();
@@ -1205,7 +1195,7 @@ class DatasetLifecycleRdf4jTest {
       try {
         assumeFalse(Files.isReadable(root), "running with privileges that ignore directory permissions");
 
-        assertThatThrownBy(lc::listUnfinishedDeletes).isInstanceOf(UncheckedIOException.class);
+        assertThatThrownBy(lc::listDeletionLeftovers).isInstanceOf(UncheckedIOException.class);
       } finally {
         Files.setPosixFilePermissions(root, original);
       }
@@ -1237,7 +1227,7 @@ class DatasetLifecycleRdf4jTest {
     void acquire_unreadableIntactDataset_doesNotDeleteIt() throws Exception {
       final Path root = tmp.resolve("stores");
       final AtomicInteger seeded = new AtomicInteger();
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (i, graphStore) -> {
             seeded.incrementAndGet();
             graphStore.add(GRAPH, singleTriple());
@@ -1291,7 +1281,7 @@ class DatasetLifecycleRdf4jTest {
     }
 
     private DatasetLifecycleRdf4j persistent(final Path storageRoot) {
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), storageRoot);
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), storageRoot);
       return lifecycle;
     }
   }
@@ -1312,7 +1302,7 @@ class DatasetLifecycleRdf4jTest {
       final CountDownLatch inHook = new CountDownLatch(1);
       final CountDownLatch releaseHook = new CountDownLatch(1);
       final AtomicBoolean firstCall = new AtomicBoolean(true);
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (i, graphStore) -> {
             if (firstCall.getAndSet(false)) {
               inHook.countDown();
@@ -1351,11 +1341,11 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("R2-4: list() skips directories this lifecycle did not create (data/, logs/, non-UTF-8, non-canonical)")
     void list_skipsForeignDirectories() throws Exception {
       final Path root = tmp.resolve("stores");
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root,
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, null);
       final DatasetId own = new DatasetId("own");
       lifecycle.acquire(own).close();
-      lifecycle.close(own);
+      lifecycle.shutDown(own);
       Files.createDirectory(root.resolve("data"));
       Files.createDirectory(root.resolve("logs"));
       // Base64url of the single byte 0xFF: canonical, but not valid UTF-8
@@ -1383,14 +1373,14 @@ class DatasetLifecycleRdf4jTest {
     void shutDownAll_persistent_retainedHandleFailsAndLeavesDirectoryUnlocked() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("kept-on-disk");
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root);
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root);
       final DatasetHandle ds = lifecycle.acquire(id);
       ds.graphStore().add(GRAPH, singleTriple());
 
       lifecycle.shutDownAll();
 
       assertThatThrownBy(() -> ds.graphStore().count()).isInstanceOf(DatasetStorageException.class);
-      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root);
+      lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root);
       try (DatasetHandle reopened = lifecycle.acquire(id)) {
         assertThat(reopened.graphStore().count()).isEqualTo(1);
       }
@@ -1427,14 +1417,6 @@ class DatasetLifecycleRdf4jTest {
   @Nested
   @DisplayName("configuration")
   class Configuration {
-
-    @Test
-    @DisplayName("full-text search is rejected until #6")
-    void fullTextSearch_rejected() {
-      assertThatThrownBy(() -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY, true), null))
-          .isInstanceOf(UnsupportedOperationException.class)
-          .hasMessageContaining("#6");
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1450,15 +1432,15 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("clearUnfinishedDelete(null) throws NullPointerException")
-    void clearUnfinishedDelete_null_throws() {
-      assertThatThrownBy(() -> inMemory().clearUnfinishedDelete(null)).isInstanceOf(NullPointerException.class);
+    @DisplayName("clearDeletionLeftover(null) throws NullPointerException")
+    void clearDeletionLeftover_null_throws() {
+      assertThatThrownBy(() -> inMemory().clearDeletionLeftover(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    @DisplayName("close(null) throws NullPointerException")
+    @DisplayName("shutDown(null) throws NullPointerException")
     void close_null_throws() {
-      assertThatThrownBy(() -> inMemory().close(null)).isInstanceOf(NullPointerException.class);
+      assertThatThrownBy(() -> inMemory().shutDown(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -1476,7 +1458,7 @@ class DatasetLifecycleRdf4jTest {
     @Test
     @DisplayName("PERSISTENT without a storage root throws NullPointerException")
     void constructor_persistentWithoutStorageRoot_throws() {
-      assertThatThrownBy(() -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), null))
+      assertThatThrownBy(() -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), null))
           .isInstanceOf(NullPointerException.class);
     }
 
@@ -1484,7 +1466,7 @@ class DatasetLifecycleRdf4jTest {
     @DisplayName("PERSISTENT without an index spec throws NullPointerException")
     void constructor_persistentWithoutIndexSpec_throws(@TempDir final Path root) {
       assertThatThrownBy(
-          () -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT, false), root, null, null))
+          () -> new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT), root, null, null))
           .isInstanceOf(NullPointerException.class);
     }
   }

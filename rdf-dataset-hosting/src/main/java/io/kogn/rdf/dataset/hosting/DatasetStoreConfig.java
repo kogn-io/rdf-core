@@ -13,11 +13,8 @@ package io.kogn.rdf.dataset.hosting;
  * backend vocabulary leaks into the neutral port layer.</p>
  *
  * @param persistence whether the store must survive process restarts
- * @param fullTextSearch whether full-text indexing is required; the full-text
- *     <em>search</em> port is delivered separately, so a backend may reject
- *     {@code true} until that capability lands
  */
-public record DatasetStoreConfig(Persistence persistence, boolean fullTextSearch) {
+public record DatasetStoreConfig(Persistence persistence) {
 
   /** How durably a dataset's contents must be stored. */
   public enum Persistence {
@@ -25,7 +22,7 @@ public record DatasetStoreConfig(Persistence persistence, boolean fullTextSearch
     PERSISTENT,
     /**
      * Contents never survive a process restart, and are already gone when the store is
-     * closed: {@link DatasetLifecycle#close(DatasetId)} discards them rather than merely
+     * shut down: {@link DatasetLifecycle#shutDown(DatasetId)} discards them rather than merely
      * evicting them from a cache, and the next {@link DatasetLifecycle#acquire(DatasetId)}
      * starts from a fresh, empty dataset.
      */
@@ -44,12 +41,11 @@ public record DatasetStoreConfig(Persistence persistence, boolean fullTextSearch
   }
 
   /**
-   * Returns the default configuration: a persistent store without full-text
-   * search.
+   * Returns the default configuration: a persistent store.
    *
-   * @return a persistent, non-FTS configuration
+   * @return a persistent configuration
    */
   public static DatasetStoreConfig persistentDefault() {
-    return new DatasetStoreConfig(Persistence.PERSISTENT, false);
+    return new DatasetStoreConfig(Persistence.PERSISTENT);
   }
 }

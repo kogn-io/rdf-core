@@ -7,20 +7,20 @@ import java.io.UncheckedIOException;
 import java.util.Set;
 
 /**
- * Backend-neutral lifecycle for datasets: open-or-create, close, delete and
+ * Backend-neutral lifecycle for datasets: open-or-create, shut down, delete and
  * enumerate, with built-in in-flight protection.
  *
  * <p>Datasets are addressed by an opaque {@link DatasetId}. A dataset is
  * obtained through {@link #acquire(DatasetId)}, which returns a leased
  * {@link DatasetHandle} and never exposes a backend-specific store type. The
  * lease is what makes eviction and deletion safe: while a handle is open,
- * {@link #close(DatasetId)} and {@link #delete(DatasetId)} leave the underlying store
+ * {@link #shutDown(DatasetId)} and {@link #delete(DatasetId)} leave the underlying store
  * alone. The one call that does not honour a lease is {@link #shutDownAll()}, a last
  * resort for the end of the process; a handle still open after it points at a
  * shut-down store.</p>
  *
  * <p>This port is pure <em>mechanism</em>. Any idle/TTL eviction <em>policy</em>
- * lives with the consumer, which decides when to call {@link #close(DatasetId)}.
+ * lives with the consumer, which decides when to call {@link #shutDown(DatasetId)}.
  * The on-create seeding hook is a construction concern of the backend
  * implementation, not a method of this port — the port carries no mutable
  * registration state.</p>
@@ -41,34 +41,34 @@ public interface DatasetLifecycle {
    *
    * <p>The returned {@link DatasetHandle} must be closed — ideally via
    * try-with-resources — to release the lease. While any lease is open the
-   * dataset is protected from {@link #close(DatasetId)} and
+   * dataset is protected from {@link #shutDown(DatasetId)} and
    * {@link #delete(DatasetId)}. If the dataset is newly created the on-create
    * hook runs to completion before this method returns, so the caller never
    * observes an unseeded dataset.</p>
    *
    * <p>"One-time" is scoped to the store, not to the {@link DatasetId}: for an
-   * {@code IN_MEMORY} dataset {@link #close(DatasetId)} destroys the store, so the
+   * {@code IN_MEMORY} dataset {@link #shutDown(DatasetId)} destroys the store, so the
    * next {@code acquire} creates it anew and runs the hook again. See
-   * {@link #close(DatasetId)} for the full contract.</p>
+   * {@link #shutDown(DatasetId)} for the full contract.</p>
    *
    * <p>A {@link #delete(DatasetId)} that failed part-way through may leave a dataset
-   * behind that is neither the old one nor a fresh one. An implementation must not
-   * hand such remains out as though they were a whole dataset: it either clears them
-   * away, so that this call creates the dataset anew, or it refuses the identifier
-   * with an {@link IllegalStateException} for as long as they are there.</p>
+   * behind that is neither the old one nor a fresh one: a <em>deletion leftover</em>. An
+   * implementation must not hand a deletion leftover out as though it were a whole
+   * dataset: it either clears it away, so that this call creates the dataset anew, or it
+   * refuses the identifier with an {@link IllegalStateException} for as long as it is there.</p>
    *
    * <p>If the dataset is created by this call, a failure while opening its store or
    * a failure of the on-create hook leaves nothing behind: a half-created dataset is
    * rolled back, no lease is taken, and the failure reaches the caller as it was raised —
    * the backend's exception for the store, the hook's own exception (or error) for the
    * hook. The next {@code acquire} then starts from scratch, the hook included — unless
-   * the rollback itself fails: what is left is then treated like the remains of a failed
-   * delete (see above).</p>
+   * the rollback itself fails: what is left is then treated like a deletion leftover
+   * (see above).</p>
    *
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}
    * @throws NullPointerException if {@code id} is {@code null}
-   * @throws IllegalStateException if a failed {@link #delete(DatasetId)} left remains
+   * @throws IllegalStateException if a failed {@link #delete(DatasetId)} left a deletion leftover
    *     that cannot be cleared away
    * @throws UncheckedIOException if the storage of the dataset cannot be read, so that it
    *     is unknown whether the dataset exists; the storage is then left untouched
@@ -79,15 +79,15 @@ public interface DatasetLifecycle {
   DatasetHandle acquire(DatasetId id);
 
   /**
-   * Evicts the dataset for {@code id}: shuts the backing store down and drops it
+   * Shuts the dataset for {@code id} down, to evict it: shuts the backing store down and drops it
    * from the in-memory cache, <strong>without</strong> deleting its storage.
    *
    * <p>This is the eviction trigger a consumer's idle/TTL policy invokes. The
-   * returned {@link DatasetCloseOutcome} tells the policy what happened:
-   * {@link DatasetCloseOutcome#CLOSED} if the dataset was shut down,
-   * {@link DatasetCloseOutcome#STILL_LEASED} if it currently has open leases —
+   * returned {@link DatasetShutdownOutcome} tells the policy what happened:
+   * {@link DatasetShutdownOutcome#SHUT_DOWN} if the dataset was shut down,
+   * {@link DatasetShutdownOutcome#STILL_LEASED} if it currently has open leases —
    * this call is then a no-op and never interrupts in-flight work, the policy is
-   * expected to retry later — or {@link DatasetCloseOutcome#NOT_OPEN} if the
+   * expected to retry later — or {@link DatasetShutdownOutcome#NOT_OPEN} if the
    * lifecycle was not holding that dataset at all, which is not an error:
    * already evicted, never opened, and an id it has never seen all look the
    * same from here. A subsequent {@link #acquire(DatasetId)} re-opens the same
@@ -95,40 +95,40 @@ public interface DatasetLifecycle {
    *
    * <p><strong>That resume guarantee holds only for a store with {@code PERSISTENT}
    * persistence.</strong> A dataset configured as {@code IN_MEMORY} has no storage to
-   * resume: closing it discards its contents outright, and the next
+   * resume: shutting it down discards its contents outright, and the next
    * {@link #acquire(DatasetId)} creates a fresh, empty dataset and re-runs the
    * on-create hook — the same outcome as {@link #delete(DatasetId)}. A consumer that
    * builds a generic idle/TTL eviction policy against this neutral port must treat
-   * {@code close} as destructive for {@code IN_MEMORY} datasets.</p>
+   * {@code shutDown} as destructive for {@code IN_MEMORY} datasets.</p>
    *
    * <p>If tearing the backing store down fails, this call exits with the backend's
    * exception instead of an outcome. The entry is dropped regardless, so a subsequent
-   * {@code close} for the same {@link DatasetId} reports {@link DatasetCloseOutcome#NOT_OPEN},
-   * not {@link DatasetCloseOutcome#STILL_LEASED}.</p>
+   * {@code shutDown} for the same {@link DatasetId} reports {@link DatasetShutdownOutcome#NOT_OPEN},
+   * not {@link DatasetShutdownOutcome#STILL_LEASED}.</p>
    *
    * @param id the dataset identifier; must not be {@code null}
    * @return what happened to the dataset; never {@code null}
    * @throws NullPointerException if {@code id} is {@code null}
    * @throws RuntimeException if tearing the backing store down fails
    */
-  DatasetCloseOutcome close(DatasetId id);
+  DatasetShutdownOutcome shutDown(DatasetId id);
 
   /**
    * Deletes the dataset for {@code id}, including its on-disk storage.
    *
-   * <p>Unlike {@link #close(DatasetId)} this is destructive: it throws if the
+   * <p>Unlike {@link #shutDown(DatasetId)} this is destructive: it throws if the
    * dataset still has open leases, so that a delete racing with in-flight use is
    * surfaced rather than silently corrupting an open store.</p>
    *
    * <p>Deleting a dataset's storage need not be atomic, so this call can fail with
-   * the dataset half gone. What is left over is then no longer a dataset an
+   * the dataset half gone. What is left over, the deletion leftover, is then no longer a dataset an
    * implementation may serve — see {@link #acquire(DatasetId)} for how that state is
    * resolved. The failure is the backend's own {@link RuntimeException}, raised
    * after the dataset has been dropped from the in-memory cache; this port does not
    * fix a more specific type, since what can go wrong depends on the storage (a
    * file-based implementation will typically raise an {@link UncheckedIOException}).
    * A caller that needs to know which identifiers are left in that state asks
-   * {@link DatasetMaintenance#listUnfinishedDeletes()}.</p>
+   * {@link DatasetMaintenance#listDeletionLeftovers()}.</p>
    *
    * @param id the dataset identifier; must not be {@code null}
    * @throws NullPointerException if {@code id} is {@code null}
@@ -152,16 +152,16 @@ public interface DatasetLifecycle {
    * out here. What another caller does concurrently is of course not frozen by
    * this call either way.</p>
    *
-   * <p>The remains of a {@link #delete(DatasetId)} that failed part-way are one
-   * case this port does require ruling out: an identifier carrying such remains is
+   * <p>A deletion leftover, what a {@link #delete(DatasetId)} that failed part-way
+   * left of a dataset, is one case this port does require ruling out: an identifier carrying one is
    * left out here. Whether {@link #acquire(DatasetId)} goes on to accept that
-   * identifier once it has cleaned the remains up itself is not something this
-   * listing decides — only that it is not reported as usable while the remains
-   * stand. An implementation that can leave such remains behind names them through
-   * {@link DatasetMaintenance#listUnfinishedDeletes()} instead.</p>
+   * identifier once it has cleaned the leftover up itself is not something this
+   * listing decides — only that it is not reported as usable while the leftover
+   * stands. An implementation that can leave such a leftover behind names it through
+   * {@link DatasetMaintenance#listDeletionLeftovers()} instead.</p>
    *
    * <p>The listing is all-or-nothing: if the storage cannot be read, or if it cannot be
-   * determined whether an identifier carries the remains of a failed delete, this call
+   * determined whether an identifier carries a deletion leftover, this call
    * fails rather than report that identifier as usable or drop it silently. Entries in
    * the storage that this implementation did not itself create for a dataset are not
    * reported; how reliably it tells them apart is for the implementation to document.</p>
@@ -169,7 +169,7 @@ public interface DatasetLifecycle {
    * @return the identifiers this implementation currently reports as usable;
    *     never {@code null}
    * @throws UncheckedIOException if the storage cannot be listed, or if it cannot be
-   *     determined whether an identifier carries the remains of a failed delete
+   *     determined whether an identifier carries a deletion leftover
    */
   Set<DatasetId> list();
 
@@ -179,8 +179,8 @@ public interface DatasetLifecycle {
    *
    * <p>This belongs on the lifecycle port, not on a port of its own like
    * {@link DatasetMaintenance}: shutting down is the closing end of the lifecycle
-   * that {@link #acquire(DatasetId)} opens, the same act as {@link #close(DatasetId)}
-   * applied to everything at once. It is not maintenance, which concerns the remains
+   * that {@link #acquire(DatasetId)} opens, the same act as {@link #shutDown(DatasetId)}
+   * applied to everything at once. It is not maintenance, which concerns the leftover
    * of something that went wrong.</p>
    *
    * <p>A dataset whose store is still being created by a concurrent
@@ -190,7 +190,7 @@ public interface DatasetLifecycle {
    * persisted one, creating an {@code IN_MEMORY} one anew.</p>
    *
    * <p><strong>Last resort — does not honour open leases.</strong> Unlike
-   * {@link #close(DatasetId)} and {@link #delete(DatasetId)}, this call tears every
+   * {@link #shutDown(DatasetId)} and {@link #delete(DatasetId)}, this call tears every
    * store down unconditionally, including ones with an open {@link DatasetHandle};
    * such a handle keeps pointing at the shut-down store, and using it fails with the
    * port's storage failure ({@code DatasetStorageException} for the graph operations and
@@ -198,7 +198,7 @@ public interface DatasetLifecycle {
    * for the export) — it never starts the store again. Call it only when the process is going down anyway, never
    * as a substitute for releasing leases in the normal course of business. Persisted storage stays
    * untouched; the contents of an {@code IN_MEMORY} dataset are lost, as with
-   * {@link #close(DatasetId)}. Calling it when nothing is open is a no-op.</p>
+   * {@link #shutDown(DatasetId)}. Calling it when nothing is open is a no-op.</p>
    *
    * <p>A backing store that fails to shut down does not stop the others: every open
    * dataset is attempted, and afterwards none of them is held open any more, the

@@ -10,7 +10,7 @@
  * eviction, deletion and lease-based in-flight protection.</p>
  *
  * <ul>
- *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetLifecycle} — open-or-create/close/delete/list
+ *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetLifecycle} — open-or-create/shut down/delete/list
  *       datasets, addressed by an opaque {@link io.kogn.rdf.dataset.hosting.DatasetId}, with
  *       lease-based in-flight protection;
  *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#acquire} returns a leased
@@ -19,18 +19,18 @@
  *       to one dataset; <em>not</em> an RDF 1.1 dataset value, but a session that must be closed
  *       to release its lease</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetId} — the opaque dataset key</li>
- *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetCloseOutcome} — what
- *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#close} did: shut the dataset down,
+ *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetShutdownOutcome} — what
+ *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#shutDown} did: shut the dataset down,
  *       found it still leased, or found it not open at all</li>
- *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetMaintenance} — find and clear the remains a
+ *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetMaintenance} — find and clear the deletion leftover a
  *       failed {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#delete} left behind, creating
  *       nothing in their place; a port of its own, implemented alongside
  *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle} (see ADR-0018)</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome} — what
- *       {@link io.kogn.rdf.dataset.hosting.DatasetMaintenance#clearUnfinishedDelete} did: cleared
- *       the remains, or found nothing to clear</li>
+ *       {@link io.kogn.rdf.dataset.hosting.DatasetMaintenance#clearDeletionLeftover} did: cleared
+ *       the leftover, or found nothing to clear</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetStoreConfig} — the backend-neutral store knobs
- *       (persistence, full-text-search requirement)</li>
+ *       (persistence)</li>
  * </ul>
  *
  * <p>Hosting is a concern of whatever process owns the pool of stores, not an RDF concept: a

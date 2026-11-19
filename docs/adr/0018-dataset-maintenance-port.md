@@ -1,6 +1,7 @@
 # ADR-0018: Clearing up after a failed delete is a port of its own
 
-Status: Accepted
+Status: Accepted — the names are corrected by
+[ADR-0028](0028-hosting-port-names.md)
 
 ## Context
 
