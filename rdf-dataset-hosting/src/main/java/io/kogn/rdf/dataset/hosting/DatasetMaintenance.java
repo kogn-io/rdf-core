@@ -27,7 +27,7 @@ public interface DatasetMaintenance {
 
   /**
    * Returns the identifiers that carry nothing but a deletion leftover, what a
-   * failed {@link DatasetLifecycle#delete(DatasetId)}.
+   * failed {@link DatasetLifecycle#delete(DatasetId)} left behind.
    *
    * <p>These are exactly the identifiers {@link DatasetLifecycle#acquire(DatasetId)} refuses or
    * would first have to clean up, and that {@link DatasetLifecycle#list()} leaves out; the two
