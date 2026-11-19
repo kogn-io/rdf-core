@@ -39,8 +39,7 @@ class SerializationEncodingTest {
   private static final String SELF = "1:S";
   private static final String PREDICATE = "1:I20:http://example.org/p";
 
-  private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
-      new RdfDatasetCanonicalizer());
+  private final ContentAddressedIRIGeneratorSexpr generator = new ContentAddressedIRIGeneratorSexpr();
   private final RDF rdf = new SimpleRdf();
   private final IRI base = rdf.createIRI(BASE);
   private final IRI p = rdf.createIRI(EX + "p");
@@ -101,6 +100,6 @@ class SerializationEncodingTest {
   }
 
   private String hashedInput(List<Triple> triples) {
-    return new String(serializer.serializeWithIri(base, triples).sexprBytes(), StandardCharsets.UTF_8);
+    return new String(generator.derive(base, triples).hashedInput(), StandardCharsets.UTF_8);
   }
 }

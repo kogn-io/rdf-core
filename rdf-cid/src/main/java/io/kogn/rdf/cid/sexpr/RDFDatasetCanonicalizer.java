@@ -31,15 +31,15 @@ import io.kogn.rdf.terms.Triple;
  *
  * @see <a href="https://www.w3.org/TR/rdf-canon/">RDF Dataset Canonicalization (RDFC-1.0)</a>
  */
-public class RdfDatasetCanonicalizer {
+final class RDFDatasetCanonicalizer {
 
   /** The largest cost bound (ni-rdf/1 §4.3) a graph may have and still be canonicalized. */
-  public static final long MAX_COST = 10_000_000L;
+  static final long MAX_COST = 10_000_000L;
 
   private static final String HASH_ALGORITHM = "SHA-256";
 
   /** Creates a canonicalizer. */
-  public RdfDatasetCanonicalizer() {
+  RDFDatasetCanonicalizer() {
     // stateless; every call canonicalizes from scratch
   }
 
@@ -60,7 +60,7 @@ public class RdfDatasetCanonicalizer {
    * @throws ContentAddressingException if canonicalization fails; the underlying failure is kept
    *         as cause
    */
-  public Map<String, String> canonicalIdentifiers(Collection<Triple> triples) {
+  Map<String, String> canonicalIdentifiers(Collection<Triple> triples) {
     BigInteger cost = CanonicalizationCost.estimate(triples, MAX_COST);
     if (cost.compareTo(BigInteger.valueOf(MAX_COST)) > 0) {
       throw new CanonicalizationResourceLimitExceededException("[RESOURCE_LIMIT] The graph's cost bound exceeds "

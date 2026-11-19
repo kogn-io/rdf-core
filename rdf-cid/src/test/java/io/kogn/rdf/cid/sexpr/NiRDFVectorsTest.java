@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.cid;
+package io.kogn.rdf.cid.sexpr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,8 +21,7 @@ import org.junit.jupiter.api.TestFactory;
 
 import com.apicatalog.rdf.nquads.NQuadsReader;
 
-import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
-import io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer;
+import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
@@ -35,18 +34,16 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Runs every test vector of the specification ni-rdf/1 ({@code docs/spec/ni-rdf/vectors/v1.json})
- * against {@link ContentAddressedIriGeneratorSexpr}: a vector expects either the name and the
+ * against {@link ContentAddressedIRIGeneratorSexpr}: a vector expects either the name and the
  * hashed input, or the failure code the message starts with.
  */
-class NiRdfVectorsTest {
+class NiRDFVectorsTest {
 
   private static final Path VECTORS = Path.of("docs", "spec", "ni-rdf", "vectors", "v1.json");
   private static final String BLANK_NODE_PREFIX = "_:";
 
   private final RDF rdf = new SimpleRdf();
-  private final ContentAddressedIriGenerator generator = new ContentAddressedIriGeneratorSexpr(rdf);
-  private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
-      new RdfDatasetCanonicalizer(), rdf);
+  private final ContentAddressedIRIGeneratorSexpr generator = new ContentAddressedIRIGeneratorSexpr(rdf);
 
   @TestFactory
   Stream<DynamicTest> everyVector() {
@@ -65,15 +62,15 @@ class NiRdfVectorsTest {
       Class<? extends RuntimeException> expected = "RESOURCE_LIMIT".equals(code)
           ? CanonicalizationResourceLimitExceededException.class
           : IllegalArgumentException.class;
-      assertThatThrownBy(() -> generator.generateIri(base, graph)).isInstanceOf(expected)
+      assertThatThrownBy(() -> generator.generateIRI(base, graph)).isInstanceOf(expected)
           .hasMessageStartingWith("[" + code + "]");
       return;
     }
 
     assertThat(vector.has("name")).as("a success vector carries its expected name").isTrue();
-    assertThat(generator.generateIri(base, graph).getIRIString()).isEqualTo(vector.get("name").asString());
+    assertThat(generator.generateIRI(base, graph).getIRIString()).isEqualTo(vector.get("name").asString());
     List<Triple> triples = graph.stream().toList();
-    assertThat(new String(serializer.serializeWithIri(base, triples).sexprBytes(), StandardCharsets.UTF_8))
+    assertThat(new String(generator.derive(base, triples).hashedInput(), StandardCharsets.UTF_8))
         .isEqualTo(vector.get("hashed").asString());
   }
 

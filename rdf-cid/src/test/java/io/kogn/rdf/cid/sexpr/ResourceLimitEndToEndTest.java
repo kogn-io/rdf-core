@@ -19,7 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.cid.AsWrittenLiteral;
-import io.kogn.rdf.cid.AsWrittenRdf;
+import io.kogn.rdf.cid.AsWrittenRDF;
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -33,7 +33,7 @@ import io.kogn.rdf.terms.Triple;
  * The resource limit of ni-rdf/1 section 4.3 end to end: the cost bound {@code E} of small graphs
  * worked out by hand from the formula {@code W_C * |C| * (|C|^2 + T_C)}, summed over components,
  * independent of input order and blank node labels, with the limit decided on the <em>mapped</em>
- * graph (section 4.1, section 4.2) through {@link ContentAddressableRdfSerializer}.
+ * graph (section 4.1, section 4.2) through {@link ContentAddressedIRIGeneratorSexpr}.
  */
 class ResourceLimitEndToEndTest {
 
@@ -43,9 +43,8 @@ class ResourceLimitEndToEndTest {
   private final RDF rdf = new SimpleRdf();
   private final IRI root = rdf.createIRI(EX + "doc");
   private final IRI member = rdf.createIRI(EX + "member");
-  // AsWrittenRdf keeps tags as written, so the lower-casing of section 4.1 is the serializer's own.
-  private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
-      new RdfDatasetCanonicalizer(), new AsWrittenRdf());
+  // AsWrittenRDF keeps tags as written, so the lower-casing of section 4.1 is the generator's own.
+  private final ContentAddressedIRIGeneratorSexpr generator = new ContentAddressedIRIGeneratorSexpr(new AsWrittenRDF());
 
   @Test
   @DisplayName("T_C counts a triple once even if subject and object are both in C")
@@ -94,9 +93,9 @@ class ResourceLimitEndToEndTest {
     assertThat(CanonicalizationCost.estimate(hubs(35, 6), LIMIT)).isEqualTo(BigInteger.valueOf(9_878_400L));
     assertThat(CanonicalizationCost.estimate(hubs(36, 6), LIMIT)).isEqualTo(BigInteger.valueOf(10_160_640L));
 
-    assertThatNoException().isThrownBy(() -> serializer.serializeWithIri(root, hubs(35, 6)));
+    assertThatNoException().isThrownBy(() -> generator.derive(root, hubs(35, 6)));
     assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
-        .isThrownBy(() -> serializer.serializeWithIri(root, hubs(36, 6)))
+        .isThrownBy(() -> generator.derive(root, hubs(36, 6)))
         .withMessageStartingWith("[RESOURCE_LIMIT]");
   }
 
@@ -114,7 +113,7 @@ class ResourceLimitEndToEndTest {
     assertThat(CanonicalizationCost.estimate(lowerCased, LIMIT)).isEqualTo(BigInteger.valueOf(71_124_480L));
 
     assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
-        .isThrownBy(() -> serializer.serializeWithIri(root, raw))
+        .isThrownBy(() -> generator.derive(root, raw))
         .withMessageStartingWith("[RESOURCE_LIMIT]");
   }
 
@@ -132,7 +131,7 @@ class ResourceLimitEndToEndTest {
       triples.add(rdf.createTriple(hubNode, label, rdf.createLiteral("v", "en")));
     }
 
-    assertThatNoException().isThrownBy(() -> serializer.serializeWithIri(root, triples));
+    assertThatNoException().isThrownBy(() -> generator.derive(root, triples));
   }
 
   @Test
@@ -146,8 +145,7 @@ class ResourceLimitEndToEndTest {
     List<Triple> one = List.of(rdf.createTriple(root, member, child),
         rdf.createTriple(child, label, rdf.createLiteral("v", "en")));
 
-    assertThat(serializer.serializeWithIri(root, both).sexprBytes())
-        .isEqualTo(serializer.serializeWithIri(root, one).sexprBytes());
+    assertThat(generator.derive(root, both).hashedInput()).isEqualTo(generator.derive(root, one).hashedInput());
   }
 
   private long cost(List<Triple> triples) {

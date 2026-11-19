@@ -22,7 +22,7 @@ import io.kogn.rdf.terms.Triple;
  * rdf-cid alone: with {@link SimpleRdf}, which lower-cases on creation, a test of that step stays green even if
  * rdf-cid drops it.
  */
-public final class AsWrittenRdf implements RDF {
+public final class AsWrittenRDF implements RDF {
 
   private final RDF delegate = new SimpleRdf();
 

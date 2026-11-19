@@ -23,9 +23,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import io.kogn.rdf.cid.BaseRebaser;
-import io.kogn.rdf.cid.ContentAddressedIriGenerator;
-import io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr;
+import io.kogn.rdf.cid.ContentAddressedIRIGenerator;
+import io.kogn.rdf.cid.sexpr.BaseRebaser;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -70,7 +70,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
   private static final String ENTRY_IRI_PREFIX = "urn:uuid:";
 
   private final IRI contentGraph;
-  private final ContentAddressedIriGenerator generator;
+  private final ContentAddressedIRIGenerator generator;
   private final Clock clock;
   private final BaseRebaser rebaser = new BaseRebaser(new SimpleRdf());
 
@@ -87,7 +87,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
    * @throws IllegalArgumentException if {@code contentGraph} is a graph of the library
    */
   public ResourceVersioningNamedGraphs(final IRI contentGraph) {
-    this(contentGraph, new ContentAddressedIriGeneratorSexpr(), Clock.systemUTC());
+    this(contentGraph, new ContentAddressedIRIGeneratorSexpr(), Clock.systemUTC());
   }
 
   /**
@@ -104,7 +104,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
    * @throws NullPointerException if an argument is {@code null}
    * @throws IllegalArgumentException if {@code contentGraph} is a graph of the library
    */
-  public ResourceVersioningNamedGraphs(final IRI contentGraph, final ContentAddressedIriGenerator generator,
+  public ResourceVersioningNamedGraphs(final IRI contentGraph, final ContentAddressedIRIGenerator generator,
       final Clock clock) {
     Objects.requireNonNull(contentGraph, "contentGraph");
     this.generator = Objects.requireNonNull(generator, "generator");
@@ -294,7 +294,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (slice.isEmpty()) {
       return PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES;
     }
-    return isUnchanged(last, generator.generateIri(proxyIri, slice))
+    return isUnchanged(last, generator.generateIRI(proxyIri, slice))
         ? PublishState.PUBLISHED_UNCHANGED
         : PublishState.PUBLISHED_WITH_UNPUBLISHED_CHANGES;
   }
@@ -443,7 +443,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       throw new RevisionConflictException(proxyIri);
     }
     final Graph slice = draftOf(tx, proxyIri, indexedFragments(tx, proxyIri, VocabVersioning.DRAFT_FRAGMENT));
-    final IRI cid = generator.generateIri(proxyIri, slice);
+    final IRI cid = generator.generateIRI(proxyIri, slice);
     final Optional<StoredEntry> last = lastEntry(tx, proxyIri);
     final boolean unchanged = isUnchanged(last, cid);
     if (unchanged) {

@@ -21,15 +21,15 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * Unit tests for {@link RdfDatasetCanonicalizer}: RDFC-1.0 labels that depend on structure, not
+ * Unit tests for {@link RDFDatasetCanonicalizer}: RDFC-1.0 labels that depend on structure, not
  * on input labels, the canonical N-Quads escaping the labels hang on, and the resource limit
  * checked before RDFC-1.0 runs.
  */
-class RdfDatasetCanonicalizerTest {
+class RDFDatasetCanonicalizerTest {
 
   private static final String EX = "http://example.org/";
 
-  private final RdfDatasetCanonicalizer canonicalizer = new RdfDatasetCanonicalizer();
+  private final RDFDatasetCanonicalizer canonicalizer = new RDFDatasetCanonicalizer();
   private final RDF rdf = new SimpleRdf();
 
   @Test

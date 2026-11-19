@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.cid;
+package io.kogn.rdf.cid.sexpr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.kogn.rdf.cid.ContentAddressedIRIGenerator;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
@@ -33,7 +34,7 @@ class BaseRebaserTest {
   private static final String RESERVED = "urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1";
 
   private RDF rdf;
-  private ContentAddressedIriGenerator generator;
+  private ContentAddressedIRIGenerator generator;
   private BaseRebaser rebaser;
   private IRI provisional;
   private IRI p;
@@ -41,7 +42,7 @@ class BaseRebaserTest {
   @BeforeEach
   void setUp() {
     rdf = new SimpleRdf();
-    generator = new ContentAddressedIriGeneratorSexpr(rdf);
+    generator = new ContentAddressedIRIGeneratorSexpr(rdf);
     rebaser = new BaseRebaser(rdf);
     provisional = rdf.createIRI(EX + "draft");
     p = rdf.createIRI(EX + "p");
@@ -59,11 +60,11 @@ class BaseRebaserTest {
     graph.add(part, p, node);
     graph.add(node, p, rdf.createLiteral("1", datatype));
     graph.add(node, provisional, provisional);
-    final IRI identifier = generator.generateIri(provisional, graph);
+    final IRI identifier = generator.generateIRI(provisional, graph);
 
     final Graph rebased = rebaser.rebase(graph, provisional, identifier);
 
-    assertThat(generator.generateIri(identifier, rebased)).isEqualTo(identifier);
+    assertThat(generator.generateIRI(identifier, rebased)).isEqualTo(identifier);
     final IRI renamedPart = rdf.createIRI(identifier.getIRIString() + "#part");
     final IRI renamedDatatype = rdf.createIRI(identifier.getIRIString() + "#kind");
     assertThat(rebased.contains(rdf.createTriple(identifier, p, renamedPart))).isTrue();
@@ -255,6 +256,23 @@ class BaseRebaserTest {
   }
 
   @Test
+  @DisplayName("a base with an unpaired surrogate is rejected as [UNSUPPORTED_TERM], old or new")
+  void rejectsUnpairedSurrogateInBase() {
+    final Graph graph = rdf.createGraph();
+    graph.add(provisional, p, provisional);
+    final IRI broken = new SimpleIRI("http://example.org/\uD800");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> rebaser.rebase(graph, broken, provisional))
+        .withMessageStartingWith("[UNSUPPORTED_TERM]")
+        .withMessageContaining("unpaired surrogate");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> rebaser.rebase(graph, provisional, broken))
+        .withMessageStartingWith("[UNSUPPORTED_TERM]")
+        .withMessageContaining("unpaired surrogate");
+  }
+
+  @Test
   @DisplayName("a term of a foreign kind is rejected as [UNSUPPORTED_TERM]")
   void rejectsForeignTermKind() {
     final RDFTerm foreignKind = () -> "<foreign>";
@@ -297,11 +315,11 @@ class BaseRebaserTest {
     final IRI xsd = rdf.createIRI("http://www.w3.org/2001/XMLSchema");
     final Graph graph = rdf.createGraph();
     graph.add(rdf.createTriple(xsd, p, new LiteralWithoutDatatype("v")));
-    final IRI identifier = generator.generateIri(xsd, graph);
+    final IRI identifier = generator.generateIRI(xsd, graph);
 
     final Graph rebased = rebaser.rebase(graph, xsd, identifier);
 
-    assertThat(generator.generateIri(identifier, rebased)).isEqualTo(identifier);
+    assertThat(generator.generateIRI(identifier, rebased)).isEqualTo(identifier);
     final IRI renamedString = rdf.createIRI(identifier.getIRIString() + "#string");
     assertThat(rebased.contains(rdf.createTriple(identifier, p, rdf.createLiteral("v", renamedString)))).isTrue();
   }
@@ -313,12 +331,12 @@ class BaseRebaserTest {
     final Graph graph = rdf.createGraph();
     final IRI label = rdf.createIRI(EX + "vocab#label");
     graph.add(rdfNamespace, label, rdf.createLiteral("type", "en"));
-    final IRI identifier = generator.generateIri(rdfNamespace, graph);
+    final IRI identifier = generator.generateIRI(rdfNamespace, graph);
 
     final Graph rebased = rebaser.rebase(graph, rdfNamespace, identifier);
 
     assertThat(identifier.getIRIString()).isEqualTo("ni:///sha3-256;PtwLeN7S1zr_d3jjX7E8RzBVraMZdmgzg0b9-Qc_Olc");
-    assertThat(generator.generateIri(identifier, rebased)).isEqualTo(identifier);
+    assertThat(generator.generateIRI(identifier, rebased)).isEqualTo(identifier);
     assertThat(rebased.contains(rdf.createTriple(identifier, label, rdf.createLiteral("type", "en")))).isTrue();
   }
 

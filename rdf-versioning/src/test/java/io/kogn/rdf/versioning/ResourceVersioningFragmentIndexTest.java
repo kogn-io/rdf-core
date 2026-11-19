@@ -21,8 +21,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import io.kogn.rdf.cid.ContentAddressedIriGenerator;
-import io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr;
+import io.kogn.rdf.cid.ContentAddressedIRIGenerator;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
@@ -55,7 +55,7 @@ class ResourceVersioningFragmentIndexTest {
   private static final IRI P = new SimpleIRI("https://example.org/vocab/p");
 
   private final SimpleRdf rdf = new SimpleRdf();
-  private final ContentAddressedIriGenerator generator = new ContentAddressedIriGeneratorSexpr();
+  private final ContentAddressedIRIGenerator generator = new ContentAddressedIRIGeneratorSexpr();
   private Repository repository;
   private DatasetTransactor transactor;
   private ResourceVersioning versioning;
@@ -77,7 +77,7 @@ class ResourceVersioningFragmentIndexTest {
   void aFragmentSubjectWithoutALinkFromTheProxyIriIsInTheDraftThePublishedViewAndTheVersion() {
     final Graph content = graph(triple(A, "one"), triple(A_X, "part"));
     draft(A, content);
-    final IRI cid = generator.generateIri(A, content);
+    final IRI cid = generator.generateIRI(A, content);
 
     publish(A);
 
@@ -92,7 +92,7 @@ class ResourceVersioningFragmentIndexTest {
   void aSliceOfFragmentSubjectsOnlyIsReadPublishedAndStored() {
     final Graph content = graph(triple(A_X, "part"));
     draft(A, content);
-    final IRI cid = generator.generateIri(A, content);
+    final IRI cid = generator.generateIRI(A, content);
 
     publish(A);
 
@@ -199,7 +199,7 @@ class ResourceVersioningFragmentIndexTest {
     final Graph content = graph(triple(A, "one"), triple(A_X, "x"));
     draft(A, content);
     publish(A);
-    final IRI cid = generator.generateIri(A, content);
+    final IRI cid = generator.generateIRI(A, content);
 
     final IRI tombstone = transactor.inTransaction(
         tx -> versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE).entry());
@@ -220,8 +220,8 @@ class ResourceVersioningFragmentIndexTest {
     final Graph contentOfB = graph(triple(B, "same"), triple(B_X, "part"));
     draft(A, contentOfA);
     draft(B, contentOfB);
-    final IRI cid = generator.generateIri(A, contentOfA);
-    assertThat(generator.generateIri(B, contentOfB)).isEqualTo(cid);
+    final IRI cid = generator.generateIRI(A, contentOfA);
+    assertThat(generator.generateIRI(B, contentOfB)).isEqualTo(cid);
     publish(A);
 
     final RecordingTx recorded = transactor.inTransaction(tx -> {
@@ -246,7 +246,7 @@ class ResourceVersioningFragmentIndexTest {
         .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE))
         .entries()
         .get(A);
-    final IRI cid = generator.generateIri(A, contentOfA);
+    final IRI cid = generator.generateIRI(A, contentOfA);
     final Graph recorded = new SimpleGraph();
     recorded.add(entryOfA, VocabVersioning.VERSION_FRAGMENT, new SimpleIRI(cid.getIRIString() + "#x"));
     transactor.inTransaction(tx -> tx.remove(VersioningGraphs.HISTORY, recorded));
@@ -266,7 +266,7 @@ class ResourceVersioningFragmentIndexTest {
         .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE))
         .entries()
         .get(A);
-    final IRI cid = generator.generateIri(A, contentOfA);
+    final IRI cid = generator.generateIRI(A, contentOfA);
     draft(B, graph(triple(B, "same"), triple(B_X, "part")));
     publish(B);
     final Graph recorded = new SimpleGraph();
@@ -299,7 +299,7 @@ class ResourceVersioningFragmentIndexTest {
     final Graph content = graph(triple(A, "one"), triple(A_X, "x"));
     draft(A, content);
     publish(A);
-    final IRI cid = generator.generateIri(A, content);
+    final IRI cid = generator.generateIRI(A, content);
     final Graph foreign = new SimpleGraph();
     foreign.add(rdf.createBlankNode(), VocabVersioning.CONTENT, cid);
     transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, foreign));
@@ -398,7 +398,7 @@ class ResourceVersioningFragmentIndexTest {
     final BlankNode node = rdf.createBlankNode();
     final Graph content = graph(triple(A, "one"), triple(A_X, "x"), triple(node, "deep"));
     content.add(A, P, node);
-    final IRI cid = generator.generateIri(A, content);
+    final IRI cid = generator.generateIRI(A, content);
 
     final RecordingTx recorded = transactor.inTransaction(tx -> {
       final RecordingTx recording = new RecordingTx(tx);

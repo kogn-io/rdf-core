@@ -20,7 +20,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import io.kogn.rdf.cid.AsWrittenLiteral;
-import io.kogn.rdf.cid.AsWrittenRdf;
+import io.kogn.rdf.cid.AsWrittenRDF;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDF;
@@ -28,20 +28,19 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.Triple;
 
 /**
- * Unit tests for {@link ContentAddressableRdfSerializer}.
+ * Unit tests for the derivation of ni-rdf/1 (§1.3) in {@link ContentAddressedIRIGeneratorSexpr#derive}.
  *
- * <p>{@code ContentAddressedIriGeneratorSexprTest} and the ni-rdf/1 vectors already cover
+ * <p>{@code ContentAddressedIRIGeneratorSexprTest} and the ni-rdf/1 vectors already cover
  * determinism and distinctness through the port a consumer actually calls; this class is left
  * with what needs the raw hashed bytes — two blank node labels, the base IRI never reaching
  * them, language tags lower-cased before the labels are issued — and with the reserved IRI.</p>
  */
-class ContentAddressableRdfSerializerTest {
+class DerivationTest {
 
-  private static final String RESERVED = ContentAddressableRdfSerializer.RESERVED_IRI;
+  private static final String RESERVED = Terms.RESERVED_IRI;
 
-  // AsWrittenRdf keeps tags as written, so the lower-casing tested here is the serializer's own.
-  private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
-      new RdfDatasetCanonicalizer(), new AsWrittenRdf());
+  // AsWrittenRDF keeps tags as written, so the lower-casing tested here is the generator's own.
+  private final ContentAddressedIRIGeneratorSexpr generator = new ContentAddressedIRIGeneratorSexpr(new AsWrittenRDF());
   private final RDF rdf = new SimpleRdf();
   private final IRI self = rdf.createIRI("http://example.org/doc");
   private final IRI p = rdf.createIRI("http://example.org/p");
@@ -77,7 +76,7 @@ class ContentAddressableRdfSerializerTest {
 
   @Test
   @DisplayName("the base IRI and its fragment IRIs never reach the hashed bytes, in any position")
-  void baseIriNeverReachesTheHashedBytes() {
+  void baseIRINeverReachesTheHashedBytes() {
     String base = "http://example.org/draft";
     IRI draft = rdf.createIRI(base);
     IRI part = rdf.createIRI(base + "#part");
@@ -110,8 +109,7 @@ class ContentAddressableRdfSerializerTest {
   void iriWithTheReservedBaseIsRejected(String suffix) {
     List<Triple> triples = List.of(rdf.createTriple(self, p, rdf.createIRI(RESERVED + suffix)));
 
-    assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> serializer.serializeWithIri(self, triples))
+    assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.derive(self, triples))
         .withMessageStartingWith("[RESERVED_IRI]")
         .withMessageContaining(RESERVED + suffix);
   }
@@ -119,7 +117,7 @@ class ContentAddressableRdfSerializerTest {
   @ParameterizedTest(name = "<R{0}>")
   @ValueSource(strings = {"x", "/x", "?q=1", ":x"})
   @DisplayName("an IRI that merely starts with the reserved IRI is an ordinary IRI and goes in as written")
-  void iriThatOnlyStartsWithTheReservedIriGoesInAsWritten(String suffix) {
+  void iriThatOnlyStartsWithTheReservedIRIGoesInAsWritten(String suffix) {
     String lookalike = RESERVED + suffix;
 
     String hashed = hashed(self, List.of(rdf.createTriple(self, p, rdf.createIRI(lookalike))));
@@ -129,7 +127,7 @@ class ContentAddressableRdfSerializerTest {
 
   @Test
   @DisplayName("a base IRI that merely starts with the reserved IRI is an ordinary base")
-  void baseThatOnlyStartsWithTheReservedIri() {
+  void baseThatOnlyStartsWithTheReservedIRI() {
     IRI base = rdf.createIRI(RESERVED + "x");
 
     String hashed = hashed(base, List.of(rdf.createTriple(base, p, base)));
@@ -175,6 +173,19 @@ class ContentAddressableRdfSerializerTest {
   }
 
   private String hashed(IRI base, List<Triple> triples) {
-    return new String(serializer.serializeWithIri(base, triples).sexprBytes(), StandardCharsets.UTF_8);
+    return new String(generator.derive(base, triples).hashedInput(), StandardCharsets.UTF_8);
+  }
+
+  @Test
+  @DisplayName("a failure inside the canonicalization step reaches the caller untranslated")
+  void failureInsideCanonicalizationIsNotRelabelled() {
+    IllegalStateException broken = new IllegalStateException("broken");
+    ContentAddressedIRIGeneratorSexpr failing = new ContentAddressedIRIGeneratorSexpr(rdf, triples -> {
+      throw broken;
+    });
+
+    assertThatExceptionOfType(IllegalStateException.class)
+        .isThrownBy(() -> failing.derive(self, List.of(rdf.createTriple(self, p, rdf.createLiteral("v")))))
+        .isSameAs(broken);
   }
 }

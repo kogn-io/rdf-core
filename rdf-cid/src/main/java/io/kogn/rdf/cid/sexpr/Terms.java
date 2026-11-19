@@ -24,7 +24,17 @@ final class Terms {
   /** Prefix that marks a blank node identifier in the titanium quad API and in N-Quads. */
   static final String BLANK_NODE_PREFIX = "_:";
 
-  private static final char FRAGMENT_SEPARATOR = '#';
+  /** Separates the base of an IRI from its fragment. */
+  static final char FRAGMENT_SEPARATOR = '#';
+
+  /**
+   * The reserved IRI of ni-rdf/1 §1.2: the base IRI is mapped onto it before canonicalization,
+   * so no IRI of the input may have it as its base.
+   */
+  static final String RESERVED_IRI = "urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1";
+
+  /** The reserved IRI followed by {@code #}: what every fragment IRI of the base is mapped onto. */
+  static final String RESERVED_FRAGMENT_PREFIX = RESERVED_IRI + FRAGMENT_SEPARATOR;
 
   private Terms() {
   }

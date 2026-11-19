@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -36,14 +37,14 @@ class UnpairedSurrogateTest {
   private static final String SURROGATE_PAIR = "😀";
 
   private RDF rdf;
-  private ContentAddressedIriGenerator generator;
+  private ContentAddressedIRIGenerator generator;
   private IRI base;
   private IRI predicate;
 
   @BeforeEach
   void setUp() {
     rdf = new SimpleRdf();
-    generator = new ContentAddressedIriGeneratorSexpr(rdf);
+    generator = new ContentAddressedIRIGeneratorSexpr(rdf);
     base = rdf.createIRI(EX + "r");
     predicate = rdf.createIRI(EX + "p");
   }
@@ -69,8 +70,8 @@ class UnpairedSurrogateTest {
   @Test
   @DisplayName("the literal \"?\" itself and a proper surrogate pair still mint a name")
   void validStringsStillMintAName() {
-    IRI question = generator.generateIri(base, graphOf(rdf.createTriple(base, predicate, rdf.createLiteral("?"))));
-    IRI pair = generator.generateIri(base,
+    IRI question = generator.generateIRI(base, graphOf(rdf.createTriple(base, predicate, rdf.createLiteral("?"))));
+    IRI pair = generator.generateIRI(base,
         graphOf(rdf.createTriple(base, predicate, rdf.createLiteral(SURROGATE_PAIR))));
 
     assertThat(question.getIRIString()).startsWith("ni:///sha3-256;");
@@ -79,7 +80,7 @@ class UnpairedSurrogateTest {
 
   @Test
   @DisplayName("a lone surrogate in an IRI object is rejected")
-  void loneSurrogateInIriObject() {
+  void loneSurrogateInIRIObject() {
     assertUnsupported(base, rdf.createTriple(base, predicate, rdf.createIRI(EX + HIGH_SURROGATE)));
   }
 
@@ -132,9 +133,9 @@ class UnpairedSurrogateTest {
         rdf.createTriple(rdf.createIRI(EX + "other"), predicate, rdf.createLiteral("v")));
   }
 
-  private void assertUnsupported(IRI baseIri, Triple... triples) {
+  private void assertUnsupported(IRI baseIRI, Triple... triples) {
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> generator.generateIri(baseIri, graphOf(triples)))
+        .isThrownBy(() -> generator.generateIRI(baseIRI, graphOf(triples)))
         .withMessageStartingWith(UNSUPPORTED_TERM)
         .withMessageContaining("unpaired surrogate");
   }

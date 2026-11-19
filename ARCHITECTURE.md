@@ -72,7 +72,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
-| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIriGenerator.generateIri(base, graph)` over `ReadableGraph`, returning a deterministic RFC 6920 name `ni:///sha3-256;<digest>` (procedure ni-rdf/1, whose tag `procedureTag()` returns as a value) derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to swap. `BaseRebaser` renames the base and its fragments (spec §6). No dependency on the dataset ports. |
+| `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIRIGenerator.generateIRI(base, graph)` over `ReadableGraph`, returning a deterministic RFC 6920 name `ni:///sha3-256;<digest>` (procedure ni-rdf/1, whose tag `procedureTag()` returns as a value) derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIRIGeneratorSexpr` — there is no backend to swap. `BaseRebaser` renames the base and its fragments (spec §6). No dependency on the dataset ports. |
 | `rdf-versioning` | `io.kogn.rdf:rdf-versioning` | Versioning of RDF resources over the caller's `DatasetTx` (ADR-0021–0024): a mutable draft per proxy IRI, immutable versions named by their CID, and a history of publishes and deletions, kept in fixed named graphs of the library beside the caller's content graph. Port `ResourceVersioning` with its sole implementation `ResourceVersioningNamedGraphs`: `readSlice`/`replaceSlice` read and write a proxy IRI's draft slice (`DraftSlice`) under an optimistic `RevisionToken` (`RevisionConflictException`, `AmbiguousBlankNodeException`); `publish` turns drafts into versions, atomically over several proxy IRIs (`PublishDetails`, `PublishResult`); `readPublished`, `readVersion` (by CID or by sequence number), `history` (`HistoryEntry`, `EntryKind` `PUBLISH`/`TOMBSTONE`) and `publishState` (`PublishState`: never published, published unchanged, published with unpublished changes, deleted) read back; `delete` removes the draft and the published slice and records a tombstone (`DeleteResult`, `versioning:Tombstone`) while history and versions stay. The caller names only its content graph, bound on first use (`ContentGraphMismatchException` on a different one). The graph IRIs (`VersioningGraphs`) and the module's own vocabulary (`VocabVersioning`) live only here, never in `rdf-terms`. Depends on `rdf-dataset` and `rdf-cid` only — no backend, no hosting. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
@@ -439,7 +439,7 @@ only — never on the dataset modules — so validation and storage stay separab
 
 ## Content-addressed identifiers (`rdf-cid`)
 
-`ContentAddressedIriGenerator.generateIri(base, graph)` derives a deterministic
+`ContentAddressedIRIGenerator.generateIRI(base, graph)` derives a deterministic
 RFC 6920 name `ni:///sha3-256;<digest>` from the triples describing the resource
 `base`, so the same content always mints the same identifier and re-importing a
 dataset is detectable without keeping a ledger of what was imported before
@@ -480,7 +480,7 @@ Two things callers need to know before persisting the result anywhere:
   ([ADR-0016](docs/adr/0016-content-addressed-iri-self-placeholder.md)).
 
 **Renaming to the identifier.** `BaseRebaser.rebase(graph, from, to)` is the
-step after `generateIri`: it replaces the base IRI and every fragment IRI of it
+step after `generateIRI`: it replaces the base IRI and every fragment IRI of it
 (`<from#f>` becomes `<to#f>`) in every position, the datatype IRI of a literal without a language tag included, and
 works on terms, never on text, so an IRI that merely begins with the old base
 stays. Generating over the result with the identifier as base returns the same
@@ -490,7 +490,10 @@ than a method of the generator port. A graph that already uses the new base is
 refused, since the rename would merge distinct IRIs.
 
 Unlike the other two port families, `rdf-cid` carries its own and only
-implementation, `ContentAddressedIriGeneratorSexpr` — there is no backend to
+implementation, `ContentAddressedIRIGeneratorSexpr` (package `io.kogn.rdf.cid.sexpr`,
+where `BaseRebaser` lives too; everything else there is package-private, and the
+implementation runs the steps of spec §1.3 in one method, `derive` —
+[ADR-0025](docs/adr/0025-content-addressed-iri-internals-and-names.md)) — there is no backend to
 swap, because the algorithm is arithmetic over `rdf-terms` values rather than a
 call into a store. It depends on `rdf-terms` alone among our modules and on no
 RDF4J artifact (`CidPortHasNoBackendDependencyTest` pins that the same way

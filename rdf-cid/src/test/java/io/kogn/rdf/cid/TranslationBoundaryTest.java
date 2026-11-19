@@ -15,8 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
-import io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -40,14 +39,14 @@ class TranslationBoundaryTest {
   private static final String LONE_SURROGATE = "\uD800";
 
   private RDF rdf;
-  private ContentAddressedIriGenerator generator;
+  private ContentAddressedIRIGenerator generator;
   private IRI base;
   private IRI predicate;
 
   @BeforeEach
   void setUp() {
     rdf = new SimpleRdf();
-    generator = new ContentAddressedIriGeneratorSexpr(rdf);
+    generator = new ContentAddressedIRIGeneratorSexpr(rdf);
     base = rdf.createIRI(EX + "r");
     predicate = rdf.createIRI(EX + "p");
   }
@@ -92,7 +91,7 @@ class TranslationBoundaryTest {
 
   @Test
   @DisplayName("a literal whose datatype has no IRI string is rejected as an unsupported term")
-  void literalWithNullDatatypeIriString() {
+  void literalWithNullDatatypeIRIString() {
     IRI datatype = new IRI() {
       @Override
       public String getIRIString() {
@@ -117,7 +116,7 @@ class TranslationBoundaryTest {
 
   @Test
   @DisplayName("an IRI without IRI string is rejected as an unsupported term")
-  void iriWithNullIriString() {
+  void iriWithNullIRIString() {
     IRI foreign = new IRI() {
       @Override
       public String getIRIString() {
@@ -134,7 +133,7 @@ class TranslationBoundaryTest {
 
   @Test
   @DisplayName("a base IRI without IRI string is rejected as an unsupported term")
-  void baseWithNullIriString() {
+  void baseWithNullIRIString() {
     IRI foreign = new IRI() {
       @Override
       public String getIRIString() {
@@ -147,7 +146,7 @@ class TranslationBoundaryTest {
       }
     };
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> generator.generateIri(foreign, graphOf(triple(base, predicate, rdf.createLiteral("v")))))
+        .isThrownBy(() -> generator.generateIRI(foreign, graphOf(triple(base, predicate, rdf.createLiteral("v")))))
         .withMessageStartingWith(UNSUPPORTED_TERM);
   }
 
@@ -163,23 +162,6 @@ class TranslationBoundaryTest {
   void blankNodeLookingDatatypeOnLoneSurrogateLiteral() {
     Literal literal = rdf.createLiteral(LONE_SURROGATE, rdf.createIRI("_:b0"));
     assertUnsupported(triple(base, predicate, literal));
-  }
-
-  @Test
-  @DisplayName("a failure of the serializer itself is not relabelled as a derivation failure")
-  void ownBugIsNotRelabelled() {
-    IllegalStateException bug = new IllegalStateException("bug");
-    ContentAddressableRdfSerializer broken = new ContentAddressableRdfSerializer(new RdfDatasetCanonicalizer(), rdf) {
-      @Override
-      public ContentAddressableResult serializeWithIri(IRI iri, java.util.Collection<Triple> triples) {
-        throw bug;
-      }
-    };
-    ContentAddressedIriGenerator failing = new ContentAddressedIriGeneratorSexpr(rdf, broken);
-
-    assertThatExceptionOfType(IllegalStateException.class)
-        .isThrownBy(() -> failing.generateIri(base, graphOf(triple(base, predicate, rdf.createLiteral("v")))))
-        .isSameAs(bug);
   }
 
   @Test
@@ -202,7 +184,7 @@ class TranslationBoundaryTest {
     }
 
     assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
-        .isThrownBy(() -> generator.generateIri(base, graphOf(triples.toArray(Triple[]::new))))
+        .isThrownBy(() -> generator.generateIRI(base, graphOf(triples.toArray(Triple[]::new))))
         .withMessageStartingWith("[RESOURCE_LIMIT]")
         .withMessageContaining("exceeds 10000000")
         .satisfies(e -> assertThat(e.getMessage()).doesNotContain("6860000686"));
@@ -210,7 +192,7 @@ class TranslationBoundaryTest {
 
   private void assertUnsupported(Triple... triples) {
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> generator.generateIri(base, graphOf(triples)))
+        .isThrownBy(() -> generator.generateIRI(base, graphOf(triples)))
         .withMessageStartingWith(UNSUPPORTED_TERM);
   }
 

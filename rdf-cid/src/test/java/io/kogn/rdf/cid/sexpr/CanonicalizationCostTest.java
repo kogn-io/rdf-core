@@ -47,7 +47,7 @@ class CanonicalizationCostTest {
   @Test
   @DisplayName("a complete graph of 6 blank nodes is beyond the limit")
   void cliqueOfSix() {
-    assertThat(cost(clique(6))).isGreaterThan(RdfDatasetCanonicalizer.MAX_COST);
+    assertThat(cost(clique(6))).isGreaterThan(RDFDatasetCanonicalizer.MAX_COST);
   }
 
   @Test
@@ -76,7 +76,7 @@ class CanonicalizationCostTest {
   @DisplayName("a cycle of 7 blank nodes linked in both directions costs 8 028 160, one of 8 is beyond the limit")
   void undirectedCycle() {
     assertThat(cost(undirectedCycle(7))).isEqualTo(8_028_160L);
-    assertThat(cost(undirectedCycle(8))).isGreaterThan(RdfDatasetCanonicalizer.MAX_COST);
+    assertThat(cost(undirectedCycle(8))).isGreaterThan(RDFDatasetCanonicalizer.MAX_COST);
   }
 
   @Test
@@ -110,7 +110,7 @@ class CanonicalizationCostTest {
   @DisplayName("the first-degree hashes of the estimate are the ones titanium-rdfc labels by")
   void firstDegreeHashesMatchTitanium() throws ReflectiveOperationException {
     List<Triple> triples = selfLoopBesideSecondBlankNode();
-    // Fed exactly as RdfDatasetCanonicalizer.canonicalize feeds it; keep the two in step.
+    // Fed exactly as RDFDatasetCanonicalizer.canonicalize feeds it; keep the two in step.
     RdfCanon canon = RdfCanon.create("SHA-256");
     for (Triple triple : triples) {
       String subject = Terms.resource(triple.getSubject());
@@ -159,7 +159,7 @@ class CanonicalizationCostTest {
   }
 
   private long cost(List<Triple> triples) {
-    return CanonicalizationCost.estimate(triples, RdfDatasetCanonicalizer.MAX_COST)
+    return CanonicalizationCost.estimate(triples, RDFDatasetCanonicalizer.MAX_COST)
         .min(BigInteger.valueOf(Long.MAX_VALUE))
         .longValueExact();
   }

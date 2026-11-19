@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Structural test: {@code rdf-cid} is backend-neutral and must carry no RDF4J (or any
  * other backend) dependency, so that no backend type can leak onto
- * {@link ContentAddressedIriGenerator}.
+ * {@link ContentAddressedIRIGenerator}.
  */
 class CidPortHasNoBackendDependencyTest {
 
