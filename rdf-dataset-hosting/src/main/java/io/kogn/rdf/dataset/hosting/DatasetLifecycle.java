@@ -54,8 +54,8 @@ public interface DatasetLifecycle {
    * <p>A {@link #delete(DatasetId)} that failed part-way through may leave a dataset
    * behind that is neither the old one nor a fresh one: a <em>deletion leftover</em>. An
    * implementation must not hand a deletion leftover out as though it were a whole
-   * dataset: it either clears it away, so that this call creates the dataset anew, or it
-   * refuses the identifier with an {@link IllegalStateException} for as long as it is there.</p>
+   * dataset: it either clears the leftover away, so that this call creates the dataset anew, or it
+   * refuses the identifier with an {@link IllegalStateException} for as long as the leftover is there.</p>
    *
    * <p>If the dataset is created by this call, a failure while opening its store or
    * a failure of the on-create hook leaves nothing behind: a half-created dataset is

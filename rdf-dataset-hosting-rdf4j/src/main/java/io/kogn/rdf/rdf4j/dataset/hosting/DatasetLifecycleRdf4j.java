@@ -112,7 +112,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>The marked ids are named instead by {@link #listDeletionLeftovers()}, and
  * {@link #clearDeletionLeftover(DatasetId)} retries the cleanup without creating
- * anything in its place — the way to clear it away when no caller
+ * anything in place of the leftover — the way to clear a leftover away when no caller
  * wants the dataset back. It refuses an id with a directory but no mark, which is an
  * intact dataset, and an id held open by this instance.</p>
  *
@@ -381,8 +381,8 @@ public final class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMai
    * {@inheritDoc}
    *
    * <p>The identifiers come from every directory under the {@code storageRoot} that carries the
-   * {@value DatasetStorage#DELETION_MARKER_FILE_NAME} marker, plus the in-process fallback for a marker that could
-   * not be written — see the class documentation. An {@code IN_MEMORY} lifecycle has no storage and
+   * {@value DatasetStorage#DELETION_MARKER_FILE_NAME} marker, plus the ids whose delete failed in this process, the
+   * fallback for a marker that could not be written — see the class documentation. An {@code IN_MEMORY} lifecycle has no storage and
    * never reports any.</p>
    */
   @Override
@@ -558,8 +558,8 @@ public final class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMai
   }
 
   /**
-   * Refuses to hand {@code id} out while a previous {@link #delete(DatasetId)} left it as a
-   * deletion leftover — retrying the cleanup first, so that no caller is ever handed
+   * Refuses to hand {@code id} out while a previous {@link #delete(DatasetId)} left a
+   * deletion leftover under it — retrying the cleanup first, so that no caller is ever handed
    * the leftover.
    *
    * <p>Retrying the cleanup is the outcome to prefer: it leaves an empty directory, which
