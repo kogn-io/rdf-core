@@ -112,7 +112,7 @@ class ResourceVersioningPublishTest {
   }
 
   @Test
-  void thePublishedViewEqualsTheVersionWithTheProxyIRIInsteadOfTheCid() {
+  void thePublishedViewEqualsTheVersionWithTheProxyIRIInsteadOfTheCID() {
     final BlankNodeDraft shape = blankNodeDraft(A, 1);
     draft(A, shape.graph());
 
@@ -321,7 +321,7 @@ class ResourceVersioningPublishTest {
   }
 
   @Test
-  void aDraftWithTheReservedIriIsRejectedByTheGeneratorAndNothingIsWritten() {
+  void aDraftWithTheReservedIRIIsRejectedByTheGeneratorAndNothingIsWritten() {
     final Graph reserved = literalTriples(A, "one");
     reserved.add(A, Q, new SimpleIRI("urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1"));
     final RevisionToken token = draft(A, reserved);

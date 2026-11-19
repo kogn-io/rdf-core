@@ -13,8 +13,9 @@ import io.kogn.rdf.terms.SimpleIRI;
  * belong to this module, which is the only one that writes them; third-party
  * vocabularies it uses beside them — {@code dcterms:created}, {@code dcterms:creator},
  * {@code dcterms:description} for the metadata of a history entry — come from
- * {@link io.kogn.rdf.terms.vocab.VocabDct}. Names are added, never renamed: stored data
- * binds them (ADR-0023).</p>
+ * {@link io.kogn.rdf.terms.vocab.VocabDct}. From the first release on, names are added,
+ * never renamed: stored data binds them (ADR-0023). The one rename happened before that
+ * release, {@code versioning:content} to {@code versioning:cid} (ADR-0027).</p>
  *
  * <p>A history entry in the {@link VersioningGraphs#HISTORY history graph} looks like
  * this:</p>
