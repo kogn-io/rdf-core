@@ -63,6 +63,6 @@ final class RDF4JBindingSet implements BindingSet {
    * Converts an RDF4J Value to our RDFTerm.
    */
   private RDFTerm toRDFTerm(org.eclipse.rdf4j.model.Value value) {
-    return Rdf4jValues.toTerm(value);
+    return RDF4JValues.toTerm(value);
   }
 }

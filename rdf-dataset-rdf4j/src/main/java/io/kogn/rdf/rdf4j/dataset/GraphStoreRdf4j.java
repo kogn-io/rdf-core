@@ -157,7 +157,7 @@ public class GraphStoreRdf4j implements GraphStore {
     });
     final Model model = new LinkedHashModel(statements);
     RDF4JConverters.requireNoTripleTerms(model);
-    return Rdf4jValues.toGraph(model);
+    return RDF4JValues.toGraph(model);
   }
 
   /**

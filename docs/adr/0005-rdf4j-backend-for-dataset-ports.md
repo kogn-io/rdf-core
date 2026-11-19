@@ -1,6 +1,7 @@
 # ADR-0005: RDF4J backend for the dataset ports
 
-Status: Accepted
+Status: Accepted — Consequences corrected by
+[ADR-0026](0026-rdf4j-adapter-public-surface.md)
 
 ## Context
 

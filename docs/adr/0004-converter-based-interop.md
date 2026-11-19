@@ -1,6 +1,7 @@
 # ADR-0004: Converter-based cross-implementation interop in the RDF4J adapter
 
-Status: Accepted
+Status: Accepted — the native direct path is corrected by
+[ADR-0026](0026-rdf4j-adapter-public-surface.md)
 
 ## Context
 

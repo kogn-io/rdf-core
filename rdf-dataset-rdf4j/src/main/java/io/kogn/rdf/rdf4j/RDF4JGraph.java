@@ -22,10 +22,9 @@ import io.kogn.rdf.terms.Triple;
 /**
  * RDF4J-based implementation of Graph.
  *
- * <p>The wrapped model may hold statements with a context, as the graphs returned by
- * {@code GraphStore#export} do. A graph is a set of triples, so {@link #add}, {@link #remove} and
- * {@link #contains} match on subject, predicate and object only and ignore the context. {@code add}
- * writes new triples into the default context.</p>
+ * <p>The wrapped model may hold statements with a context. A graph is a set of triples, so
+ * {@link #add}, {@link #remove} and {@link #contains} match on subject, predicate and object only
+ * and ignore the context. {@code add} writes new triples into the default context.</p>
  *
  * <p>Precondition: the wrapped model holds at most one context per triple. If the same triple
  * appears in several contexts, {@link #size()} and {@link #stream()} count each statement while
