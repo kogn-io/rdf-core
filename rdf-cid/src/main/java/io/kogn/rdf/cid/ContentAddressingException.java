@@ -7,7 +7,7 @@ package io.kogn.rdf.cid;
  * Signals that deriving a content-addressed IRI failed — as distinct from the input
  * being unsuitable, which is reported as {@link IllegalArgumentException}.
  *
- * <p>Thrown by {@link ContentAddressedIriGenerator#generateIri} when the graph satisfies
+ * <p>Thrown by {@link ContentAddressedIRIGenerator#generateIRI} when the graph satisfies
  * the documented preconditions but the derivation itself cannot complete: canonicalization
  * fails, the digest cannot be computed, or a term cannot be brought into canonical form.
  * A graph that fails a precondition of ni-rdf/1 — empty, no IRI subject, an IRI subject of

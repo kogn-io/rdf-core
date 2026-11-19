@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -31,26 +32,26 @@ class ForeignTermIdentityTest {
   private static final String EX = "http://example.org/";
 
   private RDF rdf;
-  private ContentAddressedIriGenerator generator;
+  private ContentAddressedIRIGenerator generator;
   private IRI base;
 
   @BeforeEach
   void setUp() {
     rdf = new SimpleRdf();
-    generator = new ContentAddressedIriGeneratorSexpr(rdf);
+    generator = new ContentAddressedIRIGeneratorSexpr(rdf);
     base = rdf.createIRI(EX + "r");
   }
 
   @Test
   @DisplayName("two instances of a foreign IRI with identity equals still deduplicate \"v\"@EN and \"v\"@en")
-  void foreignIriDeduplicates() {
+  void foreignIRIDeduplicates() {
     IRI predicate = rdf.createIRI(EX + "p");
-    IRI expected = generator.generateIri(base, graphOf(rdf.createTriple(base, predicate, rdf.createLiteral("v", "EN")),
+    IRI expected = generator.generateIRI(base, graphOf(rdf.createTriple(base, predicate, rdf.createLiteral("v", "EN")),
         rdf.createTriple(base, predicate, rdf.createLiteral("v", "en"))));
 
-    IRI actual = generator.generateIri(base,
-        graphOf(triple(base, new IdentityIri(EX + "p"), rdf.createLiteral("v", "EN")),
-            triple(base, new IdentityIri(EX + "p"), rdf.createLiteral("v", "en"))));
+    IRI actual = generator.generateIRI(base,
+        graphOf(triple(base, new IdentityIRI(EX + "p"), rdf.createLiteral("v", "EN")),
+            triple(base, new IdentityIRI(EX + "p"), rdf.createLiteral("v", "en"))));
 
     assertThat(actual).isEqualTo(expected);
   }
@@ -60,10 +61,10 @@ class ForeignTermIdentityTest {
   void foreignBlankNodeIsReachable() {
     IRI predicate = rdf.createIRI(EX + "p");
     BlankNode node = rdf.createBlankNode("b");
-    IRI expected = generator.generateIri(base,
+    IRI expected = generator.generateIRI(base,
         graphOf(rdf.createTriple(base, predicate, node), rdf.createTriple(node, predicate, rdf.createLiteral("v"))));
 
-    IRI actual = generator.generateIri(base, graphOf(triple(base, predicate, new IdentityBlankNode("b")),
+    IRI actual = generator.generateIRI(base, graphOf(triple(base, predicate, new IdentityBlankNode("b")),
         triple(new IdentityBlankNode("b"), predicate, rdf.createLiteral("v"))));
 
     assertThat(actual).isEqualTo(expected);
@@ -75,7 +76,7 @@ class ForeignTermIdentityTest {
     IRI predicate = rdf.createIRI(EX + "p");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> generator.generateIri(base, graphOf(triple(base, predicate, new IdentityBlankNode(null)))))
+        .isThrownBy(() -> generator.generateIRI(base, graphOf(triple(base, predicate, new IdentityBlankNode(null)))))
         .withMessageStartingWith("[UNSUPPORTED_TERM]");
   }
 
@@ -128,11 +129,11 @@ class ForeignTermIdentityTest {
   }
 
   /** An IRI that breaks the term contract by inheriting identity {@code equals} from Object. */
-  private static final class IdentityIri implements IRI {
+  private static final class IdentityIRI implements IRI {
 
     private final String iri;
 
-    IdentityIri(String iri) {
+    IdentityIRI(String iri) {
       this.iri = iri;
     }
 

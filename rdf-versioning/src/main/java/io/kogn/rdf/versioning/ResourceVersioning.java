@@ -343,7 +343,7 @@ public interface ResourceVersioning {
    *     IRI
    * @throws IllegalArgumentException if two tokens belong to the same proxy IRI, or the
    *     CID of a draft cannot be derived because it violates a precondition of
-   *     {@code ContentAddressedIriGenerator#generateIri}: an empty draft, a reserved
+   *     {@code ContentAddressedIRIGenerator#generateIRI}: an empty draft, a reserved
    *     IRI, a term outside RDF 1.1; or the backend rejects the creator of {@code details},
    *     before anything is written
    * @throws io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException if a draft
@@ -564,7 +564,7 @@ public interface ResourceVersioning {
    * @return the state; never {@code null}
    * @throws IllegalArgumentException if {@code proxyIri} contains a {@code #} or the
    *     backend rejects it, or the CID of the draft cannot be derived because it
-   *     violates a precondition of {@code ContentAddressedIriGenerator#generateIri}: a
+   *     violates a precondition of {@code ContentAddressedIRIGenerator#generateIRI}: a
    *     reserved IRI, a term outside RDF 1.1
    * @throws io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException if the draft
    *     exceeds the cost limit of ni-rdf/1

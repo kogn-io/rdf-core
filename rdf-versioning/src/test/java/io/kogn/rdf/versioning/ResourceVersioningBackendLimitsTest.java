@@ -18,7 +18,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
@@ -97,7 +97,7 @@ class ResourceVersioningBackendLimitsTest {
   @Test
   void theTimestampOfAnEntryHasMillisecondResolution() {
     final ResourceVersioning versioning = new ResourceVersioningNamedGraphs(CONTENT,
-        new ContentAddressedIriGeneratorSexpr(), Clock.fixed(WITH_NANOS, ZoneOffset.UTC));
+        new ContentAddressedIRIGeneratorSexpr(), Clock.fixed(WITH_NANOS, ZoneOffset.UTC));
     final SimpleGraph content = new SimpleGraph();
     content.add(A, P, rdf.createLiteral("one"));
     transactor.inTransaction(tx -> {

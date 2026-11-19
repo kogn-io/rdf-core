@@ -7,9 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -17,8 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
-import io.kogn.rdf.cid.sexpr.RdfDatasetCanonicalizer;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
@@ -27,11 +24,10 @@ import io.kogn.rdf.terms.Literal;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.SimpleRdf;
-import io.kogn.rdf.terms.Triple;
 import io.kogn.rdf.terms.vocab.VocabXsd;
 
 /**
- * Tests {@link ContentAddressedIriGeneratorSexpr} through the port a consumer actually calls.
+ * Tests {@link ContentAddressedIRIGeneratorSexpr} through the port a consumer actually calls.
  *
  * <p>The centre of gravity is {@link Distinctness}: an identifier that two different graphs
  * share is worse than no identifier at all, because deduplication and integrity checks both
@@ -39,25 +35,25 @@ import io.kogn.rdf.terms.vocab.VocabXsd;
  * — and every one of them was a real collision before, the whole point of the class being to
  * keep them from coming back.</p>
  */
-class ContentAddressedIriGeneratorSexprTest {
+class ContentAddressedIRIGeneratorSexprTest {
 
   private static final String EX = "http://example.org/";
   private static final String NI_PREFIX = "ni:///sha3-256;";
   private static final String RESERVED = "urn:uuid:171650ec-eda4-47fd-9053-6a34696171c1";
 
-  private ContentAddressedIriGenerator generator;
+  private ContentAddressedIRIGenerator generator;
   private RDF rdf;
 
   @BeforeEach
   void setUp() {
     rdf = new SimpleRdf();
-    generator = new ContentAddressedIriGeneratorSexpr(rdf);
+    generator = new ContentAddressedIRIGeneratorSexpr(rdf);
   }
 
   @Test
   @DisplayName("the procedure tag is the specification's identifier ni-rdf/1")
   void procedureTagIsTheSpecificationIdentifier() {
-    assertThat(generator.procedureTag()).isEqualTo("ni-rdf/1").isEqualTo(ContentAddressableRdfSerializer.PROCEDURE_TAG);
+    assertThat(generator.procedureTag()).isEqualTo("ni-rdf/1");
   }
 
   @Nested
@@ -93,22 +89,22 @@ class ContentAddressedIriGeneratorSexprTest {
 
     @Test
     @DisplayName("a blank node and an IRI or a literal spelling out its canonical label")
-    void blankNodeAndIriOrLiteralSpellingOutItsCanonicalLabel() {
+    void blankNodeAndIRIOrLiteralSpellingOutItsCanonicalLabel() {
       Graph withBlankNode = graph();
       withBlankNode.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createBlankNode("b"));
 
       // RDFC-1.0 labels the single blank node c14n0, so this IRI (ending in the label) and
       // this literal (spelling it out) mimic the label the blank node is serialized under.
-      Graph withLookalikeIri = graph();
-      withLookalikeIri.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createIRI("urn:c14n0"));
+      Graph withLookalikeIRI = graph();
+      withLookalikeIRI.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createIRI("urn:c14n0"));
       Graph withLookalikeLiteral = graph();
       withLookalikeLiteral.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), rdf.createLiteral("c14n0"));
 
-      IRI blankNode = generator.generateIri(rdf.createIRI(EX + "r"), withBlankNode);
+      IRI blankNode = generator.generateIRI(rdf.createIRI(EX + "r"), withBlankNode);
       assertThat(blankNode).as("a blank node is not an IRI that spells its label")
-          .isNotEqualTo(generator.generateIri(rdf.createIRI(EX + "r"), withLookalikeIri));
+          .isNotEqualTo(generator.generateIRI(rdf.createIRI(EX + "r"), withLookalikeIRI));
       assertThat(blankNode).as("a blank node is not a string that spells its label")
-          .isNotEqualTo(generator.generateIri(rdf.createIRI(EX + "r"), withLookalikeLiteral));
+          .isNotEqualTo(generator.generateIRI(rdf.createIRI(EX + "r"), withLookalikeLiteral));
     }
 
     @Test
@@ -138,8 +134,8 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph foreignReference = graph();
       foreignReference.add(subject, rdf.createIRI(EX + "sameAs"), rdf.createIRI(EX + "other"));
 
-      assertThat(generator.generateIri(subject, selfReference)).as("pointing at itself is not pointing elsewhere")
-          .isNotEqualTo(generator.generateIri(subject, foreignReference));
+      assertThat(generator.generateIRI(subject, selfReference)).as("pointing at itself is not pointing elsewhere")
+          .isNotEqualTo(generator.generateIRI(subject, foreignReference));
     }
 
     @Test
@@ -151,9 +147,9 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph lookalikeLiteral = graph();
       lookalikeLiteral.add(subject, rdf.createIRI(EX + "sameAs"), rdf.createLiteral(EX + "doc"));
 
-      assertThat(generator.generateIri(subject, selfReference))
+      assertThat(generator.generateIRI(subject, selfReference))
           .as("a self-reference is not a string that looks like one")
-          .isNotEqualTo(generator.generateIri(subject, lookalikeLiteral));
+          .isNotEqualTo(generator.generateIRI(subject, lookalikeLiteral));
     }
 
     @Test
@@ -183,8 +179,8 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph foreignFragment = graph();
       foreignFragment.add(subject, rdf.createIRI(EX + "part"), rdf.createIRI(EX + "other#a"));
 
-      assertThat(generator.generateIri(subject, ownFragment)).as("<doc#a> is a part of <doc>, <other#a> is not")
-          .isNotEqualTo(generator.generateIri(subject, foreignFragment));
+      assertThat(generator.generateIRI(subject, ownFragment)).as("<doc#a> is a part of <doc>, <other#a> is not")
+          .isNotEqualTo(generator.generateIRI(subject, foreignFragment));
     }
 
     @Test
@@ -207,8 +203,8 @@ class ContentAddressedIriGeneratorSexprTest {
     @Test
     @DisplayName("regardless of the blank node labels — this is what makes re-imports detectable")
     void regardlessOfBlankNodeLabels() {
-      IRI cid1 = generator.generateIri(rdf.createIRI(EX + "resource"), nestedGraph("100", "bn1", "bn2"));
-      IRI cid2 = generator.generateIri(rdf.createIRI(EX + "resource"), nestedGraph("100", "totally", "different"));
+      IRI cid1 = generator.generateIRI(rdf.createIRI(EX + "resource"), nestedGraph("100", "bn1", "bn2"));
+      IRI cid2 = generator.generateIRI(rdf.createIRI(EX + "resource"), nestedGraph("100", "totally", "different"));
 
       assertThat(cid1).isEqualTo(cid2);
     }
@@ -216,85 +212,85 @@ class ContentAddressedIriGeneratorSexprTest {
     @Test
     @DisplayName("regardless of the case of the language tag — RDF 1.1 compares them case-insensitively")
     void regardlessOfLanguageTagCase() {
-      // AsWrittenRdf keeps tags as written, so the lower-casing is the generator's own.
-      ContentAddressedIriGenerator asWritten = new ContentAddressedIriGeneratorSexpr(new AsWrittenRdf());
+      // AsWrittenRDF keeps tags as written, so the lower-casing is the generator's own.
+      ContentAddressedIRIGenerator asWritten = new ContentAddressedIRIGeneratorSexpr(new AsWrittenRDF());
       IRI resource = rdf.createIRI(EX + "resource");
       IRI value = rdf.createIRI(EX + "value");
       Graph lower = graph();
       lower.add(resource, value, rdf.createLiteral("Bank", "en"));
       Graph upper = graph();
       upper.add(resource, value, new AsWrittenLiteral("Bank", "EN"));
-      IRI cid1 = asWritten.generateIri(resource, lower);
-      IRI cid2 = asWritten.generateIri(resource, upper);
+      IRI cid1 = asWritten.generateIRI(resource, lower);
+      IRI cid2 = asWritten.generateIRI(resource, upper);
 
       assertThat(cid1).as("\"Bank\"@en and \"Bank\"@EN are the same RDF literal").isEqualTo(cid2);
     }
 
     @Test
     @DisplayName("regardless of the subject IRI — the resource's own IRI is not its content")
-    void regardlessOfTheSubjectIri() {
+    void regardlessOfTheSubjectIRI() {
       Graph g1 = graph();
       g1.add(rdf.createIRI(EX + "person/1"), rdf.createIRI(EX + "name"), rdf.createLiteral("Bob"));
       Graph g2 = graph();
       g2.add(rdf.createIRI(EX + "person/2"), rdf.createIRI(EX + "name"), rdf.createLiteral("Bob"));
 
-      assertThat(generator.generateIri(rdf.createIRI(EX + "person/1"), g1))
+      assertThat(generator.generateIRI(rdf.createIRI(EX + "person/1"), g1))
           .as("the same description under two names is the same content")
-          .isEqualTo(generator.generateIri(rdf.createIRI(EX + "person/2"), g2));
+          .isEqualTo(generator.generateIRI(rdf.createIRI(EX + "person/2"), g2));
     }
 
     @Test
     @DisplayName("regardless of the subject IRI, under fragments of the base as well")
-    void regardlessOfTheSubjectIriUnderFragments() {
+    void regardlessOfTheSubjectIRIUnderFragments() {
       Graph g1 = graph();
       g1.add(rdf.createIRI(EX + "a#ac-3"), rdf.createIRI(EX + "name"), rdf.createLiteral("criterion"));
       Graph g2 = graph();
       g2.add(rdf.createIRI(EX + "b#ac-3"), rdf.createIRI(EX + "name"), rdf.createLiteral("criterion"));
 
-      assertThat(generator.generateIri(rdf.createIRI(EX + "a"), g1))
-          .isEqualTo(generator.generateIri(rdf.createIRI(EX + "b"), g2));
+      assertThat(generator.generateIRI(rdf.createIRI(EX + "a"), g1))
+          .isEqualTo(generator.generateIRI(rdf.createIRI(EX + "b"), g2));
     }
 
     @Test
     @DisplayName("regardless of the subject IRI, also where a literal is typed with a fragment of it")
-    void regardlessOfTheSubjectIriInADatatype() {
+    void regardlessOfTheSubjectIRIInADatatype() {
       Graph g1 = graph();
       g1.add(rdf.createIRI(EX + "a"), rdf.createIRI(EX + "value"), rdf.createLiteral("x", rdf.createIRI(EX + "a#dt")));
       Graph g2 = graph();
       g2.add(rdf.createIRI(EX + "b"), rdf.createIRI(EX + "value"), rdf.createLiteral("x", rdf.createIRI(EX + "b#dt")));
 
-      assertThat(generator.generateIri(rdf.createIRI(EX + "a"), g1)).as("the datatype is a position like any other")
-          .isEqualTo(generator.generateIri(rdf.createIRI(EX + "b"), g2));
+      assertThat(generator.generateIRI(rdf.createIRI(EX + "a"), g1)).as("the datatype is a position like any other")
+          .isEqualTo(generator.generateIRI(rdf.createIRI(EX + "b"), g2));
     }
 
     @Test
     @DisplayName("regardless of the subject IRI, also where blank nodes hang off it")
-    void regardlessOfTheSubjectIriWithBlankNodes() {
+    void regardlessOfTheSubjectIRIWithBlankNodes() {
       // Blank node canonicalization (RDFC-1.0) hashes the IRIs next to a blank node into the
       // order its canonical labels are handed out in. Were the subject IRI to reach the
       // canonicalizer, two blank nodes could swap labels between one subject and another and
       // the identifier would move with the name after all. One subject could be lucky, so a
       // few dozen are tried.
       IRI first = rdf.createIRI(EX + "subject/0");
-      IRI expected = generator.generateIri(first, twoBlankNodesUnder(first));
+      IRI expected = generator.generateIRI(first, twoBlankNodesUnder(first));
       for (int i = 1; i < 32; i++) {
         IRI subject = rdf.createIRI(EX + "subject/" + i);
-        assertThat(generator.generateIri(subject, twoBlankNodesUnder(subject))).as("under %s", subject)
+        assertThat(generator.generateIRI(subject, twoBlankNodesUnder(subject))).as("under %s", subject)
             .isEqualTo(expected);
       }
     }
 
     @Test
     @DisplayName("regardless of the subject IRI, also where a blank node holds a literal typed with a fragment of it")
-    void regardlessOfTheSubjectIriInABlankNodesDatatype() {
+    void regardlessOfTheSubjectIRIInABlankNodesDatatype() {
       // Same reasoning as above, one step further out: the datatype IRI of a literal on a blank
       // node feeds that node's canonical label too, so the datatype must be mapped before
       // canonicalization just like the subject.
-      IRI expected = generator.generateIri(rdf.createIRI(EX + "subject/0"),
+      IRI expected = generator.generateIRI(rdf.createIRI(EX + "subject/0"),
           twoBlankNodesWithAnOwnDatatypeUnder(EX + "subject/0"));
       for (int i = 1; i < 32; i++) {
         String base = EX + "subject/" + i;
-        assertThat(generator.generateIri(rdf.createIRI(base), twoBlankNodesWithAnOwnDatatypeUnder(base)))
+        assertThat(generator.generateIRI(rdf.createIRI(base), twoBlankNodesWithAnOwnDatatypeUnder(base)))
             .as("under %s", base)
             .isEqualTo(expected);
       }
@@ -315,7 +311,7 @@ class ContentAddressedIriGeneratorSexprTest {
       backwards.add(subject, b, rdf.createLiteral("2"));
       backwards.add(subject, a, rdf.createLiteral("1"));
 
-      assertThat(generator.generateIri(subject, forwards)).isEqualTo(generator.generateIri(subject, backwards));
+      assertThat(generator.generateIRI(subject, forwards)).isEqualTo(generator.generateIRI(subject, backwards));
     }
   }
 
@@ -343,7 +339,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(part, rdf.createIRI(draft + "#relation"), part);
       graph.add(part, rdf.createIRI(EX + "size"), rdf.createLiteral("3", rdf.createIRI(draft + "#unit")));
 
-      IRI cid = generator.generateIri(self, graph);
+      IRI cid = generator.generateIRI(self, graph);
       Graph published = renameBase(graph, draft, cid.getIRIString());
 
       assertThat(published.stream()
@@ -352,7 +348,7 @@ class ContentAddressedIriGeneratorSexprTest {
           .filter(IRI.class::isInstance)
           .map(term -> ((IRI) term).getIRIString())).as("nothing of the draft IRI left")
           .noneMatch(iri -> iri.startsWith(draft));
-      assertThat(generator.generateIri(cid, published)).as("a reader re-derives the identifier the resource carries")
+      assertThat(generator.generateIRI(cid, published)).as("a reader re-derives the identifier the resource carries")
           .isEqualTo(cid);
     }
   }
@@ -380,14 +376,14 @@ class ContentAddressedIriGeneratorSexprTest {
     @DisplayName("null graph")
     void nullGraph() {
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc"), null));
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), null));
     }
 
     @Test
     @DisplayName("empty graph")
     void emptyGraph() {
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc"), graph()))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), graph()))
           .withMessageStartingWith("[EMPTY_GRAPH]");
     }
 
@@ -395,27 +391,27 @@ class ContentAddressedIriGeneratorSexprTest {
     @DisplayName("the base is checked before the graph — the first failing precondition is reported")
     void baseBeforeGraph() {
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc#a"), graph()))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc#a"), graph()))
           .withMessageStartingWith("[INVALID_BASE]");
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(RESERVED), graph()))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(RESERVED), graph()))
           .withMessageStartingWith("[RESERVED_IRI]");
     }
 
     @Test
     @DisplayName("a reserved IRI in the graph is rejected before a foreign subject")
-    void reservedIriBeforeForeignSubject() {
+    void reservedIRIBeforeForeignSubject() {
       Graph graph = graph();
       graph.add(rdf.createIRI(EX + "other"), rdf.createIRI(EX + "p"), rdf.createIRI(RESERVED + "#x"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), graph))
           .withMessageStartingWith("[RESERVED_IRI]");
     }
 
     @Test
     @DisplayName("the reserved IRI as predicate or datatype, or with an empty fragment, is rejected too")
-    void reservedIriInEveryPosition() {
+    void reservedIRIInEveryPosition() {
       IRI doc = rdf.createIRI(EX + "doc");
       Graph asPredicate = graph();
       asPredicate.add(doc, rdf.createIRI(RESERVED), rdf.createLiteral("x"));
@@ -423,9 +419,9 @@ class ContentAddressedIriGeneratorSexprTest {
       asDatatype.add(doc, rdf.createIRI(EX + "p"), rdf.createLiteral("x", rdf.createIRI(RESERVED + "#")));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(doc, asPredicate))
+          .isThrownBy(() -> generator.generateIRI(doc, asPredicate))
           .withMessageStartingWith("[RESERVED_IRI]");
-      assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIri(doc, asDatatype))
+      assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIRI(doc, asDatatype))
           .withMessageStartingWith("[RESERVED_IRI]");
     }
 
@@ -437,13 +433,13 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "r"), rdf.createIRI(EX + "p"), unknownKind);
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "r"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "r"), graph))
           .withMessageStartingWith("[UNSUPPORTED_TERM]");
     }
 
     @Test
     @DisplayName("an IRI string that reads as a blank node label is no absolute IRI, in any position")
-    void blankNodeLookingIri() {
+    void blankNodeLookingIRI() {
       IRI doc = rdf.createIRI(EX + "doc");
       Graph asSubject = graph();
       asSubject.add(rdf.createIRI("_:b0"), rdf.createIRI(EX + "p"), rdf.createLiteral("x"));
@@ -457,11 +453,11 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph plain = graph();
       plain.add(doc, rdf.createIRI(EX + "p"), rdf.createLiteral("x"));
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI("_:doc"), plain))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI("_:doc"), plain))
           .withMessageStartingWith("[UNSUPPORTED_TERM]");
 
       for (Graph graph : List.of(asSubject, asPredicate, asObject, asDatatype)) {
-        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIri(doc, graph))
+        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIRI(doc, graph))
             .withMessageStartingWith("[UNSUPPORTED_TERM]");
       }
     }
@@ -472,7 +468,7 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph graph = graph();
       graph.add(rdf.createIRI(EX + "doc"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
 
-      assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIri(null, graph));
+      assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIRI(null, graph));
     }
 
     @Test
@@ -482,7 +478,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "doc#a"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc#a"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc#a"), graph))
           .withMessageStartingWith("[INVALID_BASE]")
           .withMessageContaining(EX + "doc#a");
     }
@@ -494,7 +490,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "other"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), graph))
           .withMessageStartingWith("[FOREIGN_SUBJECT]")
           .withMessageContaining(EX + "other");
     }
@@ -506,7 +502,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "doc2"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), graph))
           .withMessageContaining(EX + "doc2");
     }
 
@@ -519,20 +515,20 @@ class ContentAddressedIriGeneratorSexprTest {
       Graph graph = graph();
       graph.add(rdf.createIRI(EX + "ns#Person"), rdf.createIRI(EX + "label"), rdf.createLiteral("Person"));
 
-      assertThat(generator.generateIri(ns, graph).getIRIString()).startsWith(NI_PREFIX);
+      assertThat(generator.generateIRI(ns, graph).getIRIString()).startsWith(NI_PREFIX);
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "ns#Person"), graph));
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "ns#Person"), graph));
     }
 
     @Test
     @DisplayName("two IRI subjects with different bases — which of the two would the identifier be for?")
-    void twoIriSubjectsWithDifferentBases() {
+    void twoIRISubjectsWithDifferentBases() {
       Graph graph = graph();
       graph.add(rdf.createIRI(EX + "one"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
       graph.add(rdf.createIRI(EX + "two"), rdf.createIRI(EX + "value"), rdf.createLiteral("2"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "one"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "one"), graph))
           .withMessageContaining(EX + "one")
           .withMessageContaining(EX + "two");
     }
@@ -545,7 +541,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "two#part"), rdf.createIRI(EX + "value"), rdf.createLiteral("2"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "one"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "one"), graph))
           .withMessageContaining(EX + "one")
           .withMessageContaining(EX + "two#part");
     }
@@ -558,7 +554,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "doc#a"), rdf.createIRI(EX + "value"), rdf.createLiteral("2"));
       graph.add(rdf.createIRI(EX + "doc#b"), rdf.createIRI(EX + "value"), rdf.createLiteral("3"));
 
-      assertThat(generator.generateIri(rdf.createIRI(EX + "doc"), graph).getIRIString()).startsWith(NI_PREFIX);
+      assertThat(generator.generateIRI(rdf.createIRI(EX + "doc"), graph).getIRIString()).startsWith(NI_PREFIX);
     }
 
     @Test
@@ -568,7 +564,7 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createIRI(EX + "doc#a"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
       graph.add(rdf.createIRI(EX + "doc#b"), rdf.createIRI(EX + "value"), rdf.createLiteral("2"));
 
-      assertThat(generator.generateIri(rdf.createIRI(EX + "doc"), graph).getIRIString()).startsWith(NI_PREFIX);
+      assertThat(generator.generateIRI(rdf.createIRI(EX + "doc"), graph).getIRIString()).startsWith(NI_PREFIX);
     }
 
     @Test
@@ -579,19 +575,19 @@ class ContentAddressedIriGeneratorSexprTest {
       graph.add(rdf.createBlankNode("orphan"), rdf.createIRI(EX + "value"), rdf.createLiteral("2"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), graph))
           .withMessageStartingWith("[UNREACHABLE]")
           .withMessageContaining("not reachable");
     }
 
     @Test
     @DisplayName("no IRI subject at all")
-    void noIriSubject() {
+    void noIRISubject() {
       Graph graph = graph();
       graph.add(rdf.createBlankNode("only"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
 
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "doc"), graph))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), graph))
           .withMessageStartingWith("[NO_ROOT]")
           .withMessageContaining("no subject");
     }
@@ -609,7 +605,7 @@ class ContentAddressedIriGeneratorSexprTest {
       // The orphan triple is legal RDF but reachable from no IRI subject. Hashing only the
       // reachable part would hand both graphs the same identifier without saying so.
       assertThatExceptionOfType(IllegalArgumentException.class)
-          .isThrownBy(() -> generator.generateIri(rdf.createIRI(EX + "r"), withOrphan))
+          .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "r"), withOrphan))
           .withMessageStartingWith("[UNREACHABLE]")
           .withMessageContaining("not reachable");
     }
@@ -618,24 +614,6 @@ class ContentAddressedIriGeneratorSexprTest {
   @Nested
   @DisplayName("a derivation failure is reported as ContentAddressingException, not a raw error")
   class DerivationFailure {
-
-    @Test
-    @DisplayName("a failure inside the canonicalizer reaches the caller untranslated")
-    void failureInsideCanonicalizationIsNotRelabelled() {
-      IllegalStateException broken = new IllegalStateException("broken");
-      RdfDatasetCanonicalizer failing = new RdfDatasetCanonicalizer() {
-        @Override
-        public Map<String, String> canonicalIdentifiers(Collection<Triple> triples) {
-          throw broken;
-        }
-      };
-      ContentAddressedIriGenerator failingGenerator = new ContentAddressedIriGeneratorSexpr(rdf,
-          new ContentAddressableRdfSerializer(failing, rdf));
-
-      assertThatExceptionOfType(IllegalStateException.class)
-          .isThrownBy(() -> failingGenerator.generateIri(rdf.createIRI(EX + "resource"), nestedGraph("1", "t", "e")))
-          .isSameAs(broken);
-    }
 
     @Test
     @DisplayName("a legal graph whose cost bound exceeds the limit surfaces as a resource-limit failure, not a generic one")
@@ -661,7 +639,7 @@ class ContentAddressedIriGeneratorSexprTest {
       }
 
       assertThatExceptionOfType(CanonicalizationResourceLimitExceededException.class)
-          .isThrownBy(() -> generator.generateIri(subject, graph))
+          .isThrownBy(() -> generator.generateIRI(subject, graph))
           .withMessageStartingWith("[RESOURCE_LIMIT]");
     }
   }
@@ -673,13 +651,13 @@ class ContentAddressedIriGeneratorSexprTest {
   }
 
   private IRI nestedGraphCid(String value) {
-    return generator.generateIri(rdf.createIRI(EX + "resource"), nestedGraph(value, "table", "entry"));
+    return generator.generateIRI(rdf.createIRI(EX + "resource"), nestedGraph(value, "table", "entry"));
   }
 
   private IRI cidOfSubject(IRI subject) {
     Graph graph = graph();
     graph.add(subject, rdf.createIRI(EX + "value"), rdf.createLiteral("v"));
-    return generator.generateIri(rdf.createIRI(EX + "doc"), graph);
+    return generator.generateIRI(rdf.createIRI(EX + "doc"), graph);
   }
 
   /** Two structurally different blank nodes under one subject, so their canonical order matters. */
@@ -743,7 +721,7 @@ class ContentAddressedIriGeneratorSexprTest {
     Graph graph = graph();
     IRI resource = rdf.createIRI(EX + "resource");
     graph.add(resource, rdf.createIRI(EX + "value"), object);
-    return generator.generateIri(resource, graph);
+    return generator.generateIRI(resource, graph);
   }
 
   /** A resource whose measurement hangs off two chained blank nodes. */

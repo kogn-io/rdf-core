@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.cid;
+package io.kogn.rdf.cid.sexpr;
 
 import java.util.Objects;
 
-import io.kogn.rdf.cid.sexpr.ContentAddressableRdfSerializer;
+import io.kogn.rdf.cid.ContentAddressedIRIGenerator;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
@@ -29,21 +29,14 @@ import io.kogn.rdf.terms.Triple;
  * ni-rdf/1 §4.1, and is renamed as such. Blank nodes, lexical forms and language tags are
  * carried over unchanged.</p>
  *
- * <p>This is the step between {@link ContentAddressedIriGenerator#generateIri} and a
+ * <p>This is the step between {@link ContentAddressedIRIGenerator#generateIRI} and a
  * resource that carries its own identifier: describe it under a provisional base, generate the
  * identifier, rebase the graph onto the identifier. Generating again over the result, with the
  * identifier as base, returns the same identifier, so a reader holding the description and
  * the identifier can verify that one belongs to the other. The operation does not depend on
  * the digest procedure and needs no generator.</p>
  */
-public class BaseRebaser {
-
-  private static final char FRAGMENT_SEPARATOR = '#';
-  private static final String INVALID_BASE = "INVALID_BASE";
-  private static final String RESERVED_IRI = "RESERVED_IRI";
-  private static final String UNSUPPORTED_TERM = "UNSUPPORTED_TERM";
-  private static final String BLANK_NODE_PREFIX = "_:";
-  private static final String XSD_STRING = "http://www.w3.org/2001/XMLSchema#string";
+public final class BaseRebaser {
 
   private final RDF rdf;
 
@@ -61,7 +54,7 @@ public class BaseRebaser {
    * {@code to} and its fragment IRIs.
    *
    * <p>The graph itself is not changed. The bases are checked like the base of
-   * {@link ContentAddressedIriGenerator#generateIri}: a base carries no {@code #}, is not
+   * {@link ContentAddressedIRIGenerator#generateIRI}: a base carries no {@code #}, is not
    * the IRI ni-rdf/1 reserves for its placeholder and does not read as a blank node label
    * ({@code _:}). The graph is not required to describe
    * {@code from} alone; IRIs of other resources are carried over unchanged. It must not
@@ -82,14 +75,14 @@ public class BaseRebaser {
     if (graph == null) {
       throw new IllegalArgumentException("Graph cannot be null");
     }
-    final String fromIri = checkedBase(from, "old");
-    final String toIri = checkedBase(to, "new");
+    final String fromIRI = checkedBase(from, "old");
+    final String toIRI = checkedBase(to, "new");
     final Graph result = rdf.createGraph();
     graph.stream().forEach(triple -> {
       if (triple == null) {
-        throw failure(UNSUPPORTED_TERM, "The graph holds a null triple");
+        throw Preconditions.failure(Preconditions.UNSUPPORTED_TERM, "The graph holds a null triple");
       }
-      result.add(renamed(triple, fromIri, toIri));
+      result.add(renamed(triple, fromIRI, toIRI));
     });
     return result;
   }
@@ -98,21 +91,7 @@ public class BaseRebaser {
     if (base == null) {
       throw new IllegalArgumentException("The " + which + " base IRI cannot be null");
     }
-    final String iri = base.getIRIString();
-    if (iri == null) {
-      throw failure(UNSUPPORTED_TERM, "The " + which + " base IRI has no IRI string");
-    }
-    if (iri.indexOf(FRAGMENT_SEPARATOR) >= 0) {
-      throw failure(INVALID_BASE, "The " + which + " base IRI carries no #fragment, but got <" + iri + ">");
-    }
-    if (iri.equals(ContentAddressableRdfSerializer.RESERVED_IRI)) {
-      throw failure(RESERVED_IRI, "The " + which + " base IRI <" + iri + "> is the IRI ni-rdf/1 reserves for itself");
-    }
-    if (iri.startsWith(BLANK_NODE_PREFIX)) {
-      throw failure(UNSUPPORTED_TERM,
-          "ni-rdf/1 admits only absolute IRIs, but <" + iri + "> reads as a blank node label");
-    }
-    return iri;
+    return Preconditions.checkBase(base, which + " base IRI");
   }
 
   private Triple renamed(Triple triple, String from, String to) {
@@ -122,13 +101,13 @@ public class BaseRebaser {
 
   private RDFTerm renamed(RDFTerm term, String from, String to) {
     if (term == null) {
-      throw failure(UNSUPPORTED_TERM, "The graph holds a null term");
+      throw Preconditions.failure(Preconditions.UNSUPPORTED_TERM, "The graph holds a null term");
     }
     return switch (term) {
     case IRI iri -> renamed(iri, from, to);
     case BlankNode blankNode -> rdf.createBlankNode(blankNode.uniqueReference());
     case Literal literal -> renamed(literal, from, to);
-    default -> throw new IllegalArgumentException("[" + UNSUPPORTED_TERM
+    default -> throw new IllegalArgumentException("[" + Preconditions.UNSUPPORTED_TERM
         + "] Only RDF 1.1 IRIs, blank nodes and literals can be renamed, but got " + term.getClass().getName());
     };
   }
@@ -141,14 +120,12 @@ public class BaseRebaser {
     if (literal.getLanguageTag().isPresent()) {
       return rdf.createLiteral(literal.getLexicalForm(), literal.getLanguageTag().get());
     }
-    final IRI datatype = literal.getDatatype();
-    final String datatypeIri = datatype == null ? XSD_STRING : datatype.getIRIString();
-    return rdf.createLiteral(literal.getLexicalForm(), rdf.createIRI(renamed(datatypeIri, from, to)));
+    return rdf.createLiteral(literal.getLexicalForm(), rdf.createIRI(renamed(Terms.datatypeOf(literal), from, to)));
   }
 
   private static String renamed(String iri, String from, String to) {
-    final int separator = iri.indexOf(FRAGMENT_SEPARATOR);
-    final String base = separator < 0 ? iri : iri.substring(0, separator);
+    final String base = Terms.baseOf(iri);
+    final int separator = base.length() < iri.length() ? base.length() : -1;
     if (base.equals(from)) {
       return to + (separator < 0 ? "" : iri.substring(separator));
     }
@@ -157,9 +134,5 @@ public class BaseRebaser {
           + ">; renaming <" + from + "> to it would merge distinct IRIs");
     }
     return iri;
-  }
-
-  private static IllegalArgumentException failure(String code, String message) {
-    return new IllegalArgumentException("[" + code + "] " + message);
   }
 }

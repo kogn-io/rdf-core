@@ -19,9 +19,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
-import io.kogn.rdf.cid.ContentAddressedIriGenerator;
-import io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr;
+import io.kogn.rdf.cid.ContentAddressedIRIGenerator;
 import io.kogn.rdf.cid.ContentAddressingException;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
@@ -56,7 +56,7 @@ class ResourceVersioningPublishTest {
   private static final Instant NOW = Instant.parse("2026-10-31T09:00:00Z");
 
   private final SimpleRdf rdf = new SimpleRdf();
-  private final ContentAddressedIriGenerator generator = new ContentAddressedIriGeneratorSexpr();
+  private final ContentAddressedIRIGenerator generator = new ContentAddressedIRIGeneratorSexpr();
   private Repository repository;
   private DatasetTransactor transactor;
   private ResourceVersioning versioning;
@@ -77,7 +77,7 @@ class ResourceVersioningPublishTest {
   @Test
   void aFirstPublishStoresTheVersionShowsItPublishedAndWritesTheEntry() {
     draft(A, literalTriples(A, "one"));
-    final IRI cid = generator.generateIri(A, literalTriples(A, "one"));
+    final IRI cid = generator.generateIRI(A, literalTriples(A, "one"));
 
     final PublishResult result = publish(PublishDetails.NONE, A);
 
@@ -115,9 +115,9 @@ class ResourceVersioningPublishTest {
 
     publish(PublishDetails.NONE, A);
 
-    final IRI cid = generator.generateIri(A, shape.graph());
-    assertThat(generator.generateIri(A, export(VersioningGraphs.PUBLISHED))).isEqualTo(cid);
-    assertThat(generator.generateIri(cid, export(VersioningGraphs.CONTENT_STORE))).isEqualTo(cid);
+    final IRI cid = generator.generateIRI(A, shape.graph());
+    assertThat(generator.generateIRI(A, export(VersioningGraphs.PUBLISHED))).isEqualTo(cid);
+    assertThat(generator.generateIRI(cid, export(VersioningGraphs.CONTENT_STORE))).isEqualTo(cid);
   }
 
   @Test
@@ -173,10 +173,10 @@ class ResourceVersioningPublishTest {
     publish(PublishDetails.NONE, A);
 
     final ReadableGraph store = export(VersioningGraphs.CONTENT_STORE);
-    final IRI first = generator.generateIri(A, blankNodeDraft(A, 1).graph());
-    final IRI second = generator.generateIri(A, blankNodeDraft(A, 2).graph());
-    assertThat(generator.generateIri(first, closureOf(store, first))).isEqualTo(first);
-    assertThat(generator.generateIri(second, closureOf(store, second))).isEqualTo(second);
+    final IRI first = generator.generateIRI(A, blankNodeDraft(A, 1).graph());
+    final IRI second = generator.generateIRI(A, blankNodeDraft(A, 2).graph());
+    assertThat(generator.generateIRI(first, closureOf(store, first))).isEqualTo(first);
+    assertThat(generator.generateIRI(second, closureOf(store, second))).isEqualTo(second);
   }
 
   @Test
@@ -488,11 +488,11 @@ class ResourceVersioningPublishTest {
   }
 
   /** A generator with another procedure tag, deriving the same names. */
-  private record Tagged(ContentAddressedIriGenerator delegate, String tag) implements ContentAddressedIriGenerator {
+  private record Tagged(ContentAddressedIRIGenerator delegate, String tag) implements ContentAddressedIRIGenerator {
 
     @Override
-    public IRI generateIri(final IRI base, final ReadableGraph graph) {
-      return delegate.generateIri(base, graph);
+    public IRI generateIRI(final IRI base, final ReadableGraph graph) {
+      return delegate.generateIRI(base, graph);
     }
 
     @Override
@@ -502,10 +502,10 @@ class ResourceVersioningPublishTest {
   }
 
   /** A generator that cannot derive any identifier. */
-  private static final class Failing implements ContentAddressedIriGenerator {
+  private static final class Failing implements ContentAddressedIRIGenerator {
 
     @Override
-    public IRI generateIri(final IRI base, final ReadableGraph graph) {
+    public IRI generateIRI(final IRI base, final ReadableGraph graph) {
       throw new ContentAddressingException("cannot derive", null);
     }
 

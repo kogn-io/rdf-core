@@ -33,3 +33,4 @@ not a historical log of every change that led here.
 | [0022](0022-draft-publish-versioning-per-proxy-iri.md) | Draft/publish versioning per proxy IRI over a library-owned slice |
 | [0023](0023-versioned-dataset-fixed-named-graphs.md) | A versioned dataset keeps views, versions and history as fixed named graphs in one dataset |
 | [0024](0024-versioning-fragment-index-and-corrections.md) | The fragment index is part of the stored format of a versioned dataset; corrections to ADR-0022 and ADR-0023 |
+| [0025](0025-content-addressed-iri-internals-and-names.md) | `rdf-cid` hides its internals and names its steps after the specification; acronyms are capitals |

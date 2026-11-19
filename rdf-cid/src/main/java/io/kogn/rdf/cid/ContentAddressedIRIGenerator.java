@@ -63,7 +63,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * @see ReadableGraph
  * @see IRI
  */
-public interface ContentAddressedIriGenerator {
+public interface ContentAddressedIRIGenerator {
 
   /**
    * Generates a content-addressed IRI for the resource {@code base} that the given graph
@@ -130,7 +130,7 @@ public interface ContentAddressedIriGenerator {
    * @throws ContentAddressingException if the graph satisfies those preconditions but the
    *         identifier cannot be derived because canonicalization fails
    */
-  IRI generateIri(IRI base, ReadableGraph graph);
+  IRI generateIRI(IRI base, ReadableGraph graph);
 
   /**
    * Returns the tag of the procedure by which this generator derives its identifiers.

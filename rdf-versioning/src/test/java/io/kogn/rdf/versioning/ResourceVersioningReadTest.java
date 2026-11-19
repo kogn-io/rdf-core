@@ -21,9 +21,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.cid.CanonicalizationResourceLimitExceededException;
-import io.kogn.rdf.cid.ContentAddressedIriGenerator;
-import io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr;
+import io.kogn.rdf.cid.ContentAddressedIRIGenerator;
 import io.kogn.rdf.cid.ContentAddressingException;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
@@ -58,7 +58,7 @@ class ResourceVersioningReadTest {
   private static final Instant NOW = Instant.parse("2026-10-31T09:00:00Z");
 
   private final SimpleRdf rdf = new SimpleRdf();
-  private final ContentAddressedIriGenerator generator = new ContentAddressedIriGeneratorSexpr();
+  private final ContentAddressedIRIGenerator generator = new ContentAddressedIRIGeneratorSexpr();
   private Repository repository;
   private DatasetTransactor transactor;
   private ResourceVersioning versioning;
@@ -116,7 +116,7 @@ class ResourceVersioningReadTest {
     final Graph draft = one(A, "one");
     draft(A, draft);
     publish(A);
-    final IRI cid = generator.generateIri(A, draft);
+    final IRI cid = generator.generateIRI(A, draft);
 
     final Optional<ReadableGraph> version = transactor
         .inTransaction(tx -> versioning.readVersion(tx, cid).map(this::copy));
@@ -134,20 +134,20 @@ class ResourceVersioningReadTest {
     draft.add(node, Q, rdf.createLiteral("x"));
     draft(A, draft);
     publish(A);
-    final IRI cid = generator.generateIri(A, draft);
+    final IRI cid = generator.generateIRI(A, draft);
 
     final ReadableGraph version = transactor.inTransaction(tx -> versioning.readVersion(tx, cid).map(this::copy))
         .orElseThrow();
 
     assertThat(version.size()).isEqualTo(2);
-    assertThat(generator.generateIri(cid, version)).isEqualTo(cid);
+    assertThat(generator.generateIRI(cid, version)).isEqualTo(cid);
   }
 
   @Test
   void aCidTheContentStoreDoesNotHoldIsEmpty() {
     draft(A, one(A, "one"));
     publish(A);
-    final IRI unknown = generator.generateIri(A, one(A, "unpublished"));
+    final IRI unknown = generator.generateIRI(A, one(A, "unpublished"));
 
     assertThat(versionOf(unknown)).isEmpty();
   }
@@ -157,7 +157,7 @@ class ResourceVersioningReadTest {
     final Graph draft = one(A, "one");
     draft(A, draft);
     publish(A);
-    final String canonical = generator.generateIri(A, draft).getIRIString();
+    final String canonical = generator.generateIRI(A, draft).getIRIString();
     final IRI otherSpelling = new SimpleIRI(canonical.replace("ni:///", "ni://example.org/"));
 
     assertThat(versionOf(otherSpelling)).isEmpty();
@@ -176,8 +176,8 @@ class ResourceVersioningReadTest {
     draft(A, draft);
     draft(B, one(B, "b"));
     publish(A, B);
-    final IRI cid = generator.generateIri(A, draft);
-    final IRI cidB = generator.generateIri(B, one(B, "b"));
+    final IRI cid = generator.generateIRI(A, draft);
+    final IRI cidB = generator.generateIRI(B, one(B, "b"));
 
     final ReadableGraph byCid = transactor.inTransaction(tx -> copy(versioning.readVersion(tx, cid).orElseThrow()));
     final ReadableGraph bySequence = transactor
@@ -197,7 +197,7 @@ class ResourceVersioningReadTest {
     draft.add(A, Q, A);
     draft(A, draft);
     publish(A);
-    final IRI cid = generator.generateIri(A, draft);
+    final IRI cid = generator.generateIRI(A, draft);
 
     final ReadableGraph byCid = transactor.inTransaction(tx -> copy(versioning.readVersion(tx, cid).orElseThrow()));
     final ReadableGraph bySequence = transactor
@@ -220,8 +220,8 @@ class ResourceVersioningReadTest {
     draft(A, one(A, "two"));
     publish(A);
 
-    final IRI first = generator.generateIri(A, one(A, "one"));
-    final IRI second = generator.generateIri(A, one(A, "two"));
+    final IRI first = generator.generateIRI(A, one(A, "one"));
+    final IRI second = generator.generateIRI(A, one(A, "two"));
     final ReadableGraph v1 = transactor.inTransaction(tx -> versioning.readVersion(tx, A, 1).map(this::copy))
         .orElseThrow();
     final ReadableGraph v2 = transactor.inTransaction(tx -> versioning.readVersion(tx, A, 2).map(this::copy))
@@ -244,7 +244,7 @@ class ResourceVersioningReadTest {
   void anEntryWhoseContentIsNotInTheStoreYieldsEmpty() {
     draft(A, one(A, "one"));
     publish(A);
-    final IRI cid = generator.generateIri(A, one(A, "one"));
+    final IRI cid = generator.generateIRI(A, one(A, "one"));
     final Graph content = transactor.inTransaction(tx -> copy(tx.export(VersioningGraphs.CONTENT_STORE)));
     transactor.inTransaction(tx -> {
       tx.remove(VersioningGraphs.CONTENT_STORE, content);
@@ -290,10 +290,10 @@ class ResourceVersioningReadTest {
 
     assertThat(history).hasSize(2);
     assertThat(history.get(0))
-        .isEqualTo(new HistoryEntry(first, 1, EntryKind.PUBLISH, Optional.of(generator.generateIri(A, one(A, "one"))),
+        .isEqualTo(new HistoryEntry(first, 1, EntryKind.PUBLISH, Optional.of(generator.generateIRI(A, one(A, "one"))),
             Optional.of("ni-rdf/1"), NOW, Optional.of(ALICE), Optional.of("first cut")));
     assertThat(history.get(1))
-        .isEqualTo(new HistoryEntry(second, 2, EntryKind.PUBLISH, Optional.of(generator.generateIri(A, one(A, "two"))),
+        .isEqualTo(new HistoryEntry(second, 2, EntryKind.PUBLISH, Optional.of(generator.generateIRI(A, one(A, "two"))),
             Optional.of("ni-rdf/1"), NOW, Optional.empty(), Optional.empty()));
   }
 
@@ -615,11 +615,11 @@ class ResourceVersioningReadTest {
   }
 
   /** A generator with another procedure tag, deriving the same names. */
-  private record Tagged(ContentAddressedIriGenerator delegate, String tag) implements ContentAddressedIriGenerator {
+  private record Tagged(ContentAddressedIRIGenerator delegate, String tag) implements ContentAddressedIRIGenerator {
 
     @Override
-    public IRI generateIri(final IRI base, final ReadableGraph graph) {
-      return delegate.generateIri(base, graph);
+    public IRI generateIRI(final IRI base, final ReadableGraph graph) {
+      return delegate.generateIRI(base, graph);
     }
 
     @Override
@@ -629,10 +629,10 @@ class ResourceVersioningReadTest {
   }
 
   /** A generator that refuses every draft with the given exception. */
-  private record Failing(RuntimeException failure) implements ContentAddressedIriGenerator {
+  private record Failing(RuntimeException failure) implements ContentAddressedIRIGenerator {
 
     @Override
-    public IRI generateIri(final IRI base, final ReadableGraph graph) {
+    public IRI generateIRI(final IRI base, final ReadableGraph graph) {
       throw failure;
     }
 

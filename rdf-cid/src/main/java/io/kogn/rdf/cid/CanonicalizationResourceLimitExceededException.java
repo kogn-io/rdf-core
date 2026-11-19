@@ -5,7 +5,7 @@ package io.kogn.rdf.cid;
 
 /**
  * Signals that a graph satisfying every precondition of
- * {@link ContentAddressedIriGenerator#generateIri} still gets no identifier, because its blank
+ * {@link ContentAddressedIRIGenerator#generateIRI} still gets no identifier, because its blank
  * node structure exceeds the resource limit of ni-rdf/1 (§4.3 of
  * {@code docs/spec/ni-rdf/v1.md}).
  *

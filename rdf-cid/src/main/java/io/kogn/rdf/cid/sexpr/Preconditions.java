@@ -14,8 +14,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.kogn.rdf.terms.BlankNode;
+import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.Literal;
+import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.Triple;
 
@@ -30,14 +32,12 @@ import io.kogn.rdf.terms.Triple;
 final class Preconditions {
 
   static final String INVALID_BASE = "INVALID_BASE";
-  static final String RESERVED_IRI = "RESERVED_IRI";
+  static final String RESERVED_IRI_FAILURE = "RESERVED_IRI";
   static final String EMPTY_GRAPH = "EMPTY_GRAPH";
   static final String UNSUPPORTED_TERM = "UNSUPPORTED_TERM";
   static final String FOREIGN_SUBJECT = "FOREIGN_SUBJECT";
   static final String NO_ROOT = "NO_ROOT";
   static final String UNREACHABLE = "UNREACHABLE";
-
-  private static final char FRAGMENT_SEPARATOR = '#';
 
   private Preconditions() {
   }
@@ -49,35 +49,23 @@ final class Preconditions {
    *
    * @param base the base IRI
    * @param triples the input graph
-   * @param reserved the reserved IRI
    * @return the IRI string of {@code base}
    * @throws IllegalArgumentException if {@code base} or {@code triples} is null, or for the
    *         first of conditions 1 to 4 that does not hold
    */
-  static String checkTerms(IRI base, Collection<Triple> triples, String reserved) {
+  static String checkTerms(IRI base, Collection<Triple> triples) {
     if (base == null) {
       throw new IllegalArgumentException("Base IRI cannot be null");
     }
     if (triples == null) {
       throw new IllegalArgumentException("Graph cannot be null");
     }
-    String baseIri = base.getIRIString();
-    if (baseIri == null) {
-      throw failure(UNSUPPORTED_TERM, "The base IRI is a " + base.getClass().getName() + " without IRI string, "
-          + "which the RDF 1.1 term contract requires");
-    }
-    if (baseIri.indexOf(FRAGMENT_SEPARATOR) >= 0) {
-      throw failure(INVALID_BASE,
-          "A base IRI names the resource as a whole and carries no #fragment, but got <" + baseIri + ">");
-    }
-    if (baseIri.equals(reserved)) {
-      throw failure(RESERVED_IRI, "The base IRI <" + baseIri + "> is the IRI ni-rdf/1 reserves for itself");
-    }
+    String baseIRI = checkBaseShape(base, "base IRI");
     if (triples.isEmpty()) {
       throw failure(EMPTY_GRAPH, "The graph holds no triple");
     }
-    rejectUnsupportedTerms(baseIri, triples);
-    return baseIri;
+    rejectUnsupportedTerms(baseIRI, triples);
+    return baseIRI;
   }
 
   /**
@@ -87,16 +75,57 @@ final class Preconditions {
    *
    * @param triples the input graph, its terms well-formed
    * @param base the IRI string of the base IRI
-   * @param reserved the reserved IRI
    * @throws IllegalArgumentException for the first of conditions 5 to 8 that does not hold
    */
-  static void checkGraph(Collection<Triple> triples, String base, String reserved) {
-    rejectReservedIris(triples, reserved);
+  static void checkGraph(Collection<Triple> triples, String base) {
+    rejectReservedIRIs(triples);
     rejectForeignSubjects(triples, base);
     rejectUnreachable(triples, base);
   }
 
-  private static IllegalArgumentException failure(String code, String message) {
+  /**
+   * Checks a base IRI on its own, as conditions 1, 2 and 4 of ni-rdf/1 §3 read it: it has an IRI
+   * string, carries no {@code #}, is not the reserved IRI, holds no unpaired surrogate and does
+   * not read as a blank node label. {@code BaseRebaser} applies the same rules to both of its
+   * bases (§6).
+   *
+   * @param base the base IRI, not null
+   * @param description how the failure messages name it, e.g. {@code old base IRI}
+   * @return the IRI string of {@code base}
+   * @throws IllegalArgumentException for the first rule that does not hold
+   */
+  static String checkBase(IRI base, String description) {
+    String baseIRI = checkBaseShape(base, description);
+    requireCodePoints(baseIRI, description, "IRI string");
+    rejectBlankNodeLabel(baseIRI);
+    return baseIRI;
+  }
+
+  private static String checkBaseShape(IRI base, String description) {
+    String baseIRI = base.getIRIString();
+    if (baseIRI == null) {
+      throw failure(UNSUPPORTED_TERM, "The " + description + " is a " + base.getClass().getName()
+          + " without IRI string, which the RDF 1.1 term contract requires");
+    }
+    if (baseIRI.indexOf(Terms.FRAGMENT_SEPARATOR) >= 0) {
+      throw failure(INVALID_BASE, "A " + description + " names the resource as a whole and carries no #fragment, "
+          + "but got <" + baseIRI + ">");
+    }
+    if (baseIRI.equals(Terms.RESERVED_IRI)) {
+      throw failure(RESERVED_IRI_FAILURE,
+          "The " + description + " <" + baseIRI + "> is the IRI ni-rdf/1 reserves for itself");
+    }
+    return baseIRI;
+  }
+
+  private static void rejectBlankNodeLabel(String iri) {
+    if (iri.startsWith(Terms.BLANK_NODE_PREFIX)) {
+      throw failure(UNSUPPORTED_TERM,
+          "ni-rdf/1 admits only absolute IRIs, but <" + iri + "> reads as a blank node label");
+    }
+  }
+
+  static IllegalArgumentException failure(String code, String message) {
     return new IllegalArgumentException("[" + code + "] " + message);
   }
 
@@ -112,10 +141,7 @@ final class Preconditions {
     Stream.concat(Stream.of(base), triples.stream().flatMap(Preconditions::irisOf))
         .filter(iri -> iri.startsWith(Terms.BLANK_NODE_PREFIX))
         .findFirst()
-        .ifPresent(iri -> {
-          throw failure(UNSUPPORTED_TERM,
-              "ni-rdf/1 admits only absolute IRIs, but <" + iri + "> reads as a blank node label");
-        });
+        .ifPresent(Preconditions::rejectBlankNodeLabel);
     triples.stream()
         .filter(t -> !isResource(t.getSubject()) || (!isResource(t.getObject()) && !(t.getObject() instanceof Literal)))
         .findFirst()
@@ -219,15 +245,51 @@ final class Preconditions {
   }
 
   /** Rejects an IRI in any position, datatype IRIs included, whose base is the reserved IRI. */
-  private static void rejectReservedIris(Collection<Triple> triples, String reserved) {
+  private static void rejectReservedIRIs(Collection<Triple> triples) {
     triples.stream()
         .flatMap(Preconditions::irisOf)
-        .filter(iri -> Terms.baseOf(iri).equals(reserved))
+        .filter(iri -> Terms.baseOf(iri).equals(Terms.RESERVED_IRI))
         .findFirst()
         .ifPresent(iri -> {
-          throw failure(RESERVED_IRI,
+          throw failure(RESERVED_IRI_FAILURE,
               "The graph uses <" + iri + ">, whose base is the IRI ni-rdf/1 reserves " + "for the resource itself");
         });
+  }
+
+  /**
+   * Recreates every triple of a graph that has passed {@link #checkTerms} through the term
+   * factory, so deduplication (§4.2) and the conditions of §3 that compare terms rely on the
+   * factory's value-based {@code equals}, not on that of a foreign term implementation, which
+   * may break the contract.
+   *
+   * @param rdf the term factory
+   * @param triples the input graph, its terms well-formed
+   * @return the same triples, built by {@code rdf}
+   */
+  static List<Triple> recreated(RDF rdf, Collection<Triple> triples) {
+    return triples.stream().map(triple -> recreated(rdf, triple)).toList();
+  }
+
+  private static Triple recreated(RDF rdf, Triple triple) {
+    BlankNodeOrIRI subject = switch (triple.getSubject()) {
+    case IRI iri -> rdf.createIRI(iri.getIRIString());
+    case BlankNode blankNode -> rdf.createBlankNode(blankNode.uniqueReference());
+    default -> throw unsupportedKind(triple.getSubject());
+    };
+    RDFTerm object = switch (triple.getObject()) {
+    case IRI iri -> rdf.createIRI(iri.getIRIString());
+    case BlankNode blankNode -> rdf.createBlankNode(blankNode.uniqueReference());
+    case Literal literal -> literal.getLanguageTag().isPresent()
+        ? rdf.createLiteral(literal.getLexicalForm(), literal.getLanguageTag().get())
+        : rdf.createLiteral(literal.getLexicalForm(), rdf.createIRI(Terms.datatypeOf(literal)));
+    default -> throw unsupportedKind(triple.getObject());
+    };
+    return rdf.createTriple(subject, rdf.createIRI(triple.getPredicate().getIRIString()), object);
+  }
+
+  /** A term kind §3 condition 4 has already rejected; reaching this is a bug, not a caller error. */
+  static IllegalStateException unsupportedKind(RDFTerm term) {
+    return new IllegalStateException("Unsupported term kind: " + term.getClass());
   }
 
   private static Stream<String> irisOf(Triple triple) {

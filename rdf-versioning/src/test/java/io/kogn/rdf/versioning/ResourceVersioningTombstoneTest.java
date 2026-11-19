@@ -19,8 +19,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import io.kogn.rdf.cid.ContentAddressedIriGenerator;
-import io.kogn.rdf.cid.ContentAddressedIriGeneratorSexpr;
+import io.kogn.rdf.cid.ContentAddressedIRIGenerator;
+import io.kogn.rdf.cid.sexpr.ContentAddressedIRIGeneratorSexpr;
 import io.kogn.rdf.dataset.DatasetTransactor;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
 import io.kogn.rdf.terms.BlankNode;
@@ -50,7 +50,7 @@ class ResourceVersioningTombstoneTest {
   private static final Instant NOW = Instant.parse("2026-10-31T09:00:00Z");
 
   private final SimpleRdf rdf = new SimpleRdf();
-  private final ContentAddressedIriGenerator generator = new ContentAddressedIriGeneratorSexpr();
+  private final ContentAddressedIRIGenerator generator = new ContentAddressedIRIGeneratorSexpr();
   private Repository repository;
   private DatasetTransactor transactor;
   private ResourceVersioning versioning;
@@ -75,7 +75,7 @@ class ResourceVersioningTombstoneTest {
     draft(A, draft);
     draft(B, one(B, "b"));
     publish(A, B);
-    final IRI cid = generator.generateIri(A, draft);
+    final IRI cid = generator.generateIRI(A, draft);
 
     final DeleteResult result = delete(A, PublishDetails.NONE);
 
@@ -92,7 +92,7 @@ class ResourceVersioningTombstoneTest {
   void theTombstoneIsAnEntryOfItsOwnNamingTheLastVersion() {
     draft(A, one(A, "one"));
     final IRI published = publish(A).entries().get(A);
-    final IRI cid = generator.generateIri(A, one(A, "one"));
+    final IRI cid = generator.generateIRI(A, one(A, "one"));
 
     final DeleteResult result = delete(A, PublishDetails.NONE.withCreator(ALICE).withComment("gone"));
 

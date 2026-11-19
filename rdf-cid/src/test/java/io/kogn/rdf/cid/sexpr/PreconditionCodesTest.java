@@ -28,21 +28,20 @@ import io.kogn.rdf.terms.Triple;
 
 /**
  * The failure codes of ni-rdf/1 section 5 and the order of the section 3 checks, driven through
- * {@link ContentAddressableRdfSerializer#serializeWithIri}: which code is reported when
+ * {@link ContentAddressedIRIGeneratorSexpr#derive}: which code is reported when
  * several conditions fail at once, and that every code comes with its documented type and
  * a {@code [CODE]} message prefix.
  */
 class PreconditionCodesTest {
 
   private static final String EX = "http://example.org/";
-  private static final String RESERVED = ContentAddressableRdfSerializer.RESERVED_IRI;
+  private static final String RESERVED = Terms.RESERVED_IRI;
   private static final String BASE = EX + "doc";
   private static final String BLANK_LOOKING = "_:x";
 
   private static final RDF RDF_FACTORY = new SimpleRdf();
 
-  private final ContentAddressableRdfSerializer serializer = new ContentAddressableRdfSerializer(
-      new RdfDatasetCanonicalizer());
+  private final ContentAddressedIRIGeneratorSexpr generator = new ContentAddressedIRIGeneratorSexpr();
 
   /** One input: a base IRI and a graph. */
   private record Input(String base, List<Triple> triples) {
@@ -62,7 +61,7 @@ class PreconditionCodesTest {
   }
 
   /** Condition 4: an IRI that reads as a blank node label. */
-  private static Triple blankNodeLookingIri() {
+  private static Triple blankNodeLookingIRI() {
     return triple(BASE, EX + "p", iri(BLANK_LOOKING));
   }
 
@@ -73,7 +72,7 @@ class PreconditionCodesTest {
   }
 
   /** Condition 5: an IRI with the reserved IRI as its base. */
-  private static Triple reservedIri() {
+  private static Triple reservedIRI() {
     return triple(BASE, EX + "p", iri(RESERVED + "#x"));
   }
 
@@ -94,37 +93,37 @@ class PreconditionCodesTest {
         args("1 alone: fragment of the reserved IRI as base is INVALID_BASE (1+2 cannot co-occur)", "INVALID_BASE",
             RESERVED + "#a", List.of(fine())),
         args("1+3: '#' in the base, empty graph", "INVALID_BASE", withFragment, List.of()),
-        args("1+4: '#' in the base, unsupported term", "INVALID_BASE", withFragment, List.of(blankNodeLookingIri())),
-        args("1+5: '#' in the base, reserved IRI in graph", "INVALID_BASE", withFragment, List.of(reservedIri())),
+        args("1+4: '#' in the base, unsupported term", "INVALID_BASE", withFragment, List.of(blankNodeLookingIRI())),
+        args("1+5: '#' in the base, reserved IRI in graph", "INVALID_BASE", withFragment, List.of(reservedIRI())),
         args("1+6: '#' in the base, foreign subject", "INVALID_BASE", withFragment, List.of(foreignSubject())),
         args("1+7: '#' in the base, no IRI subject", "INVALID_BASE", withFragment, List.of(blankSubjectOnly())),
         // condition 2
         args("2+3: base is the reserved IRI, empty graph", "RESERVED_IRI", RESERVED, List.of()),
         args("2+4: base is the reserved IRI, unsupported term", "RESERVED_IRI", RESERVED,
-            List.of(blankNodeLookingIri())),
+            List.of(blankNodeLookingIRI())),
         args("2+6: base is the reserved IRI, foreign subject", "RESERVED_IRI", RESERVED, List.of(foreignSubject())),
         args("2+7: base is the reserved IRI, no IRI subject", "RESERVED_IRI", RESERVED, List.of(blankSubjectOnly())),
         // condition 3: an empty graph can only be beaten by a bad base, which is condition 4 here
         args("3+4: empty graph, base reads as a blank node label", "EMPTY_GRAPH", BLANK_LOOKING, List.of()),
         // condition 4 against every later one
         args("4+5 (IRI): blank-node-looking IRI and reserved IRI", "UNSUPPORTED_TERM", BASE,
-            List.of(blankNodeLookingIri(), reservedIri())),
+            List.of(blankNodeLookingIRI(), reservedIRI())),
         args("4+5 (kind): unknown term kind and reserved IRI", "UNSUPPORTED_TERM", BASE,
-            List.of(unknownTermKind(), reservedIri())),
+            List.of(unknownTermKind(), reservedIRI())),
         args("4+5 (base): base reads as a blank node label, reserved IRI in graph", "UNSUPPORTED_TERM", BLANK_LOOKING,
             List.of(triple(BLANK_LOOKING, EX + "p", iri(RESERVED + "#x")))),
         args("4+6: unsupported term and foreign subject", "UNSUPPORTED_TERM", BASE,
-            List.of(blankNodeLookingIri(), foreignSubject())),
+            List.of(blankNodeLookingIRI(), foreignSubject())),
         args("4+7: unsupported term and no IRI subject", "UNSUPPORTED_TERM", BASE,
             List.of(blankSubjectWith(iri(BLANK_LOOKING)))),
         args("4+8: unsupported term and an unreachable triple", "UNSUPPORTED_TERM", BASE,
-            List.of(blankNodeLookingIri(), blankSubjectOnly())),
+            List.of(blankNodeLookingIRI(), blankSubjectOnly())),
         // condition 5
-        args("5+6: reserved IRI and foreign subject", "RESERVED_IRI", BASE, List.of(reservedIri(), foreignSubject())),
+        args("5+6: reserved IRI and foreign subject", "RESERVED_IRI", BASE, List.of(reservedIRI(), foreignSubject())),
         args("5+7: reserved IRI and no IRI subject", "RESERVED_IRI", BASE,
             List.of(blankSubjectWith(iri(RESERVED + "#x")))),
         args("5+8: reserved IRI and an unreachable triple", "RESERVED_IRI", BASE,
-            List.of(reservedIri(), blankSubjectOnly())),
+            List.of(reservedIRI(), blankSubjectOnly())),
         // condition 6
         args("6+8: foreign subject and an unreachable triple", "FOREIGN_SUBJECT", BASE,
             List.of(foreignSubject(), blankSubjectOnly())),
@@ -134,9 +133,9 @@ class PreconditionCodesTest {
         args("1+limit: '#' in the base, graph over the cost limit", "INVALID_BASE", withFragment, overLimit()),
         args("2+limit: reserved base, graph over the cost limit", "RESERVED_IRI", RESERVED, overLimit()),
         args("4+limit: unsupported term, graph over the cost limit", "UNSUPPORTED_TERM", BASE,
-            with(overLimit(), blankNodeLookingIri())),
+            with(overLimit(), blankNodeLookingIRI())),
         args("5+limit: reserved IRI, graph over the cost limit", "RESERVED_IRI", BASE,
-            with(overLimit(), reservedIri())),
+            with(overLimit(), reservedIRI())),
         args("6+limit: foreign subject, graph over the cost limit", "FOREIGN_SUBJECT", BASE,
             with(overLimit(), foreignSubject())),
         args("8+limit: unreachable triple, graph over the cost limit", "UNREACHABLE", BASE,
@@ -175,17 +174,16 @@ class PreconditionCodesTest {
   @MethodSource("doubleViolations")
   @DisplayName("when several conditions fail, the first one in the order of section 3 is reported")
   void firstFailingConditionIsReported(String name, String code, String base, List<Triple> triples) {
-    assertThatThrownBy(() -> serializer.serializeWithIri(iri(base), triples)).as(name)
-        .hasMessageStartingWith("[" + code + "]");
+    assertThatThrownBy(() -> generator.derive(iri(base), triples)).as(name).hasMessageStartingWith("[" + code + "]");
   }
 
   /** Every code of section 5 with a way to provoke it alone, and the type its failure must have. */
   static Stream<Arguments> everyCode() {
     return Stream.of(code("INVALID_BASE", BASE + "#a", List.of(fine()), IllegalArgumentException.class),
         code("RESERVED_IRI", RESERVED, List.of(fine()), IllegalArgumentException.class),
-        code("RESERVED_IRI", BASE, List.of(reservedIri()), IllegalArgumentException.class),
+        code("RESERVED_IRI", BASE, List.of(reservedIRI()), IllegalArgumentException.class),
         code("EMPTY_GRAPH", BASE, List.of(), IllegalArgumentException.class),
-        code("UNSUPPORTED_TERM", BASE, List.of(blankNodeLookingIri()), IllegalArgumentException.class),
+        code("UNSUPPORTED_TERM", BASE, List.of(blankNodeLookingIRI()), IllegalArgumentException.class),
         code("UNSUPPORTED_TERM", BASE, List.of(unknownTermKind()), IllegalArgumentException.class),
         code("FOREIGN_SUBJECT", BASE, List.of(foreignSubject()), IllegalArgumentException.class),
         code("NO_ROOT", BASE, List.of(blankSubjectOnly()), IllegalArgumentException.class),
@@ -201,7 +199,7 @@ class PreconditionCodesTest {
   @MethodSource("everyCode")
   @DisplayName("every section 5 code is thrown with its documented type and starts the message in brackets")
   void everyCodeHasItsTypeAndPrefix(String code, String base, List<Triple> triples, Class<? extends Throwable> type) {
-    assertThatThrownBy(() -> serializer.serializeWithIri(iri(base), triples)).isExactlyInstanceOf(type)
+    assertThatThrownBy(() -> generator.derive(iri(base), triples)).isExactlyInstanceOf(type)
         .hasMessageStartingWith("[" + code + "] ");
   }
 
@@ -236,7 +234,7 @@ class PreconditionCodesTest {
   @MethodSource("dirLangStringLiterals")
   @DisplayName("a literal of datatype rdf:dirLangString is an RDF 1.2 term, with or without a language tag")
   void dirLangStringIsUnsupported(String name, Literal literal) {
-    assertThatThrownBy(() -> serializer.serializeWithIri(iri(BASE), List.of(triple(BASE, EX + "p", literal))))
+    assertThatThrownBy(() -> generator.derive(iri(BASE), List.of(triple(BASE, EX + "p", literal))))
         .isExactlyInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("[UNSUPPORTED_TERM] ");
   }
