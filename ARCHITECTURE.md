@@ -108,7 +108,7 @@ and the empty label, which `SimpleRdf` rejects.
 Small, single-purpose ports that cover what a dataset consumer needs, split by
 concern:
 
-- **`GraphStore`** — named-graph-addressed `add`/`remove`/`clear`/`export`/`count`.
+- **`GraphStore`** — named-graph-addressed `add`/`remove`/`clear`/`snapshot`/`count`.
 - **`SparqlQuery`** — non-transactional `SELECT`/`CONSTRUCT`/`ASK`
   (`DESCRIBE` is not supported).
 - **`SparqlUpdate`** — SPARQL 1.1 Update. Both SPARQL ports — and the same
@@ -139,16 +139,16 @@ concern:
 - **`DatasetExport`** — serialization to a byte stream: the whole dataset (only
   in a quad-capable `RdfFormat` — TriG or N-Quads — since a triple-only format
   would flatten the named graphs and silently lose which statement came from
-  where) or a single named graph (any format). The counterpart to
-  `GraphStore#export(IRI)`, which despite its name returns an in-memory graph
-  rather than a document. The stream stays the caller's: it is written to and
+  where) or a single named graph (any format). Where
+  `GraphStore#snapshot(IRI)` returns an in-memory graph, this produces a
+  document. The stream stays the caller's: it is written to and
   flushed, never closed, and a failure to write surfaces as the neutral
   `RdfExportException`. Deliberately *not* part of `DatasetTx`
   ([ADR-0013](docs/adr/0013-standalone-dataset-export-port.md)): a dump streams
   at the pace of the caller's sink and would hold a transaction open for that
   span while observing the whole store, and a dump cannot act as the
   optimistic-concurrency guard that price buys. For a snapshot atomic with other
-  work, take `DatasetTx#export(IRI)` inside the transaction and serialize it
+  work, take `DatasetTx#snapshot(IRI)` inside the transaction and serialize it
   afterwards.
 - **`DatasetTransactor`** / **`DatasetTx`** — an atomic, all-or-nothing
   unit-of-work (`inTransaction(work)`; roll back on any `RuntimeException` or
@@ -164,7 +164,7 @@ concern:
   a pattern rather than as a query, so a backend can answer it from its own
   pattern lookup instead of through query evaluation — the longer path, and the
   one on which a backend can lose the conflict. `match(graph, s, p, o)` returns
-  the matching triples and observes only the pattern, where `export` observes
+  the matching triples and observes only the pattern, where `snapshot` observes
   the whole named graph; a read of a few subjects of a concurrently written
   graph states them as patterns there instead of exporting the graph. Clearing
   or dropping a whole named graph is the exception, depending on the store: on
@@ -185,9 +185,9 @@ concern:
   naming a backend exception type. Not every operation observes the same
   amount of the graph, though: `add`/`remove` conflict only on the individual
   triples they touch (each is checked and mutated one triple at a time via a
-  pattern lookup), while `contains`/`match`/`count`/`export`/`ask`/`select` conflict on
+  pattern lookup), while `contains`/`match`/`count`/`snapshot`/`ask`/`select` conflict on
   whatever they read — up to the whole named graph for a wildcard `count` or
-  `export` — because a caller that already read that much is meant to lose the
+  `snapshot` — because a caller that already read that much is meant to lose the
   race against a concurrent writer to it, the same way a `contains` guard is
   meant to. `add`/`remove` used to fall into the whole-graph case too, sampling
   the graph's size before and after the write; that made two transactions

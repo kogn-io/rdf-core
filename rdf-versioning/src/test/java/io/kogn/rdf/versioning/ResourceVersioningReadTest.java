@@ -245,7 +245,7 @@ class ResourceVersioningReadTest {
     draft(A, one(A, "one"));
     publish(A);
     final IRI cid = generator.generateIRI(A, one(A, "one"));
-    final Graph content = transactor.inTransaction(tx -> copy(tx.export(VersioningGraphs.CONTENT_STORE)));
+    final Graph content = transactor.inTransaction(tx -> copy(tx.snapshot(VersioningGraphs.CONTENT_STORE)));
     transactor.inTransaction(tx -> {
       tx.remove(VersioningGraphs.CONTENT_STORE, content);
       return null;

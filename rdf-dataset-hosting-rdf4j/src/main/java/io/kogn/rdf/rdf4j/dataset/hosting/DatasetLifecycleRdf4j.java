@@ -943,9 +943,9 @@ public class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMaintenan
     }
 
     @Override
-    public ReadableGraph export(final IRI namedGraph) {
+    public ReadableGraph snapshot(final IRI namedGraph) {
       ensureOpen(closed, closedMessage);
-      return delegate.export(namedGraph);
+      return delegate.snapshot(namedGraph);
     }
 
     @Override

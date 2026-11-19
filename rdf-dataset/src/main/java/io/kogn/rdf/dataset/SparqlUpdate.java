@@ -39,7 +39,7 @@ import io.kogn.rdf.terms.RDFTerm;
  * <p><strong>Content outside the RDF 1.1 data model is not checked.</strong> Keeping the store
  * within the data model (see {@link io.kogn.rdf.terms}) is the caller's responsibility: an
  * update that stores an RDF 1.2 triple term is not rejected. Reading such content back through
- * {@link GraphStore#export(io.kogn.rdf.terms.IRI)} or {@link SparqlQuery} fails with an
+ * {@link GraphStore#snapshot(io.kogn.rdf.terms.IRI)} or {@link SparqlQuery} fails with an
  * {@link IllegalStateException}; {@link DatasetExport} writes it out as it is.</p>
  */
 public interface SparqlUpdate {

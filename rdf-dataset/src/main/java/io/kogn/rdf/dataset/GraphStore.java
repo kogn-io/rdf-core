@@ -105,14 +105,32 @@ public interface GraphStore {
    * lies outside the RDF 1.1 data model (see {@link io.kogn.rdf.terms}); a SPARQL update (see
    * {@link SparqlUpdate}) stores one unchecked.</p>
    *
-   * @param namedGraph IRI identifying the named graph to export; must not be {@code null}
+   * @param namedGraph IRI identifying the named graph to snapshot; must not be {@code null}
    * @return a snapshot of all triples in the named graph
    * @throws IllegalStateException if the named graph holds an RDF 1.2 triple term
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    * @see DatasetExport#export(java.io.OutputStream, RdfFormat, IRI)
    */
-  ReadableGraph export(IRI namedGraph);
+  ReadableGraph snapshot(IRI namedGraph);
+
+  /**
+   * Returns all triples currently stored in the named graph; the old name of
+   * {@link #snapshot(IRI)}.
+   *
+   * @param namedGraph IRI identifying the named graph to snapshot; must not be {@code null}
+   * @return a snapshot of all triples in the named graph
+   * @throws IllegalStateException if the named graph holds an RDF 1.2 triple term
+   * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
+   * @throws DatasetStorageException if the backend fails while carrying out the operation
+   * @deprecated since 0.4.0, for removal: use {@link #snapshot(IRI)}, which does exactly the same.
+   *     The name {@code export} suggested serialization; to write a graph to a stream use
+   *     {@link DatasetExport#export(java.io.OutputStream, RdfFormat, IRI)}.
+   */
+  @Deprecated(since = "0.4.0", forRemoval = true)
+  default ReadableGraph export(final IRI namedGraph) {
+    return snapshot(namedGraph);
+  }
 
   /**
    * Returns the number of triples in the named graph.

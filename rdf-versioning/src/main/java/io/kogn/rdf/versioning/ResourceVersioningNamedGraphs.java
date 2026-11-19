@@ -51,7 +51,7 @@ import io.kogn.rdf.terms.vocab.VocabXsd;
  * concurrency control is the transaction's.</p>
  *
  * <p>Every read goes through {@link DatasetTx#match} or {@link DatasetTx#contains} with a
- * bound subject or object, never through {@link DatasetTx#export}, so an operation observes
+ * bound subject or object, never through {@link DatasetTx#snapshot}, so an operation observes
  * the patterns of its own proxy IRI (or CID) and the content-graph binding, and nothing
  * else of the graphs it reads. Until the binding is committed, the first operations on a
  * dataset all read it as absent and write it, so they conflict with each other. A

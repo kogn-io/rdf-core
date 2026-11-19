@@ -48,7 +48,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * <p><strong>Concurrency and cost.</strong> The sole implementation reads by statement
  * pattern ({@link DatasetTx#match}, {@link DatasetTx#contains}), every pattern bound to the
  * proxy IRI of the operation or to the CID, history entries, fragment IRIs and blank nodes
- * of its slice, plus the binding in the config graph; it never exports a whole graph. On a
+ * of its slice, plus the binding in the config graph; it never snapshots a whole graph. On a
  * backend that tracks what a transaction read, as the RDF4J backend does under
  * {@code SERIALIZABLE}, an operation conflicts exactly with concurrent changes to the
  * patterns it reads, and with a concurrent clear of a whole graph it reads where the

@@ -41,7 +41,7 @@ import io.kogn.rdf.terms.Triple;
 /**
  * The fragment index of a versioned dataset (issue #226): the library records the fragment IRIs
  * of each slice it writes in the history graph and reads a slice subject by subject, never by
- * exporting a graph.
+ * taking a snapshot of a graph.
  */
 class ResourceVersioningFragmentIndexTest {
 
@@ -415,7 +415,7 @@ class ResourceVersioningFragmentIndexTest {
       return recording;
     });
 
-    assertThat(recorded.exported).isEmpty();
+    assertThat(recorded.snapshotted).isEmpty();
     assertThat(recorded.counted).isEmpty();
     assertThat(recorded.unboundPatterns).isEmpty();
     assertThat(recorded.sparql).isEmpty();
@@ -467,13 +467,13 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   /**
-   * Passes every call to the transaction it wraps and records the graphs exported, counted and
+   * Passes every call to the transaction it wraps and records the graphs snapshotted, counted and
    * added, the unbound patterns and every SPARQL call.
    */
   private static final class RecordingTx implements DatasetTx {
 
     private final DatasetTx delegate;
-    private final List<IRI> exported = new ArrayList<>();
+    private final List<IRI> snapshotted = new ArrayList<>();
     private final List<String> counted = new ArrayList<>();
     /** Every {@code contains}/{@code match} whose subject and object are both wildcards. */
     private final List<String> unboundPatterns = new ArrayList<>();
@@ -506,9 +506,9 @@ class ResourceVersioningFragmentIndexTest {
     }
 
     @Override
-    public ReadableGraph export(final IRI namedGraph) {
-      exported.add(namedGraph);
-      return delegate.export(namedGraph);
+    public ReadableGraph snapshot(final IRI namedGraph) {
+      snapshotted.add(namedGraph);
+      return delegate.snapshot(namedGraph);
     }
 
     @Override

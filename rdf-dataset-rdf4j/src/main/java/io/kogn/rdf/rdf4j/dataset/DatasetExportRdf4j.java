@@ -36,7 +36,7 @@ import io.kogn.rdf.terms.IRI;
  * <p><strong>Asserted statements only.</strong> RDF4J's {@code export} reads with
  * {@code includeInferred=false}, so an export shows what was written, not what a
  * reasoning-capable {@link org.eclipse.rdf4j.sail.Sail Sail} would additionally derive. This
- * matches {@link GraphStoreRdf4j#export(IRI)} and diverges from the counts
+ * matches {@link GraphStoreRdf4j#snapshot(IRI)} and diverges from the counts
  * {@code GraphStoreRdf4j} reports, which do fold inferred statements in; the
  * {@code MemoryStore}/{@code NativeStore} configurations this library ships never infer, so
  * the two views coincide today.</p>
@@ -51,7 +51,7 @@ import io.kogn.rdf.terms.IRI;
  * statement iteration over one connection, at whatever isolation the store applies to an
  * implicit read ({@code SNAPSHOT_READ} for the {@code MemoryStore}/{@code NativeStore}
  * configurations this library ships). Callers needing a dump that is atomic with other work
- * take a snapshot inside a transaction via {@link io.kogn.rdf.dataset.DatasetTx#export(IRI)}
+ * take a snapshot inside a transaction via {@link io.kogn.rdf.dataset.DatasetTx#snapshot(IRI)}
  * and serialize that; see ADR-0013 for why export is not part of {@code DatasetTx}.</p>
  */
 public class DatasetExportRdf4j implements DatasetExport {

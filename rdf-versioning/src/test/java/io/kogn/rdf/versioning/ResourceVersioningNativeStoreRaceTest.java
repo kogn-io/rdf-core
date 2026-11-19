@@ -121,7 +121,7 @@ class ResourceVersioningNativeStoreRaceTest {
     }));
 
     assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
-    final List<IRI> bound = transactor.inTransaction(tx -> tx.export(VersioningGraphs.CONFIG)
+    final List<IRI> bound = transactor.inTransaction(tx -> tx.snapshot(VersioningGraphs.CONFIG)
         .stream(VersioningGraphs.CONFIG, VocabVersioning.CONTENT_GRAPH, null)
         .map(triple -> (IRI) triple.getObject())
         .toList());

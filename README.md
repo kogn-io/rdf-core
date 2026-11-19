@@ -41,7 +41,7 @@ A backend store may still accept such content. Keeping it out of the store is
 the caller's responsibility, not something the ports check on write; each
 implementation states what it enforces when it meets some. The `rdf-terms`
 factories reject `rdf:dirLangString` as a plain datatype. The read paths that
-convert into the data model — `GraphStore#export`, `SparqlQuery#select` and
+convert into the data model — `GraphStore#snapshot`, `SparqlQuery#select` and
 `#construct`, the same operations on `DatasetTx`, and `DatasetTx#match` — reject
 an RDF 1.2 triple term with an `IllegalStateException`. A SPARQL update that
 stores one is not rejected, and `DatasetExport` writes the store's content as it is, in RDF 1.2
