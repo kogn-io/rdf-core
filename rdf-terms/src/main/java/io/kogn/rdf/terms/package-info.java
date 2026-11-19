@@ -29,7 +29,6 @@
  *   <li>{@link io.kogn.rdf.terms.Triple} — subject–predicate–object statement</li>
  *   <li>{@link io.kogn.rdf.terms.ReadableGraph} — read-only view over a set of triples</li>
  *   <li>{@link io.kogn.rdf.terms.Graph} — mutable triple container</li>
- *   <li>{@link io.kogn.rdf.terms.NamedGraph} — graph with an associated IRI</li>
  *   <li>{@link io.kogn.rdf.terms.RDFList} — RDF list utility</li>
  * </ul>
  *
