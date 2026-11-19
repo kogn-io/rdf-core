@@ -14,21 +14,20 @@ class DatasetStoreConfigTest {
 
   @Test
   void validConfigurationIsAccepted() {
-    DatasetStoreConfig config = new DatasetStoreConfig(Persistence.PERSISTENT, true);
+    DatasetStoreConfig config = new DatasetStoreConfig(Persistence.PERSISTENT);
 
     assertThat(config.persistence()).isEqualTo(Persistence.PERSISTENT);
-    assertThat(config.fullTextSearch()).isTrue();
   }
 
   @Test
   void nullPersistenceIsRejected() {
-    assertThatThrownBy(() -> new DatasetStoreConfig(null, false)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new DatasetStoreConfig(null)).isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
-  void persistentDefaultIsPersistentWithoutFullTextSearch() {
+  void persistentDefaultIsPersistent() {
     DatasetStoreConfig config = DatasetStoreConfig.persistentDefault();
 
-    assertThat(config).isEqualTo(new DatasetStoreConfig(Persistence.PERSISTENT, false));
+    assertThat(config).isEqualTo(new DatasetStoreConfig(Persistence.PERSISTENT));
   }
 }

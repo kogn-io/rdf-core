@@ -18,7 +18,7 @@
  *       guard read) and {@code match} (the matching triples, observing only the pattern)</li>
  * </ul>
  *
- * <p>Multi-tenant <em>hosting</em> of a pool of stores — open-or-create/close/delete/list by
+ * <p>Multi-tenant <em>hosting</em> of a pool of stores — open-or-create/shut down/delete/list by
  * an opaque id, with lease-based in-flight protection — is deliberately <strong>not</strong>
  * here: it is a concern of whichever process owns the stores, not an RDF concept, and lives in
  * the separate {@code rdf-dataset-hosting} module ({@code DatasetLifecycle},

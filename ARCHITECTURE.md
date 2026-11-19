@@ -68,7 +68,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetExport` (with `RdfFormat`), `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository`. No RDF4J type appears in a public signature, except the caller-supplied `Repository` the dataset wrappers take by design and the `internal` package ([ADR-0026](docs/adr/0026-rdf4j-adapter-public-surface.md)). |
-| `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`; `DatasetMaintenance` for the remains of a failed delete. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
+| `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`; `DatasetMaintenance` for the deletion leftover of a failed delete. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
@@ -209,7 +209,7 @@ it into the SPARQL string — closing a SPARQL-injection and escaping gap the
 `String`-only methods left open. The `String`-only overloads are unchanged and
 remain the right choice when there is nothing to bind.
 
-Hosting a pool of datasets — open-or-create / close / delete / list, addressed
+Hosting a pool of datasets — open-or-create / shut down / delete / list, addressed
 by an opaque id — is deliberately not one of these ports; it is a separate
 concern in `rdf-dataset-hosting` (see below).
 
@@ -268,9 +268,9 @@ structurally unconstructible for a store this library does not host.
 
 `DatasetLifecycle` is pure mechanism: a dataset is obtained through
 `acquire(DatasetId)`, which returns a leased `DatasetHandle`; while any lease is
-open the backing store cannot be evicted (`close`) or deleted (`delete`). Any
+open the backing store cannot be evicted (`shutDown`) or deleted (`delete`). Any
 idle/TTL *policy* lives with the consumer. `DatasetStoreConfig` carries only
-backend-neutral knobs (persistence, full-text-search requirement); engine
+backend-neutral knobs (persistence); engine
 specifics never enter the port layer. For that reason `DatasetHandle` is named
 "handle", not "dataset": it is a short-lived, leased session onto the store —
 not a value-typed RDF dataset — that exposes the content ports and must be closed
@@ -290,6 +290,10 @@ Settled semantics worth knowing before consuming it:
   (a `MemoryStore` for `IN_MEMORY`, a `NativeStore` for `PERSISTENT`); it is
   never handed out. The content ports behind each handle are the `rdf-dataset-rdf4j`
   wrappers, composed over that `Repository`.
+  The class is `final`: the on-disk layout, the deletion-leftover marker and the
+  delete walk live in the package-private `DatasetStorage`, which a test replaces
+  through a package-private constructor instead of subclassing the lifecycle
+  ([ADR-0028](docs/adr/0028-hosting-port-names.md)).
 - **A handle exposes all five content ports, `DatasetExport` among them.** Since
   the lifecycle never hands out its `Repository`, the accessor is the only way a
   hosted dataset can be serialized at all — which is why it was added even though
@@ -309,7 +313,7 @@ Settled semantics worth knowing before consuming it:
   handle on the same dataset. `shutDownAll()`, a method of the `DatasetLifecycle` port, is the deliberate exception — a
   last-resort teardown that does not consult lease counts, logging a warning
   naming any dataset still leased before tearing everything down regardless.
-- **`close` reports which of three things it did** (`DatasetCloseOutcome`),
+- **`shutDown` reports which of three things it did** (`DatasetShutdownOutcome`),
   rather than evicting silently: the dataset was shut down, it still has open
   leases and the call was a no-op, or the lifecycle was not holding it at all.
   That last case is not an
@@ -321,10 +325,10 @@ Settled semantics worth knowing before consuming it:
   ([ADR-0015](docs/adr/0015-three-valued-dataset-close-outcome.md)). A failed
   teardown of the backing store still exits with the backend's exception instead
   of an outcome.
-- **`close` is eviction only for a `PERSISTENT` store; for `IN_MEMORY` it
+- **`shutDown` is eviction only for a `PERSISTENT` store; for `IN_MEMORY` it
   destroys.** The resume half of eviction — drop the store, re-`acquire` later,
   find the data — needs storage to resume *from*, and an `IN_MEMORY` dataset has
-  none: closing it discards its contents, and the next `acquire` builds an empty
+  none: shutting it down discards its contents, and the next `acquire` builds an empty
   store and re-runs the on-create hook, the same outcome as `delete`. The
   "one-time" in the hook's contract is therefore scoped to the store, not to the
   `DatasetId`. This matters because the port invites a consumer to write one
@@ -334,11 +338,11 @@ Settled semantics worth knowing before consuming it:
   on today's behaviour, and there is no third *behaviour* to offer.
 - **A `delete` that fails does not leave an acquirable dataset.** Removing a
   persistent dataset's storage is a directory walk, so it can fail in the middle
-  and leave remains behind — a directory that is no longer empty and would
+  and leave a deletion leftover behind — a directory that is no longer empty and would
   otherwise be opened as an existing dataset, skipping the on-create hook and
   handing the consumer something that is neither the old dataset nor a fresh one.
   The failure is logged at `ERROR` as well as rethrown, and marks the identifier
-  as having an unfinished delete — every failed delete marks it this way,
+  as a deletion leftover — every failed delete marks it this way,
   regardless of how far the on-disk teardown got, even one that failed on its
   very first file. The mark is a `.deleting` file written inside the dataset's
   own directory before the teardown starts, so it survives a process restart and
@@ -347,18 +351,18 @@ Settled semantics worth knowing before consuming it:
   when writing that file itself fails. The next `acquire` first retries the
   cleanup: it succeeds and the dataset is created and seeded afresh, or it fails
   again and `acquire` refuses the identifier with an `IllegalStateException` for
-  as long as the remains are there. `list` leaves the identifier out meanwhile,
+  as long as the leftover is there. `list` leaves the identifier out meanwhile,
   even though its directory still exists — the listing reports what an
   implementation can rule out, not a promise that every remaining identifier is
   one `acquire` would open at that moment.
-- **The remains of a failed delete are maintained through a port of their own**,
+- **The deletion leftover of a failed delete is maintained through a port of their own**,
   `DatasetMaintenance`, which `DatasetLifecycleRdf4j` implements alongside
   `DatasetLifecycle` ([ADR-0018](docs/adr/0018-dataset-maintenance-port.md)).
-  `listUnfinishedDeletes` names exactly the identifiers `list` leaves out for
-  their remains — read from the on-disk markers, so it finds them after a
+  `listDeletionLeftovers` names exactly the identifiers `list` leaves out for
+  their leftover — read from the on-disk markers, so it finds them after a
   restart too — and fails as a whole rather than return a partial set if the
-  storage root cannot be read. `clearUnfinishedDelete` retries the cleanup
-  *without* creating anything in place of the remains, which is what a
+  storage root cannot be read. `clearDeletionLeftover` retries the cleanup
+  *without* creating anything in place of the leftover, which is what a
   maintenance run wants and `acquire` cannot give it; it refuses an intact
   dataset, open or merely persisted, because removing one is `delete`, the only
   path that guards against open leases. An identifier carrying neither is
@@ -369,7 +373,7 @@ Settled semantics worth knowing before consuming it:
 - **Storage that cannot be determined fails, it is not guessed.** `list()` and
   `acquire` throw `UncheckedIOException` when the storage root or a dataset's
   deletion mark cannot be read, rather than treat an unreadable directory as
-  new or as free of remains. `list()` skips directories under the storage root
+  new or as free of a deletion leftover. `list()` skips directories under the storage root
   that are not datasets (strict UTF-8 decoding, `DatasetId` validation and a
   round trip back to the directory name); a foreign directory whose name
   happens to be a valid encoded id is still listed, a documented limit.

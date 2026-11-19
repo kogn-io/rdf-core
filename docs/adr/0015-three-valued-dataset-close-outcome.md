@@ -1,6 +1,7 @@
 # ADR-0015: `DatasetLifecycle#close` reports a three-valued outcome
 
-Status: Accepted
+Status: Accepted — the names are corrected by
+[ADR-0028](0028-hosting-port-names.md)
 
 ## Context
 
