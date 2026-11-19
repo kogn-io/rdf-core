@@ -43,7 +43,7 @@ class RDF4JGraphTest {
         .hasMessage("resource must not be null");
   }
 
-  /** A graph as {@code export} returns it: the statement keeps its named-graph context. */
+  /** A graph as {@code snapshot} returns it: the statement keeps its named-graph context. */
   private static RDF4JGraph graphWithContextualStatement() {
     final Model model = new LinkedHashModel();
     model.add(VF.createIRI(SUBJECT.getIRIString()), VF.createIRI(PREDICATE.getIRIString()),

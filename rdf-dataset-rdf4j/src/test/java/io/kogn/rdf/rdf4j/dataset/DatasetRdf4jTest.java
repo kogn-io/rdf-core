@@ -1532,7 +1532,7 @@ class DatasetRdf4jTest {
       // GRAPH_1 (commit completes), then signals "done" (latch B); only then does tx1's work
       // function return and its own commit run. count() reads via
       // RepositoryConnection#size(context), a whole-graph observation, so this conflict is the
-      // deliberately kept guard behaviour — see the "count/export remain whole-graph guards"
+      // deliberately kept guard behaviour — see the "count/snapshot remain whole-graph guards"
       // documentation on DatasetTxRdf4j/DatasetTransactorRdf4j and ADR-0012 — not the bug add/
       // remove had.
       final CountDownLatch countRead = new CountDownLatch(1);
@@ -1763,7 +1763,7 @@ class DatasetRdf4jTest {
         + " lets both commit (issue #226)")
     void inTransaction_matchThenConcurrentAddOfAnotherSubject_bothCommit() throws InterruptedException {
       // given — a pattern bound to SUBJECT; the competing transaction adds a triple of another
-      // subject to the same named graph and commits before this one does. export(GRAPH_1) in
+      // subject to the same named graph and commits before this one does. snapshot(GRAPH_1) in
       // place of match would observe the whole graph and lose the commit, see
       // inTransaction_countThenConcurrentAddToSameGraph_commitFailsAsConflict.
       store.add(GRAPH_1, singleTripleGraph());

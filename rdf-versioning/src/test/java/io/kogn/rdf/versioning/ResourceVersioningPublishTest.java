@@ -83,10 +83,11 @@ class ResourceVersioningPublishTest {
 
     final IRI entry = result.entries().get(A);
     assertThat(entry.getIRIString()).startsWith("urn:uuid:");
-    assertThat(export(VersioningGraphs.CONTENT_STORE).contains(rdf.createTriple(cid, P, rdf.createLiteral("one"))))
+    assertThat(snapshot(VersioningGraphs.CONTENT_STORE).contains(rdf.createTriple(cid, P, rdf.createLiteral("one"))))
         .isTrue();
-    assertThat(export(VersioningGraphs.PUBLISHED).contains(rdf.createTriple(A, P, rdf.createLiteral("one")))).isTrue();
-    final ReadableGraph history = export(VersioningGraphs.HISTORY);
+    assertThat(snapshot(VersioningGraphs.PUBLISHED).contains(rdf.createTriple(A, P, rdf.createLiteral("one"))))
+        .isTrue();
+    final ReadableGraph history = snapshot(VersioningGraphs.HISTORY);
     assertThat(history.contains(rdf.createTriple(A, VocabVersioning.ENTRY, entry))).isTrue();
     assertThat(objectOf(history, entry, VocabVersioning.SEQUENCE)).isEqualTo(integer(1));
     assertThat(objectOf(history, entry, VocabVersioning.CONTENT)).isEqualTo(cid);
@@ -103,7 +104,7 @@ class ResourceVersioningPublishTest {
 
     final IRI entry = publish(PublishDetails.NONE.withCreator(ALICE).withComment("first cut"), A).entries().get(A);
 
-    final ReadableGraph history = export(VersioningGraphs.HISTORY);
+    final ReadableGraph history = snapshot(VersioningGraphs.HISTORY);
     assertThat(objectOf(history, entry, VocabDct.CREATOR)).isEqualTo(ALICE);
     assertThat(objectOf(history, entry, VocabDct.DESCRIPTION)).isEqualTo(rdf.createLiteral("first cut"));
   }
@@ -116,26 +117,26 @@ class ResourceVersioningPublishTest {
     publish(PublishDetails.NONE, A);
 
     final IRI cid = generator.generateIRI(A, shape.graph());
-    assertThat(generator.generateIRI(A, export(VersioningGraphs.PUBLISHED))).isEqualTo(cid);
-    assertThat(generator.generateIRI(cid, export(VersioningGraphs.CONTENT_STORE))).isEqualTo(cid);
+    assertThat(generator.generateIRI(A, snapshot(VersioningGraphs.PUBLISHED))).isEqualTo(cid);
+    assertThat(generator.generateIRI(cid, snapshot(VersioningGraphs.CONTENT_STORE))).isEqualTo(cid);
   }
 
   @Test
   void theDraftStaysAfterPublish() {
     draft(A, literalTriples(A, "one"));
-    final long before = export(CONTENT).size();
+    final long before = snapshot(CONTENT).size();
 
     publish(PublishDetails.NONE, A);
 
-    assertThat(export(CONTENT).size()).isEqualTo(before);
-    assertThat(export(CONTENT).contains(rdf.createTriple(A, P, rdf.createLiteral("one")))).isTrue();
+    assertThat(snapshot(CONTENT).size()).isEqualTo(before);
+    assertThat(snapshot(CONTENT).contains(rdf.createTriple(A, P, rdf.createLiteral("one")))).isTrue();
   }
 
   @Test
   void publishingAnUnchangedDraftReturnsTheLatestEntryAndWritesNothing() {
     draft(A, literalTriples(A, "one"));
     final PublishResult first = publish(PublishDetails.NONE, A);
-    final long history = export(VersioningGraphs.HISTORY).size();
+    final long history = snapshot(VersioningGraphs.HISTORY).size();
     final RevisionToken token = first.tokens().get(A);
 
     final PublishResult second = transactor
@@ -143,7 +144,7 @@ class ResourceVersioningPublishTest {
 
     assertThat(second.entries().get(A)).isEqualTo(first.entries().get(A));
     assertThat(second.tokens().get(A)).isEqualTo(token);
-    assertThat(export(VersioningGraphs.HISTORY).size()).isEqualTo(history);
+    assertThat(snapshot(VersioningGraphs.HISTORY).size()).isEqualTo(history);
   }
 
   @Test
@@ -155,14 +156,15 @@ class ResourceVersioningPublishTest {
     draft(A, literalTriples(A, "one"));
     final IRI third = publish(PublishDetails.NONE, A).entries().get(A);
 
-    final ReadableGraph history = export(VersioningGraphs.HISTORY);
+    final ReadableGraph history = snapshot(VersioningGraphs.HISTORY);
     assertThat(List.of(first, second, third)).doesNotHaveDuplicates();
     assertThat(objectOf(history, third, VocabVersioning.SEQUENCE)).isEqualTo(integer(3));
     assertThat(objectOf(history, third, VocabVersioning.CONTENT))
         .isEqualTo(objectOf(history, first, VocabVersioning.CONTENT));
-    assertThat(export(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(2);
-    assertThat(export(VersioningGraphs.PUBLISHED).contains(rdf.createTriple(A, P, rdf.createLiteral("one")))).isTrue();
-    assertThat(export(VersioningGraphs.PUBLISHED).size()).isEqualTo(1);
+    assertThat(snapshot(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(2);
+    assertThat(snapshot(VersioningGraphs.PUBLISHED).contains(rdf.createTriple(A, P, rdf.createLiteral("one"))))
+        .isTrue();
+    assertThat(snapshot(VersioningGraphs.PUBLISHED).size()).isEqualTo(1);
   }
 
   @Test
@@ -172,7 +174,7 @@ class ResourceVersioningPublishTest {
     draft(A, blankNodeDraft(A, 2).graph());
     publish(PublishDetails.NONE, A);
 
-    final ReadableGraph store = export(VersioningGraphs.CONTENT_STORE);
+    final ReadableGraph store = snapshot(VersioningGraphs.CONTENT_STORE);
     final IRI first = generator.generateIRI(A, blankNodeDraft(A, 1).graph());
     final IRI second = generator.generateIRI(A, blankNodeDraft(A, 2).graph());
     assertThat(generator.generateIRI(first, closureOf(store, first))).isEqualTo(first);
@@ -193,7 +195,7 @@ class ResourceVersioningPublishTest {
     draft(A, first);
     publish(PublishDetails.NONE, A);
 
-    assertThat(export(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(3);
+    assertThat(snapshot(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(3);
   }
 
   @Test
@@ -205,8 +207,8 @@ class ResourceVersioningPublishTest {
 
     assertThat(result.entries()).containsOnlyKeys(A, B);
     assertThat(result.entries().get(A)).isNotEqualTo(result.entries().get(B));
-    assertThat(export(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(1);
-    assertThat(export(VersioningGraphs.PUBLISHED).size()).isEqualTo(2);
+    assertThat(snapshot(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(1);
+    assertThat(snapshot(VersioningGraphs.PUBLISHED).size()).isEqualTo(2);
   }
 
   @Test
@@ -238,14 +240,14 @@ class ResourceVersioningPublishTest {
   @Test
   void anAbortedTransactionLeavesPublishedViewContentStoreAndHistoryUnchanged() {
     final RevisionToken a = draft(A, literalTriples(A, "one"));
-    final long history = export(VersioningGraphs.HISTORY).size();
+    final long history = snapshot(VersioningGraphs.HISTORY).size();
 
     assertThatThrownBy(() -> transactor.inTransaction(tx -> {
       versioning.publish(tx, List.of(a), PublishDetails.NONE);
       throw new IllegalStateException("abort");
     })).hasMessage("abort");
 
-    assertThat(export(VersioningGraphs.HISTORY).size()).isEqualTo(history);
+    assertThat(snapshot(VersioningGraphs.HISTORY).size()).isEqualTo(history);
     assertNothingPublished();
   }
 
@@ -278,7 +280,7 @@ class ResourceVersioningPublishTest {
     final PublishResult result = transactor
         .inTransaction(tx -> other.publish(tx, List.of(other.readSlice(tx, A).token()), PublishDetails.NONE));
 
-    assertThat(objectOf(export(VersioningGraphs.HISTORY), result.entries().get(A), VocabVersioning.SEQUENCE))
+    assertThat(objectOf(snapshot(VersioningGraphs.HISTORY), result.entries().get(A), VocabVersioning.SEQUENCE))
         .isEqualTo(integer(2));
   }
 
@@ -405,9 +407,9 @@ class ResourceVersioningPublishTest {
   }
 
   private void assertNothingPublished() {
-    assertThat(export(VersioningGraphs.CONTENT_STORE).isEmpty()).isTrue();
-    assertThat(export(VersioningGraphs.PUBLISHED).isEmpty()).isTrue();
-    assertThat(export(VersioningGraphs.HISTORY).stream(null, VocabVersioning.SEQUENCE, null).count()).isZero();
+    assertThat(snapshot(VersioningGraphs.CONTENT_STORE).isEmpty()).isTrue();
+    assertThat(snapshot(VersioningGraphs.PUBLISHED).isEmpty()).isTrue();
+    assertThat(snapshot(VersioningGraphs.HISTORY).stream(null, VocabVersioning.SEQUENCE, null).count()).isZero();
   }
 
   private record BlankNodeDraft(Graph graph) {
@@ -475,7 +477,7 @@ class ResourceVersioningPublishTest {
     return transactor.inTransaction(tx -> versioning.publish(tx, List.of(tokens), PublishDetails.NONE));
   }
 
-  private ReadableGraph export(final IRI graph) {
+  private ReadableGraph snapshot(final IRI graph) {
     return transactor.inTransaction(tx -> copy(tx, graph));
   }
 
