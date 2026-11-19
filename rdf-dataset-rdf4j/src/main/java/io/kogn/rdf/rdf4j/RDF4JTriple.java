@@ -6,9 +6,7 @@ package io.kogn.rdf.rdf4j;
 import java.util.Objects;
 
 import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.Value;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
@@ -24,7 +22,7 @@ import io.kogn.rdf.terms.Triple;
  * is rejected on creation with an {@link IllegalStateException}, so the failure shows up when the
  * triples are read, not on first access to the object.</p>
  */
-public class RDF4JTriple implements Triple {
+public final class RDF4JTriple implements Triple {
 
   private final Resource subject;
   private final org.eclipse.rdf4j.model.IRI predicate;
@@ -39,7 +37,7 @@ public class RDF4JTriple implements Triple {
    * @throws IllegalStateException if {@code object} is an RDF 1.2 triple term, which the port data
    *     model cannot represent
    */
-  public RDF4JTriple(Resource subject, org.eclipse.rdf4j.model.IRI predicate, Value object) {
+  RDF4JTriple(Resource subject, org.eclipse.rdf4j.model.IRI predicate, Value object) {
     RDF4JConverters.requireNoTripleTerm(object, "object of " + predicate);
     this.subject = subject;
     this.predicate = predicate;
@@ -86,15 +84,6 @@ public class RDF4JTriple implements Triple {
   @Override
   public int hashCode() {
     return Objects.hash(getSubject(), getPredicate(), getObject());
-  }
-
-  /**
-   * Converts to RDF4J Statement.
-   *
-   * @return the equivalent RDF4J {@link Statement}
-   */
-  public Statement toRDF4JStatement() {
-    return SimpleValueFactory.getInstance().createStatement(subject, predicate, object);
   }
 
   @Override

@@ -8,25 +8,25 @@ import io.kogn.rdf.terms.BlankNode;
 /**
  * RDF4J-based implementation of BlankNode.
  */
-public class RDF4JBlankNode extends RDF4JTerm implements BlankNode {
+public final class RDF4JBlankNode extends RDF4JTerm implements BlankNode {
 
   /**
    * Wraps the given RDF4J blank node.
    *
    * @param rdf4jBNode the RDF4J blank node to adapt
    */
-  public RDF4JBlankNode(org.eclipse.rdf4j.model.BNode rdf4jBNode) {
+  RDF4JBlankNode(org.eclipse.rdf4j.model.BNode rdf4jBNode) {
     super(rdf4jBNode);
   }
 
   @Override
   public String uniqueReference() {
-    return ((org.eclipse.rdf4j.model.BNode) rdf4jValue).getID();
+    return getRDF4JValue().getID();
   }
 
   @Override
-  public org.eclipse.rdf4j.model.BNode getRDF4JValue() {
-    return (org.eclipse.rdf4j.model.BNode) rdf4jValue;
+  org.eclipse.rdf4j.model.BNode getRDF4JValue() {
+    return (org.eclipse.rdf4j.model.BNode) super.getRDF4JValue();
   }
 
   @Override

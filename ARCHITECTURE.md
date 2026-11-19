@@ -67,7 +67,7 @@ over the data model rather than a call into a store (ADR-0014).
 |---|---|---|
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetExport` (with `RdfFormat`), `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
-| `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository`. RDF4J types never appear in public signatures. |
+| `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository`. No RDF4J type appears in a public signature, except the caller-supplied `Repository` the dataset wrappers take by design and the `internal` package ([ADR-0026](docs/adr/0026-rdf4j-adapter-public-surface.md)). |
 | `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`; `DatasetMaintenance` for the remains of a failed delete. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
@@ -229,7 +229,15 @@ consumer needs it.
 ## The RDF4J adapter (`rdf-dataset-rdf4j`)
 
 Implements the content ports on top of an RDF4J `Repository`, without leaking
-RDF4J types to callers ([ADR-0005](docs/adr/0005-rdf4j-backend-for-dataset-ports.md)):
+RDF4J types to callers ([ADR-0005](docs/adr/0005-rdf4j-backend-for-dataset-ports.md),
+scope corrected by [ADR-0026](docs/adr/0026-rdf4j-adapter-public-surface.md)).
+The statement holds for every public type except the `Repository` that the
+dataset wrappers take by design (`GraphStoreRdf4j(Repository)` and the like) and
+the `internal` package, which is not public API. The term adapters in
+`io.kogn.rdf.rdf4j` (`RDF4JIRI`, `RDF4JLiteral`, `RDF4JBlankNode`, `RDF4JTriple`,
+`RDF4JGraph`, `RDF4JFactory`) are `final`; they are created through
+`RDF4JFactory` (or `RDF4JIRI.of`), and `PublicApiStructureTest` pins that no
+public member names an RDF4J type:
 
 - `GraphStoreRdf4j` / `SparqlQueryRdf4j` / `SparqlUpdateRdf4j` /
   `DatasetExportRdf4j` / `DatasetTransactorRdf4j` (with the package-private

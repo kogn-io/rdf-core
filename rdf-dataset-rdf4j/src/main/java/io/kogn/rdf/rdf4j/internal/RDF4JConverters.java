@@ -11,8 +11,6 @@ import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.model.util.Values;
 
-import io.kogn.rdf.rdf4j.RDF4JIRI;
-import io.kogn.rdf.rdf4j.RDF4JTerm;
 import io.kogn.rdf.terms.BlankNode;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -46,10 +44,6 @@ public final class RDF4JConverters {
    */
   public static org.eclipse.rdf4j.model.IRI toRDF4JIRI(IRI iri) {
     Objects.requireNonNull(iri, "iri must not be null");
-    if (iri instanceof RDF4JIRI) {
-      return ((RDF4JIRI) iri).getRDF4JValue();
-    }
-    // Convert foreign IRI implementation by re-creating from IRI string
     return Values.iri(iri.getIRIString());
   }
 
@@ -65,10 +59,6 @@ public final class RDF4JConverters {
    */
   public static org.eclipse.rdf4j.model.Resource toRDF4JResource(BlankNodeOrIRI resource) {
     Objects.requireNonNull(resource, "resource must not be null");
-    if (resource instanceof RDF4JTerm) {
-      return (org.eclipse.rdf4j.model.Resource) ((RDF4JTerm) resource).getRDF4JValue();
-    }
-    // Convert foreign implementations
     if (resource instanceof IRI) {
       return Values.iri(((IRI) resource).getIRIString());
     }
@@ -90,10 +80,6 @@ public final class RDF4JConverters {
    */
   public static Value toRDF4JValue(RDFTerm term) {
     Objects.requireNonNull(term, "term must not be null");
-    if (term instanceof RDF4JTerm) {
-      return ((RDF4JTerm) term).getRDF4JValue();
-    }
-    // Convert foreign implementations
     if (term instanceof IRI) {
       return Values.iri(((IRI) term).getIRIString());
     }

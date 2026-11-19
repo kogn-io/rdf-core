@@ -31,7 +31,7 @@ import io.kogn.rdf.terms.Triple;
  * appears in several contexts, {@link #size()} and {@link #stream()} count each statement while
  * {@code contains} and {@code remove} treat them as one triple; the behavior is unspecified.</p>
  */
-public class RDF4JGraph implements Graph {
+public final class RDF4JGraph implements Graph {
 
   private final Model model;
 
@@ -46,7 +46,7 @@ public class RDF4JGraph implements Graph {
    * @param model the RDF4J model to wrap; it must hold at most one context per triple, see the class
    *     description
    */
-  public RDF4JGraph(Model model) {
+  RDF4JGraph(Model model) {
     this.model = model;
   }
 
@@ -108,15 +108,6 @@ public class RDF4JGraph implements Graph {
   @Override
   public void clear() {
     model.clear();
-  }
-
-  /**
-   * Returns the wrapped RDF4J Model.
-   *
-   * @return the underlying RDF4J {@link Model}
-   */
-  public Model getRDF4JModel() {
-    return model;
   }
 
   @Override

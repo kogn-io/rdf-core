@@ -22,8 +22,6 @@ import org.eclipse.rdf4j.repository.RepositoryResult;
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.DatasetStorageException;
 import io.kogn.rdf.dataset.DatasetTx;
-import io.kogn.rdf.rdf4j.RDF4JBindingSet;
-import io.kogn.rdf.rdf4j.RDF4JGraph;
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.IRI;
@@ -184,7 +182,7 @@ class DatasetTxRdf4j implements DatasetTx {
     });
     final Model model = new LinkedHashModel(statements);
     RDF4JConverters.requireNoTripleTerms(model);
-    return new RDF4JGraph(model);
+    return Rdf4jValues.toGraph(model);
   }
 
   @Override
@@ -268,7 +266,7 @@ class DatasetTxRdf4j implements DatasetTx {
     });
     final Model model = new LinkedHashModel(statements);
     RDF4JConverters.requireNoTripleTerms(model);
-    return new RDF4JGraph(model);
+    return Rdf4jValues.toGraph(model);
   }
 
   @Override
@@ -304,6 +302,6 @@ class DatasetTxRdf4j implements DatasetTx {
         .bound(SparqlErrors.translating(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
     final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
     RDF4JConverters.requireNoTripleTerms(model);
-    return new RDF4JGraph(model);
+    return Rdf4jValues.toGraph(model);
   }
 }

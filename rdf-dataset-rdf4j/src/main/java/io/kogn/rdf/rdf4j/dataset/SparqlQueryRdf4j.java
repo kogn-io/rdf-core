@@ -18,8 +18,6 @@ import org.eclipse.rdf4j.repository.RepositoryConnection;
 
 import io.kogn.rdf.dataset.BindingSet;
 import io.kogn.rdf.dataset.SparqlQuery;
-import io.kogn.rdf.rdf4j.RDF4JBindingSet;
-import io.kogn.rdf.rdf4j.RDF4JGraph;
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.RDFTerm;
 import io.kogn.rdf.terms.ReadableGraph;
@@ -83,7 +81,7 @@ public class SparqlQueryRdf4j implements SparqlQuery {
           .bound(SparqlErrors.translating(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
       final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
       RDF4JConverters.requireNoTripleTerms(model);
-      return new RDF4JGraph(model);
+      return Rdf4jValues.toGraph(model);
     }
   }
 
