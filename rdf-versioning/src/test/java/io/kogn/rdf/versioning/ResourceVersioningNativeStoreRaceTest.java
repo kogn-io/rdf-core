@@ -83,11 +83,11 @@ class ResourceVersioningNativeStoreRaceTest {
   }
 
   @RepeatedTest(REPETITIONS)
-  void twoConcurrentFirstWritesOfOneProxyIriLeaveTheWinnersContentAndCounterOne() throws InterruptedException {
+  void twoConcurrentFirstWritesOfOneProxyIRILeaveTheWinnersContentAndCounterOne() throws InterruptedException {
     final RevisionToken token = read(A).token();
 
-    final Throwable loser = race(tx -> versioning.readSlice(tx, A), tx -> {
-      versioning.replaceSlice(tx, A, content(A, "slow"), token);
+    final Throwable loser = race(tx -> versioning.readDraft(tx, A), tx -> {
+      versioning.replaceDraft(tx, A, content(A, "slow"), token);
     }, () -> write(A, content(A, "competitor"), token));
 
     assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
@@ -97,11 +97,11 @@ class ResourceVersioningNativeStoreRaceTest {
   }
 
   @RepeatedTest(REPETITIONS)
-  void twoConcurrentFollowUpWritesOfOneProxyIriLeaveTheWinnersContentAndCounterTwo() throws InterruptedException {
+  void twoConcurrentFollowUpWritesOfOneProxyIRILeaveTheWinnersContentAndCounterTwo() throws InterruptedException {
     final RevisionToken first = write(A, content(A, "first"), read(A).token());
 
-    final Throwable loser = race(tx -> versioning.readSlice(tx, A), tx -> {
-      versioning.replaceSlice(tx, A, content(A, "slow"), first);
+    final Throwable loser = race(tx -> versioning.readDraft(tx, A), tx -> {
+      versioning.replaceDraft(tx, A, content(A, "slow"), first);
     }, () -> write(A, content(A, "competitor"), first));
 
     assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
@@ -130,12 +130,12 @@ class ResourceVersioningNativeStoreRaceTest {
   }
 
   @RepeatedTest(REPETITIONS)
-  void twoConcurrentPublishesOfOneProxyIriWithOneTokenPublishOnce() throws InterruptedException {
+  void twoConcurrentPublishesOfOneProxyIRIWithOneTokenPublishOnce() throws InterruptedException {
     final RevisionToken token = write(A, content(A, "text"), read(A).token());
 
-    final Throwable loser = race(tx -> versioning.readSlice(tx, A),
-        tx -> versioning.publish(tx, List.of(token), PublishDetails.NONE),
-        () -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(token), PublishDetails.NONE)));
+    final Throwable loser = race(tx -> versioning.readDraft(tx, A),
+        tx -> versioning.publish(tx, List.of(token), EntryDetails.NONE),
+        () -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(token), EntryDetails.NONE)));
 
     assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
     assertThat(historyOf(A)).hasSize(1);
@@ -148,9 +148,9 @@ class ResourceVersioningNativeStoreRaceTest {
     final RevisionToken tokenA = write(A, contentWithBlankNode(A, "a"), read(A).token());
     final RevisionToken tokenB = write(B, contentWithBlankNode(B, "b"), read(B).token());
 
-    final Throwable loser = race(tx -> versioning.readSlice(tx, A),
-        tx -> versioning.publish(tx, List.of(tokenA), PublishDetails.NONE),
-        () -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(tokenB), PublishDetails.NONE)));
+    final Throwable loser = race(tx -> versioning.readDraft(tx, A),
+        tx -> versioning.publish(tx, List.of(tokenA), EntryDetails.NONE),
+        () -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(tokenB), EntryDetails.NONE)));
 
     assertThat(loser).isInstanceOf(ConcurrencyConflictException.class);
     assertThat(stateOf(B)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
@@ -243,10 +243,10 @@ class ResourceVersioningNativeStoreRaceTest {
   }
 
   private DraftSlice read(final IRI proxy) {
-    return transactor.inTransaction(tx -> versioning.readSlice(tx, proxy));
+    return transactor.inTransaction(tx -> versioning.readDraft(tx, proxy));
   }
 
   private RevisionToken write(final IRI proxy, final Graph content, final RevisionToken token) {
-    return transactor.inTransaction(tx -> versioning.replaceSlice(tx, proxy, content, token));
+    return transactor.inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, token));
   }
 }

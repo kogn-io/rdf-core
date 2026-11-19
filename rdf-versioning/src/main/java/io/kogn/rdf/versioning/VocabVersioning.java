@@ -25,7 +25,7 @@ import io.kogn.rdf.terms.SimpleIRI;
  *          versioning:draftFragment <https://example.org/tree#root> .
  * <urn:uuid:5b1f0c9e-3a52-4c1e-9d0a-7f2e6a1c4b88>
  *          versioning:sequence  7 ;
- *          versioning:content   <ni:///sha3-256;...> ;
+ *          versioning:cid       <ni:///sha3-256;...> ;
  *          versioning:procedure "ni-rdf/1" ;
  *          versioning:versionFragment <ni:///sha3-256;...#root> ;
  *          dcterms:created      "2026-10-31T09:00:00Z"^^xsd:dateTime .
@@ -70,13 +70,13 @@ public interface VocabVersioning {
   IRI SEQUENCE = new SimpleIRI(NAMESPACE + "sequence");
 
   /**
-   * The {@code versioning:content} property: the CID of the version a history entry
+   * The {@code versioning:cid} property: the CID of the version a history entry
    * records.
    *
    * <p>Subject an entry, object the {@code ni:} IRI under which the version's content is
    * kept in the {@link VersioningGraphs#CONTENT_STORE content store}.</p>
    */
-  IRI CONTENT = new SimpleIRI(NAMESPACE + "content");
+  IRI CID = new SimpleIRI(NAMESPACE + "cid");
 
   /**
    * The {@code versioning:procedure} property: the tag of the procedure that derived the
@@ -93,7 +93,7 @@ public interface VocabVersioning {
    *
    * <p>Object of {@code rdf:type} on an entry, in the history graph. A tombstone entry
    * has an IRI, a sequence number and {@code dcterms:created} like a publish, and
-   * {@link #CONTENT} and {@link #PROCEDURE} naming the last version of the proxy IRI —
+   * {@link #CID} and {@link #PROCEDURE} naming the last version of the proxy IRI —
    * both or neither: a proxy IRI that was never published has a tombstone with neither.
    * An entry without this type is a publish.</p>
    */
@@ -138,7 +138,7 @@ public interface VocabVersioning {
    * version a history entry names.
    *
    * <p>Subject an entry, object one of the {@code #fragment} IRIs of the CID in its
-   * {@link #CONTENT}, in the history graph. One triple per fragment subject of the version
+   * {@link #CID}, in the history graph. One triple per fragment subject of the version
    * in the {@link VersioningGraphs#CONTENT_STORE content store}. Every entry that names a
    * CID carries them — a publish, whether or not it stored the version, and a tombstone,
    * which takes them over from the last version. A read of the version by its CID takes the

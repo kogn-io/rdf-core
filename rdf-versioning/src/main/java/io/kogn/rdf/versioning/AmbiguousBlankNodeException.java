@@ -14,7 +14,7 @@ package io.kogn.rdf.versioning;
  * <p>The usual cause is a label shared by accident: blank-node identity is the label,
  * and a parser that numbers labels per document ({@code _:b0}, {@code _:b1}, ...) reuses
  * them across documents, so slices parsed separately collide. Use labels that are unique
- * across the content graph, or write back the nodes {@code readSlice} returned.</p>
+ * across the content graph, or write back the nodes {@code readDraft} returned.</p>
  */
 public class AmbiguousBlankNodeException extends IllegalArgumentException {
 

@@ -35,3 +35,4 @@ not a historical log of every change that led here.
 | [0024](0024-versioning-fragment-index-and-corrections.md) | The fragment index is part of the stored format of a versioned dataset; corrections to ADR-0022 and ADR-0023 |
 | [0025](0025-content-addressed-iri-internals-and-names.md) | `rdf-cid` hides its internals and names its steps after the specification; acronyms are capitals |
 | [0026](0026-rdf4j-adapter-public-surface.md) | The RDF4J adapters keep RDF4J types out of their public surface; corrects ADR-0004 and ADR-0005 |
+| [0027](0027-versioning-cid-term-and-port-names.md) | The stored term of a history entry's CID is `versioning:cid`; the port names follow what they carry; corrects ADR-0024 |

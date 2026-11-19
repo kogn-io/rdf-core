@@ -13,10 +13,10 @@ import io.kogn.rdf.terms.IRI;
  * Pins the IRIs of the library's graphs and vocabulary. Stored data binds them
  * (ADR-0023): a change here is a break of every versioned dataset, not a refactoring.
  */
-class VersioningIrisTest {
+class VersioningIRIsTest {
 
   @Test
-  void graphIris() {
+  void graphIRIs() {
     assertThat(VersioningGraphs.ALL).extracting(IRI::getIRIString)
         .containsExactly("https://w3id.org/kognio/rdf/versioning/graph/published",
             "https://w3id.org/kognio/rdf/versioning/graph/content-store",
@@ -25,14 +25,13 @@ class VersioningIrisTest {
   }
 
   @Test
-  void vocabularyIris() {
+  void vocabularyIRIs() {
     assertThat(new IRI[] {VocabVersioning.ENTRY, VocabVersioning.REVISION, VocabVersioning.SEQUENCE,
-        VocabVersioning.CONTENT, VocabVersioning.PROCEDURE, VocabVersioning.CONTENT_GRAPH,
-        VocabVersioning.DRAFT_FRAGMENT, VocabVersioning.PUBLISHED_FRAGMENT, VocabVersioning.VERSION_FRAGMENT})
-        .extracting(IRI::getIRIString)
+        VocabVersioning.CID, VocabVersioning.PROCEDURE, VocabVersioning.CONTENT_GRAPH, VocabVersioning.DRAFT_FRAGMENT,
+        VocabVersioning.PUBLISHED_FRAGMENT, VocabVersioning.VERSION_FRAGMENT}).extracting(IRI::getIRIString)
         .containsExactly("https://w3id.org/kognio/rdf/versioning#entry",
             "https://w3id.org/kognio/rdf/versioning#revision", "https://w3id.org/kognio/rdf/versioning#sequence",
-            "https://w3id.org/kognio/rdf/versioning#content", "https://w3id.org/kognio/rdf/versioning#procedure",
+            "https://w3id.org/kognio/rdf/versioning#cid", "https://w3id.org/kognio/rdf/versioning#procedure",
             "https://w3id.org/kognio/rdf/versioning#contentGraph",
             "https://w3id.org/kognio/rdf/versioning#draftFragment",
             "https://w3id.org/kognio/rdf/versioning#publishedFragment",

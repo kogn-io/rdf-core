@@ -67,10 +67,10 @@ class ResourceVersioningBackendLimitsTest {
     final SimpleGraph content = new SimpleGraph();
     content.add(A, P, rdf.createLiteral("one"));
 
-    assertThatThrownBy(() -> versioning.readSlice(ended, A)).isInstanceOf(IllegalStateException.class);
-    assertThatThrownBy(() -> versioning.replaceSlice(ended, A, content, token))
+    assertThatThrownBy(() -> versioning.readDraft(ended, A)).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> versioning.replaceDraft(ended, A, content, token))
         .isInstanceOf(IllegalStateException.class);
-    assertThatThrownBy(() -> versioning.delete(ended, A, token, PublishDetails.NONE))
+    assertThatThrownBy(() -> versioning.delete(ended, A, token, EntryDetails.NONE))
         .isInstanceOf(IllegalStateException.class);
   }
 
@@ -83,11 +83,10 @@ class ResourceVersioningBackendLimitsTest {
     });
     final RevisionToken token = new RevisionToken(A, 0);
 
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readSlice(tx, A)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readDraft(tx, A)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("triple term");
-    assertThatThrownBy(
-        () -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(token), PublishDetails.NONE)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(token), EntryDetails.NONE)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("triple term");
     final boolean historyWritten = transactor.inTransaction(tx -> tx.contains(VersioningGraphs.HISTORY, A, null, null));
@@ -101,8 +100,8 @@ class ResourceVersioningBackendLimitsTest {
     final SimpleGraph content = new SimpleGraph();
     content.add(A, P, rdf.createLiteral("one"));
     transactor.inTransaction(tx -> {
-      final RevisionToken token = versioning.replaceSlice(tx, A, content, versioning.readSlice(tx, A).token());
-      return versioning.publish(tx, List.of(token), PublishDetails.NONE);
+      final RevisionToken token = versioning.replaceDraft(tx, A, content, versioning.readDraft(tx, A).token());
+      return versioning.publish(tx, List.of(token), EntryDetails.NONE);
     });
 
     final HistoryEntry entry = transactor.inTransaction(tx -> versioning.history(tx, A)).getFirst();

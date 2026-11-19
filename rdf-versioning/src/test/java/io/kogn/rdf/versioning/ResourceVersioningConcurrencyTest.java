@@ -86,12 +86,12 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
-  void writersOfDisjointProxyIrisBothCommit() throws InterruptedException {
+  void writersOfDisjointProxyIRIsBothCommit() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
     final RevisionToken tokenOfB = token(B);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, B, resource(B, "b3"), tokenOfB)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.replaceDraft(tx, A, resource(A, "a2"), tokenOfA),
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, B, resource(B, "b3"), tokenOfB)));
 
     assertThat(outcome).isNull();
     assertThat(literalOf(A)).isEqualTo("a2");
@@ -99,70 +99,70 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
-  void aDraftReadOfOneProxyIriDoesNotConflictWithAWriteOfAnother() throws InterruptedException {
+  void aDraftReadOfOneProxyIRIDoesNotConflictWithAWriteOfAnother() throws InterruptedException {
     final RevisionToken tokenOfB = token(B);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.readSlice(tx, A),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, B, resource(B, "b3"), tokenOfB)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readDraft(tx, A),
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, B, resource(B, "b3"), tokenOfB)));
 
     assertThat(outcome).isNull();
   }
 
   @RepeatedTest(RUNS)
-  void aPublishStateReadOfOneProxyIriDoesNotConflictWithAWriteOfAnother() throws InterruptedException {
+  void aPublishStateReadOfOneProxyIRIDoesNotConflictWithAWriteOfAnother() throws InterruptedException {
     final RevisionToken tokenOfB = token(B);
 
     final Throwable outcome = outcomeAgainst(tx -> versioning.publishState(tx, A),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, B, resource(B, "b3"), tokenOfB)));
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, B, resource(B, "b3"), tokenOfB)));
 
     assertThat(outcome).isNull();
   }
 
   @RepeatedTest(RUNS)
-  void aVersionReadByCidDoesNotConflictWithAPublishOfAnotherProxyIri() throws InterruptedException {
-    final IRI cidOfA = transactor.inTransaction(tx -> versioning.history(tx, A).getLast().content().orElseThrow());
+  void aVersionReadByCidDoesNotConflictWithAPublishOfAnotherProxyIRI() throws InterruptedException {
+    final IRI cidOfA = transactor.inTransaction(tx -> versioning.history(tx, A).getLast().cid().orElseThrow());
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, cidOfA), () -> publish(B));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersionByCID(tx, cidOfA), () -> publish(B));
 
     assertThat(outcome).isNull();
   }
 
   @RepeatedTest(RUNS)
-  void aHistoryReadOfOneProxyIriDoesNotConflictWithAPublishOfAnother() throws InterruptedException {
+  void aHistoryReadOfOneProxyIRIDoesNotConflictWithAPublishOfAnother() throws InterruptedException {
     final Throwable outcome = outcomeAgainst(tx -> versioning.history(tx, A), () -> publish(B));
 
     assertThat(outcome).isNull();
   }
 
   @RepeatedTest(RUNS)
-  void aPublishedReadDoesNotConflictWithADraftWriteOfTheSameProxyIri() throws InterruptedException {
+  void aPublishedReadDoesNotConflictWithADraftWriteOfTheSameProxyIRI() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
     final Throwable outcome = outcomeAgainst(tx -> versioning.readPublished(tx, A),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, resource(A, "a2"), tokenOfA)));
 
     assertThat(outcome).isNull();
     assertThat(literalOf(A)).isEqualTo("a2");
   }
 
   @RepeatedTest(RUNS)
-  void aHistoryReadDoesNotConflictWithADraftWriteOfTheSameProxyIri() throws InterruptedException {
+  void aHistoryReadDoesNotConflictWithADraftWriteOfTheSameProxyIRI() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
     final Throwable outcome = outcomeAgainst(tx -> versioning.history(tx, A),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, resource(A, "a2"), tokenOfA)));
 
     assertThat(outcome).isNull();
     assertThat(literalOf(A)).isEqualTo("a2");
   }
 
   @RepeatedTest(RUNS)
-  void aVersionReadDoesNotConflictWithADraftWriteOfTheProxyIriItWasPublishedFrom() throws InterruptedException {
-    final IRI cidOfA = latestCid(A);
+  void aVersionReadDoesNotConflictWithADraftWriteOfTheProxyIRIItWasPublishedFrom() throws InterruptedException {
+    final IRI cidOfA = latestCID(A);
     final RevisionToken tokenOfA = token(A);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, cidOfA),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersionByCID(tx, cidOfA),
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, resource(A, "a2"), tokenOfA)));
 
     assertThat(outcome).isNull();
     assertThat(literalOf(A)).isEqualTo("a2");
@@ -170,10 +170,10 @@ class ResourceVersioningConcurrencyTest {
 
   /** An unchanged publish reads the counter but writes nothing, so it conflicts with no reader. */
   @RepeatedTest(RUNS)
-  void twoUnchangedPublishesOfTheSameProxyIriBothCommit() throws InterruptedException {
+  void twoUnchangedPublishesOfTheSameProxyIRIBothCommit() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.publish(tx, List.of(tokenOfA), PublishDetails.NONE),
+    final Throwable outcome = outcomeAgainst(tx -> versioning.publish(tx, List.of(tokenOfA), EntryDetails.NONE),
         () -> publish(A));
 
     assertThat(outcome).isNull();
@@ -183,12 +183,12 @@ class ResourceVersioningConcurrencyTest {
 
   /** A delete of a proxy IRI deleted already reads the counter but writes nothing, like an unchanged publish. */
   @RepeatedTest(RUNS)
-  void twoDeletesOfAProxyIriDeletedAlreadyBothCommit() throws InterruptedException {
-    transactor.inTransaction(tx -> versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE));
+  void twoDeletesOfAProxyIRIDeletedAlreadyBothCommit() throws InterruptedException {
+    transactor.inTransaction(tx -> versioning.delete(tx, A, versioning.readDraft(tx, A).token(), EntryDetails.NONE));
     final RevisionToken tokenOfA = token(A);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE),
-        () -> transactor.inTransaction(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.delete(tx, A, tokenOfA, EntryDetails.NONE),
+        () -> transactor.inTransaction(tx -> versioning.delete(tx, A, tokenOfA, EntryDetails.NONE)));
 
     assertThat(outcome).isNull();
     assertThat(historyOf(A)).hasSize(2);
@@ -197,22 +197,22 @@ class ResourceVersioningConcurrencyTest {
 
   /** The two deletes of a live proxy IRI both write a tombstone and raise the counter, so they must not both commit. */
   @RepeatedTest(RUNS)
-  void twoDeletesOfALiveProxyIriDoNotBothCommit() throws InterruptedException {
+  void twoDeletesOfALiveProxyIRIDoNotBothCommit() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE),
-        () -> transactor.inTransaction(tx -> versioning.delete(tx, A, tokenOfA, PublishDetails.NONE)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.delete(tx, A, tokenOfA, EntryDetails.NONE),
+        () -> transactor.inTransaction(tx -> versioning.delete(tx, A, tokenOfA, EntryDetails.NONE)));
 
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
     assertThat(historyOf(A)).hasSize(2);
   }
 
   @RepeatedTest(RUNS)
-  void publishesOfDisjointProxyIrisWithDifferentContentBothCommit() throws InterruptedException {
+  void publishesOfDisjointProxyIRIsWithDifferentContentBothCommit() throws InterruptedException {
     draft(A, resource(A, "a2"));
     final RevisionToken tokenOfA = token(A);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.publish(tx, List.of(tokenOfA), PublishDetails.NONE),
+    final Throwable outcome = outcomeAgainst(tx -> versioning.publish(tx, List.of(tokenOfA), EntryDetails.NONE),
         () -> publish(B));
 
     assertThat(outcome).isNull();
@@ -230,7 +230,7 @@ class ResourceVersioningConcurrencyTest {
     draft(D, sameForD);
     final RevisionToken tokenOfC = token(C);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.publish(tx, List.of(tokenOfC), PublishDetails.NONE),
+    final Throwable outcome = outcomeAgainst(tx -> versioning.publish(tx, List.of(tokenOfC), EntryDetails.NONE),
         () -> publish(D));
 
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
@@ -243,51 +243,51 @@ class ResourceVersioningConcurrencyTest {
     repository.init();
     transactor = new DatasetTransactorRdf4j(repository);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.readSlice(tx, A),
-        () -> transactor.inTransaction(tx -> versioning.readSlice(tx, B)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readDraft(tx, A),
+        () -> transactor.inTransaction(tx -> versioning.readDraft(tx, B)));
 
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
 
   @RepeatedTest(RUNS)
   void aVersionReadByCidConflictsWithAPublishOfTheSameContentEvenIfItIsStoredAlready() throws InterruptedException {
-    final IRI cidOfA = latestCid(A);
+    final IRI cidOfA = latestCID(A);
     draft(C, resource(C, "a1"));
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, cidOfA), () -> publish(C));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersionByCID(tx, cidOfA), () -> publish(C));
 
-    assertThat(latestCid(C)).isEqualTo(cidOfA);
+    assertThat(latestCID(C)).isEqualTo(cidOfA);
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
 
   @RepeatedTest(RUNS)
-  void aVersionReadBySequenceConflictsWithAPublishOfTheSameContentForAnotherProxyIri() throws InterruptedException {
+  void aVersionReadBySequenceConflictsWithAPublishOfTheSameContentForAnotherProxyIRI() throws InterruptedException {
     draft(C, resource(C, "a1"));
 
     final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, A, 1), () -> publish(C));
 
-    assertThat(latestCid(C)).isEqualTo(latestCid(A));
+    assertThat(latestCID(C)).isEqualTo(latestCID(A));
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
 
   @RepeatedTest(RUNS)
   void aVersionReadByCidConflictsWithADeleteWhoseTombstoneNamesTheCid() throws InterruptedException {
-    final IRI cidOfB = latestCid(B);
+    final IRI cidOfB = latestCID(B);
     final RevisionToken tokenOfB = token(B);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersion(tx, cidOfB),
-        () -> transactor.inTransaction(tx -> versioning.delete(tx, B, tokenOfB, PublishDetails.NONE)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readVersionByCID(tx, cidOfB),
+        () -> transactor.inTransaction(tx -> versioning.delete(tx, B, tokenOfB, EntryDetails.NONE)));
 
-    assertThat(historyOf(B).getLast().content()).contains(cidOfB);
+    assertThat(historyOf(B).getLast().cid()).contains(cidOfB);
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
 
   @RepeatedTest(RUNS)
-  void aDraftReadConflictsWithAWriteOfTheSameProxyIri() throws InterruptedException {
+  void aDraftReadConflictsWithAWriteOfTheSameProxyIRI() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.readSlice(tx, A),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "a2"), tokenOfA)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.readDraft(tx, A),
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, resource(A, "a2"), tokenOfA)));
 
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
@@ -299,7 +299,7 @@ class ResourceVersioningConcurrencyTest {
    * observes the node the other writes.
    */
   @RepeatedTest(RUNS)
-  void writersOfDisjointProxyIrisWhoseContentsShareABlankNodeDoNotBothCommit() throws InterruptedException {
+  void writersOfDisjointProxyIRIsWhoseContentsShareABlankNodeDoNotBothCommit() throws InterruptedException {
     final BlankNode shared = rdf.createBlankNode("shared");
     final Graph contentOfC = new SimpleGraph();
     contentOfC.add(C, Q, shared);
@@ -310,18 +310,18 @@ class ResourceVersioningConcurrencyTest {
     final RevisionToken tokenOfC = token(C);
     final RevisionToken tokenOfD = token(D);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.replaceSlice(tx, C, contentOfC, tokenOfC),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, D, contentOfD, tokenOfD)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.replaceDraft(tx, C, contentOfC, tokenOfC),
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, D, contentOfD, tokenOfD)));
 
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
 
   @RepeatedTest(RUNS)
-  void writersOfTheSameProxyIriDoNotBothCommit() throws InterruptedException {
+  void writersOfTheSameProxyIRIDoNotBothCommit() throws InterruptedException {
     final RevisionToken tokenOfA = token(A);
 
-    final Throwable outcome = outcomeAgainst(tx -> versioning.replaceSlice(tx, A, resource(A, "slow"), tokenOfA),
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, resource(A, "competitor"), tokenOfA)));
+    final Throwable outcome = outcomeAgainst(tx -> versioning.replaceDraft(tx, A, resource(A, "slow"), tokenOfA),
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, resource(A, "competitor"), tokenOfA)));
 
     assertThat(outcome).isInstanceOf(ConcurrencyConflictException.class);
   }
@@ -389,15 +389,15 @@ class ResourceVersioningConcurrencyTest {
   }
 
   private String literalOf(final IRI proxy) {
-    final ReadableGraph slice = transactor.inTransaction(tx -> versioning.readSlice(tx, proxy).triples());
+    final ReadableGraph slice = transactor.inTransaction(tx -> versioning.readDraft(tx, proxy).triples());
     return slice.stream(proxy, P, null)
         .map(triple -> ((Literal) triple.getObject()).getLexicalForm())
         .findFirst()
         .orElseThrow();
   }
 
-  private IRI latestCid(final IRI proxy) {
-    return historyOf(proxy).getLast().content().orElseThrow();
+  private IRI latestCID(final IRI proxy) {
+    return historyOf(proxy).getLast().cid().orElseThrow();
   }
 
   private List<HistoryEntry> historyOf(final IRI proxy) {
@@ -405,16 +405,16 @@ class ResourceVersioningConcurrencyTest {
   }
 
   private RevisionToken token(final IRI proxy) {
-    return transactor.inTransaction(tx -> versioning.readSlice(tx, proxy).token());
+    return transactor.inTransaction(tx -> versioning.readDraft(tx, proxy).token());
   }
 
   private void draft(final IRI proxy, final ReadableGraph content) {
     transactor
-        .inTransaction(tx -> versioning.replaceSlice(tx, proxy, content, versioning.readSlice(tx, proxy).token()));
+        .inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, versioning.readDraft(tx, proxy).token()));
   }
 
   private void publish(final IRI proxy) {
     transactor.inTransaction(
-        tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, proxy).token()), PublishDetails.NONE));
+        tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, proxy).token()), EntryDetails.NONE));
   }
 }

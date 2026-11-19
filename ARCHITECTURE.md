@@ -73,7 +73,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
 | `rdf-cid` | `io.kogn.rdf:rdf-cid` | Content-addressed IRI generation port: `ContentAddressedIRIGenerator.generateIRI(base, graph)` over `ReadableGraph`, returning a deterministic RFC 6920 name `ni:///sha3-256;<digest>` (procedure ni-rdf/1, whose tag `procedureTag()` returns as a value) derived from the triples describing the resource `base` — every term in full, datatype and language tag included, except the graph's own base IRI, which goes in as a placeholder so a resource can carry its own identifier — for a graph whose IRI subjects are that base or its fragments. Unlike the other port families it carries its own implementation, `ContentAddressedIRIGeneratorSexpr` — there is no backend to swap. `BaseRebaser` renames the base and its fragments (spec §6). No dependency on the dataset ports. |
-| `rdf-versioning` | `io.kogn.rdf:rdf-versioning` | Versioning of RDF resources over the caller's `DatasetTx` (ADR-0021–0024): a mutable draft per proxy IRI, immutable versions named by their CID, and a history of publishes and deletions, kept in fixed named graphs of the library beside the caller's content graph. Port `ResourceVersioning` with its sole implementation `ResourceVersioningNamedGraphs`: `readSlice`/`replaceSlice` read and write a proxy IRI's draft slice (`DraftSlice`) under an optimistic `RevisionToken` (`RevisionConflictException`, `AmbiguousBlankNodeException`); `publish` turns drafts into versions, atomically over several proxy IRIs (`PublishDetails`, `PublishResult`); `readPublished`, `readVersion` (by CID or by sequence number), `history` (`HistoryEntry`, `EntryKind` `PUBLISH`/`TOMBSTONE`) and `publishState` (`PublishState`: never published, published unchanged, published with unpublished changes, deleted) read back; `delete` removes the draft and the published slice and records a tombstone (`DeleteResult`, `versioning:Tombstone`) while history and versions stay. The caller names only its content graph, bound on first use (`ContentGraphMismatchException` on a different one). The graph IRIs (`VersioningGraphs`) and the module's own vocabulary (`VocabVersioning`) live only here, never in `rdf-terms`. Depends on `rdf-dataset` and `rdf-cid` only — no backend, no hosting. |
+| `rdf-versioning` | `io.kogn.rdf:rdf-versioning` | Versioning of RDF resources over the caller's `DatasetTx` (ADR-0021–0024, ADR-0027): a mutable draft per proxy IRI, immutable versions named by their CID, and a history of publishes and deletions, kept in fixed named graphs of the library beside the caller's content graph. Port `ResourceVersioning` with its sole implementation `ResourceVersioningNamedGraphs`: `readDraft`/`replaceDraft` read and write a proxy IRI's draft slice (`DraftSlice`) under an optimistic `RevisionToken` (`RevisionConflictException`, `AmbiguousBlankNodeException`); `publish` turns drafts into versions, atomically over several proxy IRIs (`EntryDetails`, `PublishResult`); `readPublished`, `readVersion` (by CID or by sequence number), `history` (`HistoryEntry`, `EntryKind` `PUBLISH`/`TOMBSTONE`) and `publishState` (`PublishState`: never published, published unchanged, published with unpublished changes, deleted) read back; `delete` removes the draft and the published slice and records a tombstone (`DeleteResult`, `versioning:Tombstone`) while history and versions stay. The caller names only its content graph, bound on first use (`ContentGraphMismatchException` on a different one). The graph IRIs (`VersioningGraphs`) and the module's own vocabulary (`VocabVersioning`) live only here, never in `rdf-terms`. Depends on `rdf-dataset` and `rdf-cid` only — no backend, no hosting. |
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
@@ -521,7 +521,7 @@ order.
 ([ADR-0021](docs/adr/0021-resource-versioning-module.md)); it never opens a
 transaction of its own. The unit is the subject-bounded slice of a *proxy IRI*
 (its `#fragment` IRIs and blank-node closure), written only through
-`replaceSlice` under an opaque `RevisionToken` per proxy IRI, so a stale writer
+`replaceDraft` under an opaque `RevisionToken` per proxy IRI, so a stale writer
 gets a `RevisionConflictException` instead of a silent overwrite. `publish`
 derives the CID of each draft with `rdf-cid` and stores the slice renamed to
 that CID once in the content store, copies the draft into the published view
@@ -546,8 +546,8 @@ of them on the same proxy IRI both commit. A slice is read subject by
 subject — the proxy IRI, each fragment IRI, each blank node it reaches — and
 the fragment IRIs of the draft and of the published slice come from the draft
 and the published fragment index in the history graph. Per operation:
-`readSlice` reads the counter, the draft fragment index and the draft;
-`replaceSlice` the counter, the draft fragment index, the draft over the
+`readDraft` reads the counter, the draft fragment index and the draft;
+`replaceDraft` the counter, the draft fragment index, the draft over the
 indexed fragment IRIs and every fragment IRI the new content names, and each
 blank node of the new content and the old draft (the shared-blank-node check);
 `publish` the counter, the draft fragment index, the draft and the history
@@ -568,24 +568,24 @@ Where each reads what the other writes, they conflict whichever commits first:
 two writers of the same proxy IRI (each reads the counter the other raises),
 two publishes that store the same new CID (each reads the content store where
 the other adds it), the first operations on a dataset not yet bound to its
-content graph (each reads the binding the other writes), and two `replaceSlice` calls on
+content graph (each reads the binding the other writes), and two `replaceDraft` calls on
 disjoint proxy IRIs whose contents carry the same blank node (as per-document
 parser labels produce) — one after the other the second gets an
 `AmbiguousBlankNodeException`, concurrently the second to commit gets a
 `ConcurrencyConflictException`. Where only one reads what the other writes, it
-fails if the other commits first and both commit otherwise: a `readSlice`
+fails if the other commits first and both commit otherwise: a `readDraft`
 against a write of the same proxy IRI, a version read against any write of a
 history entry naming its CID (a publish of a draft with that CID, even when the
 version is stored already, or a `delete` whose tombstone names it), and a read
 by sequence number also against a write of an entry of its proxy IRI. A
-`replaceSlice` fails if a write past the library commits first that touches a
+`replaceDraft` fails if a write past the library commits first that touches a
 triple in the content graph about the proxy IRI, about a fragment IRI the new
 content names or the draft fragment index records, or about a blank node of the
 new content or the old slice;
 committing first, it makes the foreign writer fail only if that one read a
-pattern the `replaceSlice` changed — a `DatasetTx#add` observes only the
+pattern the `replaceDraft` changed — a `DatasetTx#add` observes only the
 triples it adds. A `readPublished`, `history` or version read of a proxy IRI
-does not conflict with a `replaceSlice` of it; otherwise operations on disjoint
+does not conflict with a `replaceDraft` of it; otherwise operations on disjoint
 proxy IRIs commit side by side. Consumers retry reads as well as writes. The read cost follows the slice and the history of the one proxy
 IRI, not the dataset — as long as the backend indexes each pattern. A read of a
 version also reads every history entry naming that CID, so its cost grows with
@@ -604,7 +604,7 @@ CID. A fragment IRI belongs to the stored slice only if the last write through
 the library had it as a subject. That write removes the triples of every
 fragment IRI of the earlier slice, so a triple on any other fragment IRI was
 written past the library — possibly on a fragment IRI that write left out — and
-is not part of the slice until a write names it. If such a triple shares a blank node with the slice, `replaceSlice` and
+is not part of the slice until a write names it. If such a triple shares a blank node with the slice, `replaceDraft` and
 `delete` reject the write with `AmbiguousBlankNodeException`.
 
 A versioned dataset keeps the caller's content graph (the draft view) beside

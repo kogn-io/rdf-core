@@ -27,17 +27,17 @@ public class RevisionConflictException extends ConcurrencyConflictException {
   private static final long serialVersionUID = 1L;
 
   /** The proxy IRI the write addressed. */
-  private final transient IRI proxyIri;
+  private final transient IRI proxyIRI;
 
   /**
    * Creates the exception.
    *
-   * @param proxyIri the proxy IRI the write addressed; must not be {@code null}
-   * @throws NullPointerException if {@code proxyIri} is {@code null}
+   * @param proxyIRI the proxy IRI the write addressed; must not be {@code null}
+   * @throws NullPointerException if {@code proxyIRI} is {@code null}
    */
-  public RevisionConflictException(final IRI proxyIri) {
-    super("stale revision token for " + Objects.requireNonNull(proxyIri, "proxyIri").ntriplesString(), null);
-    this.proxyIri = proxyIri;
+  public RevisionConflictException(final IRI proxyIRI) {
+    super("stale revision token for " + Objects.requireNonNull(proxyIRI, "proxyIRI").ntriplesString(), null);
+    this.proxyIRI = proxyIRI;
   }
 
   /**
@@ -45,7 +45,7 @@ public class RevisionConflictException extends ConcurrencyConflictException {
    *
    * @return the proxy IRI; {@code null} only after deserialization
    */
-  public IRI proxyIri() {
-    return proxyIri;
+  public IRI proxyIRI() {
+    return proxyIRI;
   }
 }

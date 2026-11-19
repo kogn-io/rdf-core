@@ -85,8 +85,8 @@ class ResourceVersioningBackendRejectionTest {
   }
 
   @Test
-  void aReadOfAProxyIriTheBackendRejectsIsAnIllegalArgument() {
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readSlice(tx, WITH_SPACE)))
+  void aReadOfAProxyIRITheBackendRejectsIsAnIllegalArgument() {
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readDraft(tx, WITH_SPACE)))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -97,7 +97,7 @@ class ResourceVersioningBackendRejectionTest {
     final Set<String> before = snapshot();
 
     final RuntimeException caught = caughtAndCommitted(
-        tx -> versioning.publish(tx, List.of(a, b), PublishDetails.NONE.withCreator(WITH_SPACE)));
+        tx -> versioning.publish(tx, List.of(a, b), EntryDetails.NONE.withCreator(WITH_SPACE)));
 
     assertThat(caught).isInstanceOf(IllegalArgumentException.class);
     assertThat(snapshot()).isEqualTo(before);
@@ -108,12 +108,12 @@ class ResourceVersioningBackendRejectionTest {
   void aDeleteWithACreatorTheBackendRejectsWritesNothing() {
     draft(A, "one");
     transactor
-        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE));
-    final RevisionToken token = transactor.inTransaction(tx -> versioning.readSlice(tx, A).token());
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, A).token()), EntryDetails.NONE));
+    final RevisionToken token = transactor.inTransaction(tx -> versioning.readDraft(tx, A).token());
     final Set<String> before = snapshot();
 
     final RuntimeException caught = caughtAndCommitted(
-        tx -> versioning.delete(tx, A, token, PublishDetails.NONE.withCreator(WITH_SPACE)));
+        tx -> versioning.delete(tx, A, token, EntryDetails.NONE.withCreator(WITH_SPACE)));
 
     assertThat(caught).isInstanceOf(IllegalArgumentException.class);
     assertThat(snapshot()).isEqualTo(before);
@@ -127,11 +127,11 @@ class ResourceVersioningBackendRejectionTest {
     content.add(A, P, rdf.createLiteral("new"));
     content.add(rejected);
 
-    final RuntimeException caught = caughtAndCommitted(tx -> versioning.replaceSlice(tx, A, content, token));
+    final RuntimeException caught = caughtAndCommitted(tx -> versioning.replaceDraft(tx, A, content, token));
 
     assertThat(caught).isInstanceOf(IllegalArgumentException.class);
     assertThat(snapshot()).isEqualTo(before);
-    final DraftSlice slice = transactor.inTransaction(tx -> versioning.readSlice(tx, A));
+    final DraftSlice slice = transactor.inTransaction(tx -> versioning.readDraft(tx, A));
     assertThat(slice.token()).isEqualTo(token);
     assertThat(slice.triples().contains(rdf.createTriple(A, P, rdf.createLiteral("old")))).isTrue();
   }
@@ -159,7 +159,7 @@ class ResourceVersioningBackendRejectionTest {
     final Graph content = new SimpleGraph();
     content.add(proxy, P, rdf.createLiteral(value));
     return transactor
-        .inTransaction(tx -> versioning.replaceSlice(tx, proxy, content, versioning.readSlice(tx, proxy).token()));
+        .inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, versioning.readDraft(tx, proxy).token()));
   }
 
   /** Every triple of the dataset's graphs, each prefixed by the graph it sits in. */

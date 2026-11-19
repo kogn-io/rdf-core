@@ -66,11 +66,11 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void aProxyIriWithoutDraftReadsEmptyWithAToken() {
+  void aProxyIRIWithoutDraftReadsEmptyWithAToken() {
     final DraftSlice slice = read(A);
 
     assertThat(slice.triples().isEmpty()).isTrue();
-    assertThat(slice.token().proxyIri()).isEqualTo(A);
+    assertThat(slice.token().proxyIRI()).isEqualTo(A);
   }
 
   @Test
@@ -84,7 +84,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void theSliceHoldsFragmentSubjectsEvenWithoutALinkFromTheProxyIri() {
+  void theSliceHoldsFragmentSubjectsEvenWithoutALinkFromTheProxyIRI() {
     final Graph content = graph();
     content.add(A, P, rdf.createLiteral("one"));
     content.add(A_FRAGMENT, P, rdf.createLiteral("part"));
@@ -109,7 +109,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void aProxyIriWhoseNameOnlyStartsWithAnothersIsNotInItsSlice() {
+  void aProxyIRIWhoseNameOnlyStartsWithAnothersIsNotInItsSlice() {
     final Graph other = graph();
     other.add(AB, P, rdf.createLiteral("other"));
     write(AB, other, read(AB).token());
@@ -118,7 +118,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void aSubjectIsInTheSliceOnlyByTheSameSpellingOfTheProxyIri() {
+  void aSubjectIsInTheSliceOnlyByTheSameSpellingOfTheProxyIRI() {
     final List<IRI> spellings = List.of(new SimpleIRI("HTTPS://example.org/res/A"),
         new SimpleIRI("https://EXAMPLE.org/res/A"), new SimpleIRI("https://example.org/res/a"),
         new SimpleIRI("https://example.org/res/%41"));
@@ -201,7 +201,7 @@ class ResourceVersioningSliceTest {
     competing.add(A, P, rdf.createLiteral("two"));
 
     assertThatThrownBy(() -> write(A, competing, stale)).isInstanceOfSatisfying(RevisionConflictException.class,
-        e -> assertThat(e.proxyIri()).isEqualTo(A));
+        e -> assertThat(e.proxyIRI()).isEqualTo(A));
 
     assertThat(read(A).triples().contains(rdf.createTriple(A, P, rdf.createLiteral("one")))).isTrue();
     assertThat(read(A).triples().size()).isEqualTo(1);
@@ -217,7 +217,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void aTokenOfAnotherProxyIriIsRejected() {
+  void aTokenOfAnotherProxyIRIIsRejected() {
     final RevisionToken tokenOfB = read(B).token();
 
     assertThatThrownBy(() -> write(A, graph(), tokenOfB)).isInstanceOf(IllegalArgumentException.class);
@@ -246,7 +246,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void aBlankNodeReachableFromTwoProxyIrisIsRejectedAndChangesNothing() {
+  void aBlankNodeReachableFromTwoProxyIRIsIsRejectedAndChangesNothing() {
     final BlankNode shared = rdf.createBlankNode("shared");
     final Graph first = graph();
     first.add(A, P, shared);
@@ -265,7 +265,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void aProxyIriWithAFragmentIsRejected() {
+  void aProxyIRIWithAFragmentIsRejected() {
     assertThatThrownBy(() -> read(A_FRAGMENT)).isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -276,7 +276,7 @@ class ResourceVersioningSliceTest {
     final RevisionToken token = read(A).token();
 
     assertThatThrownBy(() -> transactor.inTransaction(tx -> {
-      versioning.replaceSlice(tx, A, content, token);
+      versioning.replaceDraft(tx, A, content, token);
       throw new IllegalStateException("abort");
     })).hasMessage("abort");
 
@@ -290,18 +290,18 @@ class ResourceVersioningSliceTest {
     read(A);
 
     final ResourceVersioning other = new ResourceVersioningNamedGraphs(new SimpleIRI("https://example.org/graph/o"));
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> other.readSlice(tx, A)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> other.readDraft(tx, A)))
         .isInstanceOf(ContentGraphMismatchException.class);
   }
 
   @Test
   void nullArgumentsAreRejected() {
     final RevisionToken token = read(A).token();
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readSlice(tx, null)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readDraft(tx, null)))
         .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, null, token)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, null, token)))
         .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, graph(), null)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, graph(), null)))
         .isInstanceOf(NullPointerException.class);
   }
 
@@ -369,14 +369,14 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void twoConcurrentFirstWritesOfOneProxyIriDoNotBothCommit() throws InterruptedException {
+  void twoConcurrentFirstWritesOfOneProxyIRIDoNotBothCommit() throws InterruptedException {
     assertThat(concurrentWriteOutcome(read(A).token())).isInstanceOf(ConcurrencyConflictException.class);
 
     assertWinnerOnly(1);
   }
 
   @Test
-  void twoConcurrentFollowUpWritesOfOneProxyIriDoNotBothCommit() throws InterruptedException {
+  void twoConcurrentFollowUpWritesOfOneProxyIRIDoNotBothCommit() throws InterruptedException {
     final RevisionToken first = write(A, graph(), read(A).token());
 
     assertThat(concurrentWriteOutcome(first)).isInstanceOf(ConcurrencyConflictException.class);
@@ -438,10 +438,10 @@ class ResourceVersioningSliceTest {
     Throwable outcome = null;
     try {
       transactor.inTransaction(tx -> {
-        versioning.readSlice(tx, A);
+        versioning.readDraft(tx, A);
         slowHasRead.countDown();
         awaitCommitted(competitorCommitted);
-        return versioning.replaceSlice(tx, A, slowContent, token);
+        return versioning.replaceDraft(tx, A, slowContent, token);
       });
     } catch (final RuntimeException e) {
       outcome = e;
@@ -478,11 +478,11 @@ class ResourceVersioningSliceTest {
   }
 
   private DraftSlice read(final IRI proxy) {
-    return transactor.inTransaction(tx -> versioning.readSlice(tx, proxy));
+    return transactor.inTransaction(tx -> versioning.readDraft(tx, proxy));
   }
 
   private RevisionToken write(final IRI proxy, final ReadableGraph content, final RevisionToken token) {
-    return transactor.inTransaction(tx -> versioning.replaceSlice(tx, proxy, content, token));
+    return transactor.inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, token));
   }
 
   private long contentCount() {

@@ -3,7 +3,8 @@
 Status: Accepted (2026-11-18) — corrects statements of
 [ADR-0022](0022-draft-publish-versioning-per-proxy-iri.md) and
 [ADR-0023](0023-versioned-dataset-fixed-named-graphs.md) and adds the fragment
-index to the stored format they fix
+index to the stored format they fix; the term `versioning:content` is renamed
+`versioning:cid` by [ADR-0027](0027-versioning-cid-term-and-port-names.md)
 
 ## Context
 

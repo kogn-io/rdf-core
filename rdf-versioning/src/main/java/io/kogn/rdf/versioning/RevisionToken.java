@@ -12,7 +12,7 @@ import io.kogn.rdf.terms.SimpleIRI;
  * The optimistic-concurrency token of one proxy IRI (ADR-0022).
  *
  * <p>Opaque to the caller: it is obtained from {@link DraftSlice#token()} or from a
- * successful {@link ResourceVersioning#replaceSlice replaceSlice} and handed back to the
+ * successful {@link ResourceVersioning#replaceDraft replaceDraft} and handed back to the
  * next write. It carries the proxy IRI and the revision counter the writer read; callers
  * compare tokens only for equality and must not interpret them or build their own.</p>
  *
@@ -22,11 +22,11 @@ import io.kogn.rdf.terms.SimpleIRI;
  */
 public final class RevisionToken {
 
-  private final String proxyIri;
+  private final String proxyIRI;
   private final long revision;
 
-  RevisionToken(final IRI proxyIri, final long revision) {
-    this.proxyIri = Objects.requireNonNull(proxyIri, "proxyIri").getIRIString();
+  RevisionToken(final IRI proxyIRI, final long revision) {
+    this.proxyIRI = Objects.requireNonNull(proxyIRI, "proxyIRI").getIRIString();
     this.revision = revision;
   }
 
@@ -35,8 +35,8 @@ public final class RevisionToken {
    *
    * @return the proxy IRI; never {@code null}
    */
-  public IRI proxyIri() {
-    return new SimpleIRI(proxyIri);
+  public IRI proxyIRI() {
+    return new SimpleIRI(proxyIRI);
   }
 
   long revision() {
@@ -45,16 +45,16 @@ public final class RevisionToken {
 
   @Override
   public boolean equals(final Object other) {
-    return other instanceof RevisionToken token && token.revision == revision && token.proxyIri.equals(proxyIri);
+    return other instanceof RevisionToken token && token.revision == revision && token.proxyIRI.equals(proxyIRI);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(proxyIri, revision);
+    return Objects.hash(proxyIRI, revision);
   }
 
   @Override
   public String toString() {
-    return "RevisionToken[" + proxyIri + " @ " + revision + "]";
+    return "RevisionToken[" + proxyIRI + " @ " + revision + "]";
   }
 }
