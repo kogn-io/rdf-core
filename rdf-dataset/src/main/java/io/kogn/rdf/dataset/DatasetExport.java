@@ -11,8 +11,9 @@ import io.kogn.rdf.terms.IRI;
  * Serialization port — writes a dataset, or one of its named graphs, to a byte stream.
  *
  * <p>Where {@link GraphStore#snapshot(IRI)} hands back an in-memory
- * {@link io.kogn.rdf.terms.ReadableGraph} of one named graph, this port produces the actual document — Turtle, TriG, N-Triples or N-Quads
- * (see {@link RdfFormat}) — that a dump, a backup or an HTTP response body is made of.</p>
+ * {@link io.kogn.rdf.terms.ReadableGraph} of one named graph, this port produces the actual
+ * document — Turtle, TriG, N-Triples or N-Quads (see {@link RdfFormat}) — that a dump, a backup
+ * or an HTTP response body is made of.</p>
  *
  * <p><strong>Reading, not a unit of work.</strong> Export never mutates the dataset, and like
  * {@link SparqlQuery} it runs outside of any caller-visible transaction: each call is a
