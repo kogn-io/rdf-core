@@ -59,7 +59,7 @@ Fragment IRIs belong to the slice (added 2026-10-31). A sub-resource that must
 stay addressable from outside — an acceptance criterion of a requirement, a step
 of a use case — gets a fragment IRI of its proxy IRI (`ex:REQ-42#ac-1`) and is
 versioned with it: a blank node could not be referenced, and a child with an IRI
-of its own would be a resource of its own, which `generateIri` rejects inside
+of its own would be a resource of its own, which `generateIRI` rejects inside
 the slice (ni-rdf/1 §3, `FOREIGN_SUBJECT`). Membership follows the spec's rule:
 the subject's base, compared as a string without normalization, is the proxy
 IRI. A fragment subject needs no link from the proxy IRI — the spec treats every
@@ -198,7 +198,7 @@ reference to `https://a.example/term/2` is part of the content — another
 instance referring to its own `https://b.example/term/2` has different content
 and gets a different CID, which is correct. Choosing stable IRIs is the
 application's responsibility. (ADR-0016 already states this as a consequence;
-ADR-0014's stated purpose and the `ContentAddressedIriGenerator` javadoc
+ADR-0014's stated purpose and the `ContentAddressedIRIGenerator` javadoc
 promise more and should be clarified there.)
 
 ### D6 — Read semantics belong to the application
@@ -281,7 +281,7 @@ on every draft write, publish and delete, and keeps it as one bookkeeping
 triple in the history, beside the entries — it is not a history entry (D8).
 The token the caller holds is the proxy IRI with the counter value, opaque to
 the caller. A counter is always available, for an empty or a brand-new draft
-too, where a token derived from the draft's content is not (P6: `generateIri`
+too, where a token derived from the draft's content is not (P6: `generateIRI`
 refuses an empty draft and one over the cost limit) and would cost a
 canonicalization per read and per check. It covers writes made through the
 library only, which D1 requires anyway; a write past the slice operations is
@@ -400,8 +400,8 @@ one set of library graphs per content graph.
   nodes stay blank nodes.
 - **P5 — Growth.** Every distinct version is stored in full. Unproblematic for
   small resources; measure before using it on large graphs.
-- **P6 — `generateIri` can refuse.** Publish, the D3 change check and
-  `tagPublished` call `generateIri` with the proxy IRI as base (ADR-0017), which
+- **P6 — `generateIRI` can refuse.** Publish, the D3 change check and
+  `tagPublished` call `generateIRI` with the proxy IRI as base (ADR-0017), which
   rejects an empty draft or a slice with a subject of another resource
   (IllegalArgumentException) and can exceed the
   canonicalizer's resource limit for highly symmetric blank-node structures.
@@ -413,14 +413,14 @@ one set of library graphs per content graph.
   blank nodes; their labels are the store's and not stable across reads, which
   the API docs state. Skolemizing would break the verification ADR-0016 is for:
   an IRI under the CID (`ni:…#b1`) enters the digest as a fragment, a foreign
-  one (`/.well-known/genid/…`) is rejected by `generateIri`, so the stored
+  one (`/.well-known/genid/…`) is rejected by `generateIRI`, so the stored
   version would no longer derive its own CID. Deduplication and forgetting work
   by the CID as subject plus the blank-node closure (P4). arknet writes no
   blank nodes, so the choice does not touch the first consumer.
 - **Q3 — Concurrency token shape:** answered 2026-10-31 — a revision counter
   per proxy IRI, raised on every draft write, publish and delete, opaque to the
   caller (D10). The draft's CID alone misses a publish in between, and a token
-  derived from content is unavailable for exactly the drafts `generateIri`
+  derived from content is unavailable for exactly the drafts `generateIRI`
   refuses (P6). arknet keeps its token server-side and passes none to a client.
 - **Q4 — Graph IRIs** of the library's graphs: answered by D4 — fixed IRIs of
   the library; the content graph is recorded in a config graph and checked.

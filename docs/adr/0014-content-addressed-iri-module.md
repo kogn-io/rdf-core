@@ -9,10 +9,11 @@ base IRI as an argument; the identifier format (`urn:cid:`) and the canonicalize
 [ADR-0019](0019-content-addressed-iri-as-ni-name.md): an RFC 6920 `ni:` name over
 an input fixed by an independent specification, canonicalized with RDFC-1.0; the
 names and the public surface are superseded by
-[ADR-0025](0025-content-addressed-iri-internals-and-names.md): only the port
-the building blocks of `sexpr` are package-private, beside the implementation
-only `BaseRebaser` is public, and acronyms are written in capitals
-(`ContentAddressedIRIGenerator`, `generateIRI`).
+[ADR-0025](0025-content-addressed-iri-internals-and-names.md): in
+`io.kogn.rdf.cid` only the port and its exceptions are public; in `sexpr` only
+the implementation and `BaseRebaser` are, every other type is package-private,
+and acronyms are written in capitals (`ContentAddressedIRIGenerator`,
+`generateIRI`).
 
 ## Context
 
