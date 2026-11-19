@@ -16,11 +16,11 @@ import io.kogn.rdf.terms.RDFTerm;
  * Turns RDF4J values and models into port data-model terms and graphs, through the RDF4J-free
  * {@link RDF4JFactory}.
  */
-final class Rdf4jValues {
+final class RDF4JValues {
 
   private static final RDF4JFactory FACTORY = new RDF4JFactory();
 
-  private Rdf4jValues() {
+  private RDF4JValues() {
     // Utility class - no instantiation
   }
 

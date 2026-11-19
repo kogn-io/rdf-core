@@ -81,7 +81,7 @@ public class SparqlQueryRdf4j implements SparqlQuery {
           .bound(SparqlErrors.translating(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
       final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
       RDF4JConverters.requireNoTripleTerms(model);
-      return Rdf4jValues.toGraph(model);
+      return RDF4JValues.toGraph(model);
     }
   }
 

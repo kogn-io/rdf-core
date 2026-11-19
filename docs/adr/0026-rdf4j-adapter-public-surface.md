@@ -1,7 +1,8 @@
-# ADR-0026: The RDF4J adapters keep RDF4J types out of their public surface; corrects ADR-0005
+# ADR-0026: The RDF4J adapters keep RDF4J types out of their public surface; corrects ADR-0004 and ADR-0005
 
 Status: Accepted (2026-11-19) — corrects the Consequences of
-[ADR-0005](0005-rdf4j-backend-for-dataset-ports.md)
+[ADR-0005](0005-rdf4j-backend-for-dataset-ports.md) and the native direct path of
+[ADR-0004](0004-converter-based-interop.md)
 
 ## Context
 
@@ -23,6 +24,11 @@ dataset port type (`io.kogn.rdf.dataset.BindingSet`), which made the term
 adapters the one package depending on the dataset port layer and inverted the
 layering of ADR-0003.
 
+ADR-0004 lets a native term unwrap to its backing RDF4J value directly. That path
+needs the backing value, which the first point of the decision below makes
+package-private; the converters in `internal` and the wrappers in `dataset` sit
+in other packages and cannot reach it.
+
 ## Decision
 
 The statement is narrowed to what holds and made true.
@@ -37,6 +43,9 @@ The statement is narrowed to what holds and made true.
   `RDF4JFactory` or `RDF4JIRI.of(String)`.
 - `RDF4JBindingSet` moves to `io.kogn.rdf.rdf4j.dataset` and is package-private;
   `io.kogn.rdf.rdf4j` no longer imports `io.kogn.rdf.dataset`.
+- The converters re-create every term from its lexical form, native or foreign;
+  the direct path of ADR-0004 for native terms is dropped. ADR-0004's rule that
+  every operation accepts foreign implementations stands unchanged.
 - `PublicApiStructureTest` pins the first two points.
 
 ## Consequences
@@ -48,4 +57,5 @@ The statement is narrowed to what holds and made true.
   terms to RDF4J values by the term interfaces. A result graph is copied instead
   of wrapping the `Model`, and a language tag of an RDF4J literal passes through
   its normalised (lower-case) form.
-- ADR-0005 stays as written; this ADR is its correction.
+- ADR-0004 and ADR-0005 stay as written and point here from their status lines;
+  this ADR is their correction.

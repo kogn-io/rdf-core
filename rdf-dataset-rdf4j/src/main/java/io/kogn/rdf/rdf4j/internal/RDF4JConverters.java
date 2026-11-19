@@ -23,8 +23,8 @@ import io.kogn.rdf.terms.ReadableGraph;
  * value model. <strong>Not public API</strong> — this class lives in an {@code internal} package
  * and may change or move without notice; consumers must not depend on it.
  *
- * <p>The static conversion methods support both native RDF4J implementations (direct access) and
- * foreign implementations (conversion via string representation).</p>
+ * <p>The static conversion methods accept any implementation of the term interfaces, native or
+ * foreign, and re-create every term from its lexical form; no term is unwrapped (ADR-0026).</p>
  */
 public final class RDF4JConverters {
 
@@ -34,7 +34,7 @@ public final class RDF4JConverters {
 
   /**
    * Converts an IRI from our API to RDF4J IRI.
-   * Supports both RDF4JIRI (direct access) and foreign implementations (conversion).
+   * Re-creates the IRI from its lexical form, whatever its implementation.
    *
    * @param iri the IRI to convert; must not be {@code null}
    * @return RDF4J IRI
@@ -49,7 +49,7 @@ public final class RDF4JConverters {
 
   /**
    * Converts a BlankNodeOrIRI from our API to RDF4J Resource.
-   * Supports both RDF4J implementations and foreign implementations.
+   * Re-creates the term from its lexical form, whatever its implementation.
    *
    * @param resource the resource to convert; must not be {@code null}
    * @return RDF4J Resource
@@ -70,7 +70,7 @@ public final class RDF4JConverters {
 
   /**
    * Converts an RDFTerm from our API to RDF4J Value.
-   * Supports both RDF4J implementations and foreign implementations.
+   * Re-creates the term from its lexical form, whatever its implementation.
    *
    * @param term the term to convert; must not be {@code null}
    * @return RDF4J Value

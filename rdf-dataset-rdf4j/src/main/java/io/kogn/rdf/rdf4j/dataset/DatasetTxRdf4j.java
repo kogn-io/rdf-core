@@ -182,7 +182,7 @@ class DatasetTxRdf4j implements DatasetTx {
     });
     final Model model = new LinkedHashModel(statements);
     RDF4JConverters.requireNoTripleTerms(model);
-    return Rdf4jValues.toGraph(model);
+    return RDF4JValues.toGraph(model);
   }
 
   @Override
@@ -266,7 +266,7 @@ class DatasetTxRdf4j implements DatasetTx {
     });
     final Model model = new LinkedHashModel(statements);
     RDF4JConverters.requireNoTripleTerms(model);
-    return Rdf4jValues.toGraph(model);
+    return RDF4JValues.toGraph(model);
   }
 
   @Override
@@ -302,6 +302,6 @@ class DatasetTxRdf4j implements DatasetTx {
         .bound(SparqlErrors.translating(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
     final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));
     RDF4JConverters.requireNoTripleTerms(model);
-    return Rdf4jValues.toGraph(model);
+    return RDF4JValues.toGraph(model);
   }
 }
