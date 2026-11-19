@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Fred Hauschel
 
-package io.kogn.rdf.rdf4j;
+package io.kogn.rdf.rdf4j.dataset;
 
 import java.util.Optional;
 import java.util.Set;
@@ -21,7 +21,7 @@ import io.kogn.rdf.terms.RDFTerm;
  * with an {@link IllegalStateException}, so {@code select} fails instead of the first access to the
  * value.</p>
  */
-public class RDF4JBindingSet implements BindingSet {
+final class RDF4JBindingSet implements BindingSet {
 
   private final org.eclipse.rdf4j.query.BindingSet rdf4jBindingSet;
 
@@ -32,7 +32,7 @@ public class RDF4JBindingSet implements BindingSet {
    * @throws IllegalStateException if a binding is an RDF 1.2 triple term, which the port data model
    *     cannot represent
    */
-  public RDF4JBindingSet(org.eclipse.rdf4j.query.BindingSet rdf4jBindingSet) {
+  RDF4JBindingSet(org.eclipse.rdf4j.query.BindingSet rdf4jBindingSet) {
     for (final org.eclipse.rdf4j.query.Binding binding : rdf4jBindingSet) {
       RDF4JConverters.requireNoTripleTerm(binding.getValue(), "bound to ?" + binding.getName());
     }
@@ -63,13 +63,6 @@ public class RDF4JBindingSet implements BindingSet {
    * Converts an RDF4J Value to our RDFTerm.
    */
   private RDFTerm toRDFTerm(org.eclipse.rdf4j.model.Value value) {
-    if (value instanceof org.eclipse.rdf4j.model.IRI) {
-      return new RDF4JIRI((org.eclipse.rdf4j.model.IRI) value);
-    } else if (value instanceof org.eclipse.rdf4j.model.Literal) {
-      return new RDF4JLiteral((org.eclipse.rdf4j.model.Literal) value);
-    } else if (value instanceof org.eclipse.rdf4j.model.BNode) {
-      return new RDF4JBlankNode((org.eclipse.rdf4j.model.BNode) value);
-    }
-    throw new IllegalArgumentException("Unknown RDF4J Value type: " + value.getClass());
+    return Rdf4jValues.toTerm(value);
   }
 }

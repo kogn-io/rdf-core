@@ -16,7 +16,6 @@ import org.eclipse.rdf4j.repository.RepositoryResult;
 
 import io.kogn.rdf.dataset.DatasetStorageException;
 import io.kogn.rdf.dataset.GraphStore;
-import io.kogn.rdf.rdf4j.RDF4JGraph;
 import io.kogn.rdf.rdf4j.internal.RDF4JConverters;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.ReadableGraph;
@@ -158,7 +157,7 @@ public class GraphStoreRdf4j implements GraphStore {
     });
     final Model model = new LinkedHashModel(statements);
     RDF4JConverters.requireNoTripleTerms(model);
-    return new RDF4JGraph(model);
+    return Rdf4jValues.toGraph(model);
   }
 
   /**

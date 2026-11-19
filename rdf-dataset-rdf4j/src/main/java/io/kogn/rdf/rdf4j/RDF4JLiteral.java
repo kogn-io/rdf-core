@@ -13,36 +13,36 @@ import io.kogn.rdf.terms.Literal;
 /**
  * RDF4J-based implementation of Literal.
  */
-public class RDF4JLiteral extends RDF4JTerm implements Literal {
+public final class RDF4JLiteral extends RDF4JTerm implements Literal {
 
   /**
    * Wraps the given RDF4J literal.
    *
    * @param rdf4jLiteral the RDF4J literal to adapt
    */
-  public RDF4JLiteral(org.eclipse.rdf4j.model.Literal rdf4jLiteral) {
+  RDF4JLiteral(org.eclipse.rdf4j.model.Literal rdf4jLiteral) {
     super(rdf4jLiteral);
   }
 
   @Override
   public String getLexicalForm() {
-    return ((org.eclipse.rdf4j.model.Literal) rdf4jValue).getLabel();
+    return getRDF4JValue().getLabel();
   }
 
   @Override
   public IRI getDatatype() {
-    org.eclipse.rdf4j.model.IRI datatypeIRI = ((org.eclipse.rdf4j.model.Literal) rdf4jValue).getDatatype();
+    org.eclipse.rdf4j.model.IRI datatypeIRI = getRDF4JValue().getDatatype();
     return new RDF4JIRI(datatypeIRI);
   }
 
   @Override
   public Optional<String> getLanguageTag() {
-    return ((org.eclipse.rdf4j.model.Literal) rdf4jValue).getLanguage().map(tag -> tag.toLowerCase(Locale.ROOT));
+    return getRDF4JValue().getLanguage().map(tag -> tag.toLowerCase(Locale.ROOT));
   }
 
   @Override
-  public org.eclipse.rdf4j.model.Literal getRDF4JValue() {
-    return (org.eclipse.rdf4j.model.Literal) rdf4jValue;
+  org.eclipse.rdf4j.model.Literal getRDF4JValue() {
+    return (org.eclipse.rdf4j.model.Literal) super.getRDF4JValue();
   }
 
   @Override

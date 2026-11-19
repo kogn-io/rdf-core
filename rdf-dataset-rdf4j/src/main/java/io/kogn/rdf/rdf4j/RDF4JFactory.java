@@ -26,7 +26,7 @@ import io.kogn.rdf.terms.Triple;
 /**
  * RDF4J-based implementation of the RDF factory.
  */
-public class RDF4JFactory implements RDF {
+public final class RDF4JFactory implements RDF {
 
   private final ValueFactory valueFactory;
 
