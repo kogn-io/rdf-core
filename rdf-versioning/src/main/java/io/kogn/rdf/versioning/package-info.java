@@ -15,10 +15,11 @@
  *   <li>{@link io.kogn.rdf.versioning.DraftSlice} and
  *       {@link io.kogn.rdf.versioning.RevisionToken} — a proxy IRI's draft slice and
  *       the opaque token for its next write</li>
- *   <li>{@link io.kogn.rdf.versioning.PublishResult} and
- *       {@link io.kogn.rdf.versioning.PublishDetails} — what a publish returns (the
- *       history entry and next token of each proxy IRI) and the optional creator and
- *       comment it records</li>
+ *   <li>{@link io.kogn.rdf.versioning.PublishResult},
+ *       {@link io.kogn.rdf.versioning.EntryResult} and
+ *       {@link io.kogn.rdf.versioning.EntryDetails} — what a publish returns (per proxy
+ *       IRI the history entry and next token) and the optional creator and comment a
+ *       publish or delete records</li>
  *   <li>{@link io.kogn.rdf.versioning.DeleteResult} — what a delete returns (the
  *       tombstone entry and the next token)</li>
  *   <li>{@link io.kogn.rdf.versioning.HistoryEntry},

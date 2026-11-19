@@ -16,23 +16,23 @@ import io.kogn.rdf.terms.ReadableGraph;
  * (ADR-0022). It is empty if the proxy IRI has no draft; an empty draft is not a
  * deletion. Blank-node labels are the store's and not stable across reads.</p>
  *
- * @param proxyIri the proxy IRI that was read
+ * @param proxyIRI the proxy IRI that was read
  * @param triples the slice, a copy the caller may keep
- * @param token the token to pass to the next {@link ResourceVersioning#replaceSlice
- *     replaceSlice} of this proxy IRI
+ * @param token the token to pass to the next {@link ResourceVersioning#replaceDraft
+ *     replaceDraft} of this proxy IRI
  */
-public record DraftSlice(IRI proxyIri, ReadableGraph triples, RevisionToken token) {
+public record DraftSlice(IRI proxyIRI, ReadableGraph triples, RevisionToken token) {
 
   /**
    * Creates the slice.
    *
-   * @param proxyIri the proxy IRI; must not be {@code null}
+   * @param proxyIRI the proxy IRI; must not be {@code null}
    * @param triples the slice; must not be {@code null}
    * @param token the token; must not be {@code null}
    * @throws NullPointerException if an argument is {@code null}
    */
   public DraftSlice {
-    Objects.requireNonNull(proxyIri, "proxyIri");
+    Objects.requireNonNull(proxyIRI, "proxyIRI");
     Objects.requireNonNull(triples, "triples");
     Objects.requireNonNull(token, "token");
   }

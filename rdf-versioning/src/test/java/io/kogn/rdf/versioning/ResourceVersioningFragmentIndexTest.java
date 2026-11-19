@@ -74,16 +74,16 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void aFragmentSubjectWithoutALinkFromTheProxyIriIsInTheDraftThePublishedViewAndTheVersion() {
+  void aFragmentSubjectWithoutALinkFromTheProxyIRIIsInTheDraftThePublishedViewAndTheVersion() {
     final Graph content = graph(triple(A, "one"), triple(A_X, "part"));
     draft(A, content);
     final IRI cid = generator.generateIRI(A, content);
 
     publish(A);
 
-    assertThat(read(tx -> versioning.readSlice(tx, A).triples()).contains(triple(A_X, "part"))).isTrue();
+    assertThat(read(tx -> versioning.readDraft(tx, A).triples()).contains(triple(A_X, "part"))).isTrue();
     assertThat(read(tx -> versioning.readPublished(tx, A)).contains(triple(A_X, "part"))).isTrue();
-    final ReadableGraph version = read(tx -> versioning.readVersion(tx, cid).orElseThrow());
+    final ReadableGraph version = read(tx -> versioning.readVersionByCID(tx, cid).orElseThrow());
     assertThat(version.contains(triple(new SimpleIRI(cid.getIRIString() + "#x"), "part"))).isTrue();
     assertThat(version.size()).isEqualTo(2);
   }
@@ -96,9 +96,9 @@ class ResourceVersioningFragmentIndexTest {
 
     publish(A);
 
-    assertThat(read(tx -> versioning.readSlice(tx, A).triples()).size()).isEqualTo(1);
+    assertThat(read(tx -> versioning.readDraft(tx, A).triples()).size()).isEqualTo(1);
     assertThat(read(tx -> versioning.readPublished(tx, A)).size()).isEqualTo(1);
-    assertThat(read(tx -> versioning.readVersion(tx, cid)).isPresent()).isTrue();
+    assertThat(read(tx -> versioning.readVersionByCID(tx, cid)).isPresent()).isTrue();
     assertThat(publishStateOf(A)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
   }
 
@@ -122,7 +122,7 @@ class ResourceVersioningFragmentIndexTest {
 
     draft(A, content);
 
-    final ReadableGraph slice = read(tx -> versioning.readSlice(tx, A).triples());
+    final ReadableGraph slice = read(tx -> versioning.readDraft(tx, A).triples());
     assertThat(slice.size()).isEqualTo(2);
     assertThat(slice.contains(triple(A_Z, "new"))).isTrue();
     assertThat(slice.contains(triple(A_Z, "old"))).isFalse();
@@ -135,18 +135,18 @@ class ResourceVersioningFragmentIndexTest {
     final Graph content = graph(triple(node, "deep"));
     content.add(A, P, node);
     draft(A, content);
-    final RDFTerm stored = read(tx -> versioning.readSlice(tx, A).triples()).stream(A, P, null)
+    final RDFTerm stored = read(tx -> versioning.readDraft(tx, A).triples()).stream(A, P, null)
         .findFirst()
         .orElseThrow()
         .getObject();
     final Graph foreign = new SimpleGraph();
     foreign.add(A_Z, P, stored);
     transactor.inTransaction(tx -> tx.add(CONTENT, foreign));
-    final RevisionToken token = read(tx -> versioning.readSlice(tx, A).token());
+    final RevisionToken token = read(tx -> versioning.readDraft(tx, A).token());
 
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, graph(), token)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, graph(), token)))
         .isInstanceOf(AmbiguousBlankNodeException.class);
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.delete(tx, A, token, PublishDetails.NONE)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.delete(tx, A, token, EntryDetails.NONE)))
         .isInstanceOf(AmbiguousBlankNodeException.class);
   }
 
@@ -202,7 +202,7 @@ class ResourceVersioningFragmentIndexTest {
     final IRI cid = generator.generateIRI(A, content);
 
     final IRI tombstone = transactor.inTransaction(
-        tx -> versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE).entry());
+        tx -> versioning.delete(tx, A, versioning.readDraft(tx, A).token(), EntryDetails.NONE).entryIRI());
 
     assertThat(indexed(A, VocabVersioning.DRAFT_FRAGMENT)).isEmpty();
     assertThat(indexed(A, VocabVersioning.PUBLISHED_FRAGMENT)).isEmpty();
@@ -210,7 +210,7 @@ class ResourceVersioningFragmentIndexTest {
     assertThat(countIn(VersioningGraphs.PUBLISHED)).isZero();
     assertThat(indexed(tombstone, VocabVersioning.VERSION_FRAGMENT))
         .containsExactly(new SimpleIRI(cid.getIRIString() + "#x"));
-    assertThat(read(tx -> versioning.readVersion(tx, cid).orElseThrow()).size()).isEqualTo(2);
+    assertThat(read(tx -> versioning.readVersionByCID(tx, cid).orElseThrow()).size()).isEqualTo(2);
     assertThat(read(tx -> versioning.readVersion(tx, A, 1).orElseThrow()).size()).isEqualTo(2);
   }
 
@@ -226,7 +226,7 @@ class ResourceVersioningFragmentIndexTest {
 
     final RecordingTx recorded = transactor.inTransaction(tx -> {
       final RecordingTx recording = new RecordingTx(tx);
-      versioning.publish(recording, List.of(versioning.readSlice(recording, B).token()), PublishDetails.NONE);
+      versioning.publish(recording, List.of(versioning.readDraft(recording, B).token()), EntryDetails.NONE);
       return recording;
     });
     final IRI entryOfB = read(tx -> versioning.history(tx, B).getLast().iri());
@@ -243,9 +243,10 @@ class ResourceVersioningFragmentIndexTest {
     final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
     draft(A, contentOfA);
     final IRI entryOfA = transactor
-        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE))
-        .entries()
-        .get(A);
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, A).token()), EntryDetails.NONE))
+        .results()
+        .get(A)
+        .entryIRI();
     final IRI cid = generator.generateIRI(A, contentOfA);
     final Graph recorded = new SimpleGraph();
     recorded.add(entryOfA, VocabVersioning.VERSION_FRAGMENT, new SimpleIRI(cid.getIRIString() + "#x"));
@@ -253,7 +254,7 @@ class ResourceVersioningFragmentIndexTest {
     draft(B, graph(triple(B, "same"), triple(B_X, "part")));
     publish(B);
 
-    final ReadableGraph version = read(tx -> versioning.readVersion(tx, cid).orElseThrow());
+    final ReadableGraph version = read(tx -> versioning.readVersionByCID(tx, cid).orElseThrow());
 
     assertThat(version.size()).isEqualTo(2);
   }
@@ -263,9 +264,10 @@ class ResourceVersioningFragmentIndexTest {
     final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
     draft(A, contentOfA);
     final IRI entryOfA = transactor
-        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE))
-        .entries()
-        .get(A);
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, A).token()), EntryDetails.NONE))
+        .results()
+        .get(A)
+        .entryIRI();
     final IRI cid = generator.generateIRI(A, contentOfA);
     draft(B, graph(triple(B, "same"), triple(B_X, "part")));
     publish(B);
@@ -274,18 +276,19 @@ class ResourceVersioningFragmentIndexTest {
     transactor.inTransaction(tx -> tx.remove(VersioningGraphs.HISTORY, recorded));
 
     final List<Triple> bySequence = read(tx -> versioning.readVersion(tx, A, 1).orElseThrow().stream().toList());
-    final List<Triple> byCid = read(tx -> versioning.readVersion(tx, cid).orElseThrow().stream().toList());
+    final List<Triple> byCID = read(tx -> versioning.readVersionByCID(tx, cid).orElseThrow().stream().toList());
 
-    assertThat(bySequence).hasSize(2).containsExactlyInAnyOrderElementsOf(byCid);
+    assertThat(bySequence).hasSize(2).containsExactlyInAnyOrderElementsOf(byCID);
   }
 
   @Test
   void aVersionFragmentOutsideTheEntrysCidIsRejectedAsMalformed() {
     draft(A, graph(triple(A, "one"), triple(A_X, "x")));
     final IRI entry = transactor
-        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, A).token()), PublishDetails.NONE))
-        .entries()
-        .get(A);
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, A).token()), EntryDetails.NONE))
+        .results()
+        .get(A)
+        .entryIRI();
     final Graph foreign = new SimpleGraph();
     foreign.add(entry, VocabVersioning.VERSION_FRAGMENT, B_X);
     transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, foreign));
@@ -301,25 +304,26 @@ class ResourceVersioningFragmentIndexTest {
     publish(A);
     final IRI cid = generator.generateIRI(A, content);
     final Graph foreign = new SimpleGraph();
-    foreign.add(rdf.createBlankNode(), VocabVersioning.CONTENT, cid);
+    foreign.add(rdf.createBlankNode(), VocabVersioning.CID, cid);
     transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, foreign));
 
-    assertThatThrownBy(() -> read(tx -> versioning.readVersion(tx, cid))).isInstanceOf(IllegalStateException.class)
+    assertThatThrownBy(() -> read(tx -> versioning.readVersionByCID(tx, cid))).isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("is not an IRI");
     assertThatThrownBy(() -> read(tx -> versioning.readVersion(tx, A, 1))).isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("is not an IRI");
   }
 
   @Test
-  void aVersionReadBySequenceIsRejectedIfAnotherProxyIrisEntryNamingTheCidIsMalformed() {
+  void aVersionReadBySequenceIsRejectedIfAnotherProxyIRIsEntryNamingTheCidIsMalformed() {
     final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
     draft(A, contentOfA);
     publish(A);
     draft(B, graph(triple(B, "same"), triple(B_X, "part")));
     final IRI entryOfB = transactor
-        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, B).token()), PublishDetails.NONE))
-        .entries()
-        .get(B);
+        .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, B).token()), EntryDetails.NONE))
+        .results()
+        .get(B)
+        .entryIRI();
     final Graph foreign = new SimpleGraph();
     foreign.add(entryOfB, VocabVersioning.VERSION_FRAGMENT, B_X);
     transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, foreign));
@@ -334,12 +338,12 @@ class ResourceVersioningFragmentIndexTest {
     index.add(A, VocabVersioning.DRAFT_FRAGMENT, B_X);
     transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, index));
 
-    assertThatThrownBy(() -> read(tx -> versioning.readSlice(tx, A))).isInstanceOf(IllegalStateException.class)
+    assertThatThrownBy(() -> read(tx -> versioning.readDraft(tx, A))).isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("fragment index");
   }
 
   @Test
-  void aPublishWhoseSecondProxyIriHasAMalformedPublishedIndexWritesNothingOfTheFirst() {
+  void aPublishWhoseSecondProxyIRIHasAMalformedPublishedIndexWritesNothingOfTheFirst() {
     draft(A, graph(triple(A, "one"), triple(A_X, "x")));
     draft(B, graph(triple(B, "two")));
     final Graph index = new SimpleGraph();
@@ -347,10 +351,10 @@ class ResourceVersioningFragmentIndexTest {
     transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, index));
 
     final Throwable thrown = transactor.inTransaction(tx -> {
-      final List<RevisionToken> tokens = List.of(versioning.readSlice(tx, A).token(),
-          versioning.readSlice(tx, B).token());
+      final List<RevisionToken> tokens = List.of(versioning.readDraft(tx, A).token(),
+          versioning.readDraft(tx, B).token());
       try {
-        versioning.publish(tx, tokens, PublishDetails.NONE);
+        versioning.publish(tx, tokens, EntryDetails.NONE);
         return null;
       } catch (final IllegalStateException e) {
         return e;
@@ -359,7 +363,7 @@ class ResourceVersioningFragmentIndexTest {
 
     assertThat(thrown).isInstanceOf(IllegalStateException.class).hasMessageContaining("fragment index");
     final List<HistoryEntry> history = read(tx -> versioning.history(tx, A));
-    final long revision = read(tx -> versioning.readSlice(tx, A).token().revision());
+    final long revision = read(tx -> versioning.readDraft(tx, A).token().revision());
     assertThat(history).isEmpty();
     assertThat(revision).isEqualTo(1L);
     assertThat(indexed(A, VocabVersioning.PUBLISHED_FRAGMENT)).isEmpty();
@@ -377,7 +381,7 @@ class ResourceVersioningFragmentIndexTest {
 
     final Throwable thrown = transactor.inTransaction(tx -> {
       try {
-        versioning.delete(tx, A, versioning.readSlice(tx, A).token(), PublishDetails.NONE);
+        versioning.delete(tx, A, versioning.readDraft(tx, A).token(), EntryDetails.NONE);
         return null;
       } catch (final IllegalStateException e) {
         return e;
@@ -388,7 +392,7 @@ class ResourceVersioningFragmentIndexTest {
     assertThat(countIn(CONTENT)).isEqualTo(2);
     assertThat(indexed(A, VocabVersioning.DRAFT_FRAGMENT)).containsExactly(A_X);
     final List<HistoryEntry> history = read(tx -> versioning.history(tx, A));
-    final long revision = read(tx -> versioning.readSlice(tx, A).token().revision());
+    final long revision = read(tx -> versioning.readDraft(tx, A).token().revision());
     assertThat(history).hasSize(1);
     assertThat(revision).isEqualTo(2L);
   }
@@ -403,15 +407,15 @@ class ResourceVersioningFragmentIndexTest {
     final RecordingTx recorded = transactor.inTransaction(tx -> {
       final RecordingTx recording = new RecordingTx(tx);
       versioning.bindContentGraph(recording);
-      final RevisionToken first = versioning.replaceSlice(recording, A, content,
-          versioning.readSlice(recording, A).token());
-      final PublishResult published = versioning.publish(recording, List.of(first), PublishDetails.NONE);
+      final RevisionToken first = versioning.replaceDraft(recording, A, content,
+          versioning.readDraft(recording, A).token());
+      final PublishResult published = versioning.publish(recording, List.of(first), EntryDetails.NONE);
       versioning.readPublished(recording, A);
-      versioning.readVersion(recording, cid);
+      versioning.readVersionByCID(recording, cid);
       versioning.readVersion(recording, A, 1);
       versioning.history(recording, A);
       versioning.publishState(recording, A);
-      versioning.delete(recording, A, published.tokens().get(A), PublishDetails.NONE);
+      versioning.delete(recording, A, published.results().get(A).token(), EntryDetails.NONE);
       return recording;
     });
 
@@ -458,12 +462,12 @@ class ResourceVersioningFragmentIndexTest {
 
   private void draft(final IRI proxy, final ReadableGraph content) {
     transactor
-        .inTransaction(tx -> versioning.replaceSlice(tx, proxy, content, versioning.readSlice(tx, proxy).token()));
+        .inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, versioning.readDraft(tx, proxy).token()));
   }
 
   private void publish(final IRI proxy) {
     transactor.inTransaction(
-        tx -> versioning.publish(tx, List.of(versioning.readSlice(tx, proxy).token()), PublishDetails.NONE));
+        tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, proxy).token()), EntryDetails.NONE));
   }
 
   /**

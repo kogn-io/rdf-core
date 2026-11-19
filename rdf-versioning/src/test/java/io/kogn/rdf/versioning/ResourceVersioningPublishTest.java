@@ -79,9 +79,9 @@ class ResourceVersioningPublishTest {
     draft(A, literalTriples(A, "one"));
     final IRI cid = generator.generateIRI(A, literalTriples(A, "one"));
 
-    final PublishResult result = publish(PublishDetails.NONE, A);
+    final PublishResult result = publish(EntryDetails.NONE, A);
 
-    final IRI entry = result.entries().get(A);
+    final IRI entry = result.results().get(A).entryIRI();
     assertThat(entry.getIRIString()).startsWith("urn:uuid:");
     assertThat(snapshot(VersioningGraphs.CONTENT_STORE).contains(rdf.createTriple(cid, P, rdf.createLiteral("one"))))
         .isTrue();
@@ -90,7 +90,7 @@ class ResourceVersioningPublishTest {
     final ReadableGraph history = snapshot(VersioningGraphs.HISTORY);
     assertThat(history.contains(rdf.createTriple(A, VocabVersioning.ENTRY, entry))).isTrue();
     assertThat(objectOf(history, entry, VocabVersioning.SEQUENCE)).isEqualTo(integer(1));
-    assertThat(objectOf(history, entry, VocabVersioning.CONTENT)).isEqualTo(cid);
+    assertThat(objectOf(history, entry, VocabVersioning.CID)).isEqualTo(cid);
     assertThat(objectOf(history, entry, VocabVersioning.PROCEDURE)).isEqualTo(rdf.createLiteral("ni-rdf/1"));
     assertThat(objectOf(history, entry, VocabDct.CREATED))
         .isEqualTo(rdf.createLiteral("2026-10-31T09:00:00Z", VocabXsd.DATETIME));
@@ -102,7 +102,9 @@ class ResourceVersioningPublishTest {
   void creatorAndCommentAreRecordedWhenGiven() {
     draft(A, literalTriples(A, "one"));
 
-    final IRI entry = publish(PublishDetails.NONE.withCreator(ALICE).withComment("first cut"), A).entries().get(A);
+    final IRI entry = publish(EntryDetails.NONE.withCreator(ALICE).withComment("first cut"), A).results()
+        .get(A)
+        .entryIRI();
 
     final ReadableGraph history = snapshot(VersioningGraphs.HISTORY);
     assertThat(objectOf(history, entry, VocabDct.CREATOR)).isEqualTo(ALICE);
@@ -110,11 +112,11 @@ class ResourceVersioningPublishTest {
   }
 
   @Test
-  void thePublishedViewEqualsTheVersionWithTheProxyIriInsteadOfTheCid() {
+  void thePublishedViewEqualsTheVersionWithTheProxyIRIInsteadOfTheCid() {
     final BlankNodeDraft shape = blankNodeDraft(A, 1);
     draft(A, shape.graph());
 
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
 
     final IRI cid = generator.generateIRI(A, shape.graph());
     assertThat(generator.generateIRI(A, snapshot(VersioningGraphs.PUBLISHED))).isEqualTo(cid);
@@ -126,7 +128,7 @@ class ResourceVersioningPublishTest {
     draft(A, literalTriples(A, "one"));
     final long before = snapshot(CONTENT).size();
 
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
 
     assertThat(snapshot(CONTENT).size()).isEqualTo(before);
     assertThat(snapshot(CONTENT).contains(rdf.createTriple(A, P, rdf.createLiteral("one")))).isTrue();
@@ -135,32 +137,31 @@ class ResourceVersioningPublishTest {
   @Test
   void publishingAnUnchangedDraftReturnsTheLatestEntryAndWritesNothing() {
     draft(A, literalTriples(A, "one"));
-    final PublishResult first = publish(PublishDetails.NONE, A);
+    final PublishResult first = publish(EntryDetails.NONE, A);
     final long history = snapshot(VersioningGraphs.HISTORY).size();
-    final RevisionToken token = first.tokens().get(A);
+    final RevisionToken token = first.results().get(A).token();
 
     final PublishResult second = transactor
-        .inTransaction(tx -> versioning.publish(tx, List.of(token), PublishDetails.NONE.withComment("again")));
+        .inTransaction(tx -> versioning.publish(tx, List.of(token), EntryDetails.NONE.withComment("again")));
 
-    assertThat(second.entries().get(A)).isEqualTo(first.entries().get(A));
-    assertThat(second.tokens().get(A)).isEqualTo(token);
+    assertThat(second.results().get(A).entryIRI()).isEqualTo(first.results().get(A).entryIRI());
+    assertThat(second.results().get(A).token()).isEqualTo(token);
     assertThat(snapshot(VersioningGraphs.HISTORY).size()).isEqualTo(history);
   }
 
   @Test
   void aDraftThatChangesAndReturnsMakesThreeEntriesAndStoresTheVersionOnce() {
     draft(A, literalTriples(A, "one"));
-    final IRI first = publish(PublishDetails.NONE, A).entries().get(A);
+    final IRI first = publish(EntryDetails.NONE, A).results().get(A).entryIRI();
     draft(A, literalTriples(A, "two"));
-    final IRI second = publish(PublishDetails.NONE, A).entries().get(A);
+    final IRI second = publish(EntryDetails.NONE, A).results().get(A).entryIRI();
     draft(A, literalTriples(A, "one"));
-    final IRI third = publish(PublishDetails.NONE, A).entries().get(A);
+    final IRI third = publish(EntryDetails.NONE, A).results().get(A).entryIRI();
 
     final ReadableGraph history = snapshot(VersioningGraphs.HISTORY);
     assertThat(List.of(first, second, third)).doesNotHaveDuplicates();
     assertThat(objectOf(history, third, VocabVersioning.SEQUENCE)).isEqualTo(integer(3));
-    assertThat(objectOf(history, third, VocabVersioning.CONTENT))
-        .isEqualTo(objectOf(history, first, VocabVersioning.CONTENT));
+    assertThat(objectOf(history, third, VocabVersioning.CID)).isEqualTo(objectOf(history, first, VocabVersioning.CID));
     assertThat(snapshot(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(2);
     assertThat(snapshot(VersioningGraphs.PUBLISHED).contains(rdf.createTriple(A, P, rdf.createLiteral("one"))))
         .isTrue();
@@ -170,9 +171,9 @@ class ResourceVersioningPublishTest {
   @Test
   void versionsOfOneDraftDoNotShareItsBlankNodes() {
     draft(A, blankNodeDraft(A, 1).graph());
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
     draft(A, blankNodeDraft(A, 2).graph());
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
 
     final ReadableGraph store = snapshot(VersioningGraphs.CONTENT_STORE);
     final IRI first = generator.generateIRI(A, blankNodeDraft(A, 1).graph());
@@ -189,49 +190,49 @@ class ResourceVersioningPublishTest {
     first.add(fragment, P, node);
     first.add(node, Q, integer(1));
     draft(A, first);
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
     draft(A, literalTriples(A, "other"));
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
     draft(A, first);
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
 
     assertThat(snapshot(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(3);
   }
 
   @Test
-  void severalProxyIrisArePublishedTogetherAndEqualContentIsStoredOnce() {
+  void severalProxyIRIsArePublishedTogetherAndEqualContentIsStoredOnce() {
     draft(A, literalTriples(A, "same"));
     draft(B, literalTriples(B, "same"));
 
-    final PublishResult result = publish(PublishDetails.NONE, A, B);
+    final PublishResult result = publish(EntryDetails.NONE, A, B);
 
-    assertThat(result.entries()).containsOnlyKeys(A, B);
-    assertThat(result.entries().get(A)).isNotEqualTo(result.entries().get(B));
+    assertThat(result.results()).containsOnlyKeys(A, B);
+    assertThat(result.results().get(A).entryIRI()).isNotEqualTo(result.results().get(B).entryIRI());
     assertThat(snapshot(VersioningGraphs.CONTENT_STORE).size()).isEqualTo(1);
     assertThat(snapshot(VersioningGraphs.PUBLISHED).size()).isEqualTo(2);
   }
 
   @Test
-  void theResultHoldsItsProxyIrisInTheOrderTheyWerePassed() {
+  void theResultHoldsItsProxyIRIsInTheOrderTheyWerePassed() {
     final IRI c = new SimpleIRI("https://example.org/res/C");
     draft(A, literalTriples(A, "a"));
     draft(B, literalTriples(B, "b"));
     draft(c, literalTriples(c, "c"));
 
-    final PublishResult result = publish(PublishDetails.NONE, c, A, B);
+    final PublishResult result = publish(EntryDetails.NONE, c, A, B);
 
-    assertThat(List.copyOf(result.entries().keySet())).containsExactly(c, A, B);
-    assertThat(List.copyOf(result.tokens().keySet())).containsExactly(c, A, B);
+    assertThat(List.copyOf(result.results().keySet())).containsExactly(c, A, B);
+    assertThat(List.copyOf(result.results().keySet())).containsExactly(c, A, B);
   }
 
   @Test
-  void aStaleTokenOfOneProxyIriPublishesNone() {
+  void aStaleTokenOfOneProxyIRIPublishesNone() {
     final RevisionToken a = draft(A, literalTriples(A, "one"));
     final RevisionToken staleB = readToken(B);
     draft(B, literalTriples(B, "two"));
 
     assertThatThrownBy(
-        () -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(a, staleB), PublishDetails.NONE)))
+        () -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(a, staleB), EntryDetails.NONE)))
         .isInstanceOf(RevisionConflictException.class);
 
     assertNothingPublished();
@@ -243,7 +244,7 @@ class ResourceVersioningPublishTest {
     final long history = snapshot(VersioningGraphs.HISTORY).size();
 
     assertThatThrownBy(() -> transactor.inTransaction(tx -> {
-      versioning.publish(tx, List.of(a), PublishDetails.NONE);
+      versioning.publish(tx, List.of(a), EntryDetails.NONE);
       throw new IllegalStateException("abort");
     })).hasMessage("abort");
 
@@ -255,16 +256,17 @@ class ResourceVersioningPublishTest {
   void publishRaisesTheTokenSoTheOldOneIsStale() {
     final RevisionToken old = draft(A, literalTriples(A, "one"));
 
-    final RevisionToken next = transactor.inTransaction(tx -> versioning.publish(tx, List.of(old), PublishDetails.NONE))
-        .tokens()
-        .get(A);
+    final RevisionToken next = transactor.inTransaction(tx -> versioning.publish(tx, List.of(old), EntryDetails.NONE))
+        .results()
+        .get(A)
+        .token();
 
     assertThatThrownBy(() -> publishWith(old)).isInstanceOf(RevisionConflictException.class);
     assertThatThrownBy(
-        () -> transactor.inTransaction(tx -> versioning.replaceSlice(tx, A, literalTriples(A, "x"), old)))
+        () -> transactor.inTransaction(tx -> versioning.replaceDraft(tx, A, literalTriples(A, "x"), old)))
         .isInstanceOf(RevisionConflictException.class);
     final RevisionToken written = transactor
-        .inTransaction(tx -> versioning.replaceSlice(tx, A, literalTriples(A, "x"), next));
+        .inTransaction(tx -> versioning.replaceDraft(tx, A, literalTriples(A, "x"), next));
     assertThat(written).isNotEqualTo(next);
   }
 
@@ -273,14 +275,15 @@ class ResourceVersioningPublishTest {
   @Test
   void aDraftOfAnotherProcedureIsPublishedAgain() {
     draft(A, literalTriples(A, "one"));
-    publish(PublishDetails.NONE, A);
+    publish(EntryDetails.NONE, A);
     final ResourceVersioning other = new ResourceVersioningNamedGraphs(CONTENT, new Tagged(generator, "ni-rdf/2"),
         Clock.fixed(NOW, ZoneOffset.UTC));
 
     final PublishResult result = transactor
-        .inTransaction(tx -> other.publish(tx, List.of(other.readSlice(tx, A).token()), PublishDetails.NONE));
+        .inTransaction(tx -> other.publish(tx, List.of(other.readDraft(tx, A).token()), EntryDetails.NONE));
 
-    assertThat(objectOf(snapshot(VersioningGraphs.HISTORY), result.entries().get(A), VocabVersioning.SEQUENCE))
+    assertThat(
+        objectOf(snapshot(VersioningGraphs.HISTORY), result.results().get(A).entryIRI(), VocabVersioning.SEQUENCE))
         .isEqualTo(integer(2));
   }
 
@@ -294,7 +297,7 @@ class ResourceVersioningPublishTest {
   }
 
   @Test
-  void twoTokensForOneProxyIriAreRejected() {
+  void twoTokensForOneProxyIRIAreRejected() {
     final RevisionToken token = draft(A, literalTriples(A, "one"));
 
     assertThatThrownBy(() -> publishWith(token, token)).isInstanceOf(IllegalArgumentException.class);
@@ -347,7 +350,7 @@ class ResourceVersioningPublishTest {
         Clock.fixed(NOW, ZoneOffset.UTC));
     final RevisionToken token = draft(A, literalTriples(A, "one"));
 
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> failing.publish(tx, List.of(token), PublishDetails.NONE)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> failing.publish(tx, List.of(token), EntryDetails.NONE)))
         .isInstanceOf(ContentAddressingException.class);
 
     assertNothingPublished();
@@ -359,7 +362,7 @@ class ResourceVersioningPublishTest {
     final ResourceVersioning elsewhere = new ResourceVersioningNamedGraphs(
         new SimpleIRI("https://example.org/graph/other"), generator, Clock.fixed(NOW, ZoneOffset.UTC));
 
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> elsewhere.publish(tx, List.of(token), PublishDetails.NONE)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> elsewhere.publish(tx, List.of(token), EntryDetails.NONE)))
         .isInstanceOf(ContentGraphMismatchException.class);
   }
 
@@ -378,12 +381,12 @@ class ResourceVersioningPublishTest {
   @Test
   void aHistoryWithAGapInTheSequenceIsAnIllegalState() {
     final RevisionToken token = draft(A, literalTriples(A, "one"));
-    final IRI entryIri = new SimpleIRI("urn:uuid:00000000-0000-0000-0000-000000000001");
+    final IRI entryIRI = new SimpleIRI("urn:uuid:00000000-0000-0000-0000-000000000001");
     final Graph entry = new SimpleGraph();
-    entry.add(A, VocabVersioning.ENTRY, entryIri);
-    entry.add(entryIri, VocabVersioning.SEQUENCE, integer(2));
-    entry.add(entryIri, VocabVersioning.CONTENT, new SimpleIRI("ni:///sha3-256;x"));
-    entry.add(entryIri, VocabVersioning.PROCEDURE, rdf.createLiteral("ni-rdf/1"));
+    entry.add(A, VocabVersioning.ENTRY, entryIRI);
+    entry.add(entryIRI, VocabVersioning.SEQUENCE, integer(2));
+    entry.add(entryIRI, VocabVersioning.CID, new SimpleIRI("ni:///sha3-256;x"));
+    entry.add(entryIRI, VocabVersioning.PROCEDURE, rdf.createLiteral("ni-rdf/1"));
     transactor.inTransaction(tx -> tx.add(VersioningGraphs.HISTORY, entry));
 
     assertThatThrownBy(() -> publishWith(token)).isInstanceOf(IllegalStateException.class)
@@ -392,7 +395,7 @@ class ResourceVersioningPublishTest {
 
   @Test
   void aNullArgumentIsRejected() {
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.publish(tx, null, PublishDetails.NONE)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.publish(tx, null, EntryDetails.NONE)))
         .isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.publish(tx, List.of(), null)))
         .isInstanceOf(NullPointerException.class);
@@ -400,9 +403,9 @@ class ResourceVersioningPublishTest {
 
   @Test
   void noTokensPublishNothing() {
-    final PublishResult result = transactor.inTransaction(tx -> versioning.publish(tx, List.of(), PublishDetails.NONE));
+    final PublishResult result = transactor.inTransaction(tx -> versioning.publish(tx, List.of(), EntryDetails.NONE));
 
-    assertThat(result.entries()).isEmpty();
+    assertThat(result.results()).isEmpty();
     assertNothingPublished();
   }
 
@@ -460,21 +463,21 @@ class ResourceVersioningPublishTest {
   }
 
   private RevisionToken readToken(final IRI proxy) {
-    return transactor.inTransaction(tx -> versioning.readSlice(tx, proxy).token());
+    return transactor.inTransaction(tx -> versioning.readDraft(tx, proxy).token());
   }
 
   private RevisionToken draft(final IRI proxy, final ReadableGraph content) {
     return transactor
-        .inTransaction(tx -> versioning.replaceSlice(tx, proxy, content, versioning.readSlice(tx, proxy).token()));
+        .inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, versioning.readDraft(tx, proxy).token()));
   }
 
-  private PublishResult publish(final PublishDetails details, final IRI... proxies) {
+  private PublishResult publish(final EntryDetails details, final IRI... proxies) {
     return transactor.inTransaction(tx -> versioning.publish(tx,
-        List.of(proxies).stream().map(proxy -> versioning.readSlice(tx, proxy).token()).toList(), details));
+        List.of(proxies).stream().map(proxy -> versioning.readDraft(tx, proxy).token()).toList(), details));
   }
 
   private PublishResult publishWith(final RevisionToken... tokens) {
-    return transactor.inTransaction(tx -> versioning.publish(tx, List.of(tokens), PublishDetails.NONE));
+    return transactor.inTransaction(tx -> versioning.publish(tx, List.of(tokens), EntryDetails.NONE));
   }
 
   private ReadableGraph snapshot(final IRI graph) {

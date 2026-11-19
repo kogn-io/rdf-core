@@ -79,7 +79,7 @@ class ResourceVersioningReadTest {
   // --- readPublished
 
   @Test
-  void aNeverPublishedProxyIriHasAnEmptyPublishedState() {
+  void aNeverPublishedProxyIRIHasAnEmptyPublishedState() {
     draft(A, one(A, "one"));
 
     assertThat(transactor.inTransaction(tx -> versioning.readPublished(tx, A)).isEmpty()).isTrue();
@@ -101,7 +101,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void thePublishedStateOfOneProxyIriDoesNotHoldAnother() {
+  void thePublishedStateOfOneProxyIRIDoesNotHoldAnother() {
     draft(A, one(A, "a"));
     draft(B, one(B, "b"));
     publish(A, B);
@@ -119,7 +119,7 @@ class ResourceVersioningReadTest {
     final IRI cid = generator.generateIRI(A, draft);
 
     final Optional<ReadableGraph> version = transactor
-        .inTransaction(tx -> versioning.readVersion(tx, cid).map(this::copy));
+        .inTransaction(tx -> versioning.readVersionByCID(tx, cid).map(this::copy));
 
     assertThat(version).isPresent();
     assertThat(version.get().size()).isEqualTo(1);
@@ -136,7 +136,7 @@ class ResourceVersioningReadTest {
     publish(A);
     final IRI cid = generator.generateIRI(A, draft);
 
-    final ReadableGraph version = transactor.inTransaction(tx -> versioning.readVersion(tx, cid).map(this::copy))
+    final ReadableGraph version = transactor.inTransaction(tx -> versioning.readVersionByCID(tx, cid).map(this::copy))
         .orElseThrow();
 
     assertThat(version.size()).isEqualTo(2);
@@ -165,12 +165,21 @@ class ResourceVersioningReadTest {
 
   @Test
   void aCidWithAFragmentIsRejected() {
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersion(tx, A_PART)))
+    final IRI withFragment = new SimpleIRI(generator.generateIRI(A, one(A, "one")).getIRIString() + "#part");
+
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersionByCID(tx, withFragment)))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
-  void aReferenceToAnotherProxyIriInsideAVersionKeepsNamingTheProxyIriOnEveryReadPath() {
+  void aProxyIRIWhereACidIsExpectedIsRejectedInsteadOfFindingNothing() {
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersionByCID(tx, A)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a CID");
+  }
+
+  @Test
+  void aReferenceToAnotherProxyIRIInsideAVersionKeepsNamingTheProxyIRIOnEveryReadPath() {
     final Graph draft = one(A, "one");
     draft.add(A, Q, B);
     draft(A, draft);
@@ -179,12 +188,13 @@ class ResourceVersioningReadTest {
     final IRI cid = generator.generateIRI(A, draft);
     final IRI cidB = generator.generateIRI(B, one(B, "b"));
 
-    final ReadableGraph byCid = transactor.inTransaction(tx -> copy(versioning.readVersion(tx, cid).orElseThrow()));
+    final ReadableGraph byCID = transactor
+        .inTransaction(tx -> copy(versioning.readVersionByCID(tx, cid).orElseThrow()));
     final ReadableGraph bySequence = transactor
         .inTransaction(tx -> copy(versioning.readVersion(tx, A, 1).orElseThrow()));
     final ReadableGraph published = transactor.inTransaction(tx -> copy(versioning.readPublished(tx, A)));
 
-    for (final ReadableGraph version : List.of(byCid, bySequence)) {
+    for (final ReadableGraph version : List.of(byCID, bySequence)) {
       assertThat(version.contains(rdf.createTriple(cid, Q, B))).isTrue();
       assertThat(version.contains(rdf.createTriple(cid, Q, cidB))).isFalse();
     }
@@ -192,19 +202,20 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aSelfReferenceBecomesTheCidInAVersionAndStaysTheProxyIriInThePublishedState() {
+  void aSelfReferenceBecomesTheCidInAVersionAndStaysTheProxyIRIInThePublishedState() {
     final Graph draft = one(A, "one");
     draft.add(A, Q, A);
     draft(A, draft);
     publish(A);
     final IRI cid = generator.generateIRI(A, draft);
 
-    final ReadableGraph byCid = transactor.inTransaction(tx -> copy(versioning.readVersion(tx, cid).orElseThrow()));
+    final ReadableGraph byCID = transactor
+        .inTransaction(tx -> copy(versioning.readVersionByCID(tx, cid).orElseThrow()));
     final ReadableGraph bySequence = transactor
         .inTransaction(tx -> copy(versioning.readVersion(tx, A, 1).orElseThrow()));
     final ReadableGraph published = transactor.inTransaction(tx -> copy(versioning.readPublished(tx, A)));
 
-    for (final ReadableGraph version : List.of(byCid, bySequence)) {
+    for (final ReadableGraph version : List.of(byCID, bySequence)) {
       assertThat(version.contains(rdf.createTriple(cid, Q, cid))).isTrue();
       assertThat(version.contains(rdf.createTriple(cid, Q, A))).isFalse();
     }
@@ -214,7 +225,7 @@ class ResourceVersioningReadTest {
   // --- readVersion by sequence number
 
   @Test
-  void versionNOfAProxyIriIsTheContentOfItsNthEntry() {
+  void versionNOfAProxyIRIIsTheContentOfItsNthEntry() {
     draft(A, one(A, "one"));
     publish(A);
     draft(A, one(A, "two"));
@@ -232,7 +243,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aSequenceNumberTheProxyIriNeverReachedIsEmpty() {
+  void aSequenceNumberTheProxyIRINeverReachedIsEmpty() {
     draft(A, one(A, "one"));
     publish(A);
 
@@ -256,7 +267,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aSequenceNumberBelowOneAndAProxyIriWithAFragmentAreRejected() {
+  void aSequenceNumberBelowOneAndAProxyIRIWithAFragmentAreRejected() {
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersion(tx, A, 0)))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersion(tx, A_PART, 1)))
@@ -275,16 +286,18 @@ class ResourceVersioningReadTest {
   // --- history
 
   @Test
-  void theHistoryOfANeverPublishedProxyIriIsEmpty() {
+  void theHistoryOfANeverPublishedProxyIRIIsEmpty() {
     assertThat(historyOf(A)).isEmpty();
   }
 
   @Test
   void theHistoryListsTheEntriesOldestFirstWithTheirMetadata() {
     draft(A, one(A, "one"));
-    final IRI first = publish(PublishDetails.NONE.withCreator(ALICE).withComment("first cut"), A).entries().get(A);
+    final IRI first = publish(EntryDetails.NONE.withCreator(ALICE).withComment("first cut"), A).results()
+        .get(A)
+        .entryIRI();
     draft(A, one(A, "two"));
-    final IRI second = publish(PublishDetails.NONE, A).entries().get(A);
+    final IRI second = publish(EntryDetails.NONE, A).results().get(A).entryIRI();
 
     final List<HistoryEntry> history = transactor.inTransaction(tx -> versioning.history(tx, A));
 
@@ -298,7 +311,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void theHistoryOfOneProxyIriDoesNotHoldAnotherOnes() {
+  void theHistoryOfOneProxyIRIDoesNotHoldAnotherOnes() {
     draft(A, one(A, "a"));
     draft(B, one(B, "b"));
     publish(A, B);
@@ -375,7 +388,7 @@ class ResourceVersioningReadTest {
   // --- publishState
 
   @Test
-  void aProxyIriWithoutHistoryIsNeverPublishedWhateverItsDraftHolds() {
+  void aProxyIRIWithoutHistoryIsNeverPublishedWhateverItsDraftHolds() {
     assertThat(state(A)).isEqualTo(PublishState.NEVER_PUBLISHED);
     draft(A, one(A, "one"));
     assertThat(state(A)).isEqualTo(PublishState.NEVER_PUBLISHED);
@@ -416,7 +429,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void anEmptiedDraftOfAPublishedProxyIriHasUnpublishedChanges() {
+  void anEmptiedDraftOfAPublishedProxyIRIHasUnpublishedChanges() {
     draft(A, one(A, "one"));
     publish(A);
     draft(A, new SimpleGraph());
@@ -425,7 +438,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aWritePastThePortOnTheProxyIriIsSeenByItsContent() {
+  void aWritePastThePortOnTheProxyIRIIsSeenByItsContent() {
     draft(A, one(A, "one"));
     publish(A);
     assertThat(state(A)).isEqualTo(PublishState.PUBLISHED_UNCHANGED);
@@ -500,7 +513,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aProxyIriWithAFragmentIsRejectedByEveryRead() {
+  void aProxyIRIWithAFragmentIsRejectedByEveryRead() {
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readPublished(tx, A_PART)))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.history(tx, A_PART)))
@@ -523,7 +536,7 @@ class ResourceVersioningReadTest {
   void aNullArgumentIsRejected() {
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readPublished(tx, null)))
         .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersion(tx, (IRI) null)))
+    assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersionByCID(tx, (IRI) null)))
         .isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.history(tx, null)))
         .isInstanceOf(NullPointerException.class);
@@ -539,7 +552,7 @@ class ResourceVersioningReadTest {
   }
 
   private Optional<ReadableGraph> versionOf(final IRI cid) {
-    return transactor.inTransaction(tx -> versioning.readVersion(tx, cid));
+    return transactor.inTransaction(tx -> versioning.readVersionByCID(tx, cid));
   }
 
   private Optional<ReadableGraph> versionOf(final IRI proxy, final long sequence) {
@@ -571,14 +584,14 @@ class ResourceVersioningReadTest {
   }
 
   private void addEntry(final String id, final long sequence, final Literal created) {
-    final IRI entryIri = new SimpleIRI("urn:uuid:00000000-0000-0000-0000-00000000000" + id);
+    final IRI entryIRI = new SimpleIRI("urn:uuid:00000000-0000-0000-0000-00000000000" + id);
     final Graph entry = new SimpleGraph();
-    entry.add(A, VocabVersioning.ENTRY, entryIri);
-    entry.add(entryIri, VocabVersioning.SEQUENCE, rdf.createLiteral(Long.toString(sequence), VocabXsd.INTEGER));
-    entry.add(entryIri, VocabVersioning.CONTENT, new SimpleIRI("ni:///sha3-256;x"));
-    entry.add(entryIri, VocabVersioning.PROCEDURE, rdf.createLiteral("ni-rdf/1"));
+    entry.add(A, VocabVersioning.ENTRY, entryIRI);
+    entry.add(entryIRI, VocabVersioning.SEQUENCE, rdf.createLiteral(Long.toString(sequence), VocabXsd.INTEGER));
+    entry.add(entryIRI, VocabVersioning.CID, new SimpleIRI("ni:///sha3-256;x"));
+    entry.add(entryIRI, VocabVersioning.PROCEDURE, rdf.createLiteral("ni-rdf/1"));
     if (created != null) {
-      entry.add(entryIri, VocabDct.CREATED, created);
+      entry.add(entryIRI, VocabDct.CREATED, created);
     }
     transactor.inTransaction(tx -> {
       tx.add(VersioningGraphs.HISTORY, entry);
@@ -594,16 +607,16 @@ class ResourceVersioningReadTest {
 
   private void draft(final IRI proxy, final ReadableGraph content) {
     transactor
-        .inTransaction(tx -> versioning.replaceSlice(tx, proxy, content, versioning.readSlice(tx, proxy).token()));
+        .inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, versioning.readDraft(tx, proxy).token()));
   }
 
   private PublishResult publish(final IRI... proxies) {
-    return publish(PublishDetails.NONE, proxies);
+    return publish(EntryDetails.NONE, proxies);
   }
 
-  private PublishResult publish(final PublishDetails details, final IRI... proxies) {
+  private PublishResult publish(final EntryDetails details, final IRI... proxies) {
     return transactor.inTransaction(tx -> versioning.publish(tx,
-        List.of(proxies).stream().map(proxy -> versioning.readSlice(tx, proxy).token()).toList(), details));
+        List.of(proxies).stream().map(proxy -> versioning.readDraft(tx, proxy).token()).toList(), details));
   }
 
   private Graph copy(final ReadableGraph graph) {
