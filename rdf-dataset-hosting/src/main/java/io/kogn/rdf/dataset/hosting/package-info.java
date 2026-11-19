@@ -24,7 +24,7 @@
  *       found it still leased, or found it not open at all</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetMaintenance} — find and clear the deletion leftover a
  *       failed {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#delete} left behind, creating
- *       nothing in their place; a port of its own, implemented alongside
+ *       nothing in its place; a port of its own, implemented alongside
  *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle} (see ADR-0018)</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetCleanupOutcome} — what
  *       {@link io.kogn.rdf.dataset.hosting.DatasetMaintenance#clearDeletionLeftover} did: cleared

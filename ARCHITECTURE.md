@@ -342,7 +342,7 @@ Settled semantics worth knowing before consuming it:
   otherwise be opened as an existing dataset, skipping the on-create hook and
   handing the consumer something that is neither the old dataset nor a fresh one.
   The failure is logged at `ERROR` as well as rethrown, and marks the identifier
-  as a deletion leftover — every failed delete marks it this way,
+  as carrying a deletion leftover — every failed delete marks it this way,
   regardless of how far the on-disk teardown got, even one that failed on its
   very first file. The mark is a `.deleting` file written inside the dataset's
   own directory before the teardown starts, so it survives a process restart and
@@ -355,7 +355,7 @@ Settled semantics worth knowing before consuming it:
   even though its directory still exists — the listing reports what an
   implementation can rule out, not a promise that every remaining identifier is
   one `acquire` would open at that moment.
-- **The deletion leftover of a failed delete is maintained through a port of their own**,
+- **The deletion leftover of a failed delete is maintained through a port of its own**,
   `DatasetMaintenance`, which `DatasetLifecycleRdf4j` implements alongside
   `DatasetLifecycle` ([ADR-0018](docs/adr/0018-dataset-maintenance-port.md)).
   `listDeletionLeftovers` names exactly the identifiers `list` leaves out for

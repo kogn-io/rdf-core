@@ -661,8 +661,8 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("a delete whose on-disk teardown keeps failing refuses the next acquire instead of serving the remains")
-    void delete_diskTeardownKeepsFailing_nextAcquireRefusesTheRemains() {
+    @DisplayName("a delete whose on-disk teardown keeps failing refuses the next acquire instead of serving the deletion leftover")
+    void delete_diskTeardownKeepsFailing_nextAcquireRefusesTheDeletionLeftover() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("undeletable");
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
@@ -684,7 +684,7 @@ class DatasetLifecycleRdf4jTest {
       assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
 
       // the cleanup cannot be finished — so the dataset is refused rather than opened over
-      // whatever remains, and it stays refused for as long as they are there.
+      // the deletion leftover, and it stays refused for as long as the leftover is there.
       assertThatThrownBy(() -> lc.acquire(id)).isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("deletion leftover")
           .hasCauseReference(diskFailure);
@@ -693,7 +693,7 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("list omits a deletion leftover while still reporting an intact dataset alongside them")
-    void list_omitsRemainsOfFailedDelete_butKeepsTheIntactDataset() throws Exception {
+    void list_omitsDeletionLeftover_butKeepsTheIntactDataset() throws Exception {
       final Path root = tmp.resolve("stores");
       final DatasetId broken = new DatasetId("half-deleted");
       final DatasetId intact = new DatasetId("still-there");
@@ -715,7 +715,7 @@ class DatasetLifecycleRdf4jTest {
 
       assertThatThrownBy(() -> lc.delete(broken)).isSameAs(diskFailure);
 
-      // the remains are still on disk — but they are no longer a dataset the port will open, so a
+      // the deletion leftover is still on disk — but it is no longer a dataset the port will open, so a
       // consumer iterating the listing must not be handed the identifier at all.
       assertThat(Files.list(root).count()).isEqualTo(2L);
       assertThat(lc.list()).containsExactly(intact);
@@ -756,14 +756,14 @@ class DatasetLifecycleRdf4jTest {
 
       assertThatThrownBy(() -> lc.delete(id)).isSameAs(diskFailure);
 
-      // precondition of the hazard: the remains are still on disk, so the directory is not empty
+      // precondition of the hazard: the deletion leftover is still on disk, so the directory is not empty
       // and would be read as "existing dataset" by the next create.
       assertThat(soleDatasetDirectory(root)).isNotEmptyDirectory();
       // hidden from the listing, though the acquire below reopens it after cleanup
       assertThat(lc.list()).doesNotContain(id);
 
       try (DatasetHandle ds = lc.acquire(id)) {
-        assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
+        assertThat(seeds).hasValue(2); // the deletion leftover was cleared away, so this is a genuine creation
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // freshly seeded
         assertThat(ds.sparqlQuery().ask(askOther)).isFalse(); // and nothing of the old dataset survived
         assertThat(ds.graphStore()).isNotSameAs(firstStore); // the dead cache entry did not survive either
@@ -799,8 +799,8 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("the deletion-leftover mark survives a restart: a second instance over the same storage root"
-        + " still refuses the remains if the cleanup keeps failing")
-    void delete_diskTeardownFails_secondInstanceOverSameRoot_stillRefusesTheRemains() {
+        + " still refuses the deletion leftover if the cleanup keeps failing")
+    void delete_diskTeardownFails_secondInstanceOverSameRoot_stillRefusesTheDeletionLeftover() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("restart-refused");
       final UncheckedIOException diskFailure = new UncheckedIOException(new IOException("simulated disk failure"));
@@ -819,7 +819,7 @@ class DatasetLifecycleRdf4jTest {
       first.shutDownAll(); // the process goes down with the mark still unresolved
 
       // a brand-new instance — its in-process tracking starts empty, so only the on-disk marker
-      // can be what makes it refuse the remains too.
+      // can be what makes it refuse the deletion leftover too.
       final DatasetLifecycleRdf4j second = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
           new DatasetStorage(root) {
             @Override
@@ -840,7 +840,7 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("the deletion-leftover mark survives a restart: a second instance over the same storage root"
-        + " cleans up the remains and seeds a fresh dataset once the cleanup succeeds")
+        + " cleans up the deletion leftover and seeds a fresh dataset once the cleanup succeeds")
     void delete_diskTeardownFails_secondInstanceOverSameRoot_cleansUpAndSeedsAfresh() throws Exception {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("restart-recovers");
@@ -867,7 +867,7 @@ class DatasetLifecycleRdf4jTest {
       assertThatThrownBy(() -> first.delete(id)).isSameAs(diskFailure);
       first.shutDownAll(); // the process goes down with the mark still unresolved
 
-      // precondition of the hazard: the remains are still on disk, not just the marker.
+      // precondition of the hazard: the deletion leftover is still on disk, not just the marker.
       assertThat(soleDatasetDirectory(root)).isNotEmptyDirectory();
 
       // a brand-new instance, real (non-overridden) on-disk teardown this time: the transient
@@ -884,7 +884,7 @@ class DatasetLifecycleRdf4jTest {
       // hidden from the listing, though the acquire below reopens it after cleanup
       assertThat(second.list()).doesNotContain(id);
       try (DatasetHandle ds = second.acquire(id)) {
-        assertThat(seeds).hasValue(2); // the remains were cleared away, so this is a genuine creation
+        assertThat(seeds).hasValue(2); // the deletion leftover was cleared away, so this is a genuine creation
         assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // freshly seeded
         assertThat(ds.sparqlQuery().ask(askOther)).isFalse(); // and nothing of the old dataset survived
       }
@@ -1026,7 +1026,7 @@ class DatasetLifecycleRdf4jTest {
   // ---------------------------------------------------------------------------
 
   @Nested
-  @DisplayName("maintenance of failed deletes")
+  @DisplayName("maintenance of deletion leftovers")
   class Maintenance {
 
     @TempDir
@@ -1053,7 +1053,7 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("deletion leftovers are enumerated, and only they")
-    void listDeletionLeftovers_namesTheRemains_butNotAnIntactDataset() {
+    void listDeletionLeftovers_namesTheDeletionLeftover_butNotAnIntactDataset() {
       final Path root = tmp.resolve("stores");
       final DatasetId broken = new DatasetId("half-deleted");
       final DatasetId intact = new DatasetId("still-there");
@@ -1069,14 +1069,14 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("the remains are still enumerated after a restart — the on-disk marker is what names them")
-    void listDeletionLeftovers_secondInstanceOverSameRoot_findsTheRemains() {
+    @DisplayName("a deletion leftover is still enumerated after a restart — the on-disk marker is what names it")
+    void listDeletionLeftovers_secondInstanceOverSameRoot_findsTheDeletionLeftover() {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("restart-listed");
       final DatasetLifecycleRdf4j first = failingFor(root, id, new AtomicBoolean(true), new AtomicInteger());
       first.acquire(id).close();
       assertThatThrownBy(() -> first.delete(id)).isInstanceOf(UncheckedIOException.class);
-      first.shutDownAll(); // the process goes down with the remains still there
+      first.shutDownAll(); // the process goes down with the deletion leftover still there
 
       final DatasetLifecycleRdf4j second = persistent(root);
 
@@ -1084,8 +1084,8 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("clearing the remains creates nothing in their place, and the identifier is free again")
-    void clearDeletionLeftover_removesTheRemains_withoutCreatingADataset() throws Exception {
+    @DisplayName("clearing a deletion leftover creates nothing in its place, and the identifier is free again")
+    void clearDeletionLeftover_removesTheDeletionLeftover_withoutCreatingADataset() throws Exception {
       final Path root = tmp.resolve("stores");
       final DatasetId id = new DatasetId("to-clear");
       final AtomicBoolean failing = new AtomicBoolean(true);
@@ -1097,7 +1097,7 @@ class DatasetLifecycleRdf4jTest {
 
       assertThat(lc.clearDeletionLeftover(id)).isEqualTo(DatasetCleanupOutcome.CLEARED);
 
-      // nothing was created in place of the remains: no directory, no seeding, in neither listing
+      // nothing was created in place of the deletion leftover: no directory, no seeding, in neither listing
       try (Stream<Path> children = Files.list(root)) {
         assertThat(children).isEmpty();
       }
@@ -1163,7 +1163,7 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("an identifier with neither a dataset nor remains reports that there was nothing to clear")
+    @DisplayName("an identifier with neither a dataset nor a deletion leftover reports that there was nothing to clear")
     void clearDeletionLeftover_unknownId_reportsNothingToClear() {
       final DatasetLifecycleRdf4j lc = persistent(tmp.resolve("stores"));
 
@@ -1172,8 +1172,8 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("an in-memory lifecycle never has remains: nothing to list, nothing to clear, an open dataset refused")
-    void inMemory_hasNoRemains() {
+    @DisplayName("an in-memory lifecycle never has a deletion leftover: nothing to list, nothing to clear, an open dataset refused")
+    void inMemory_hasNoDeletionLeftover() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("in-memory");
       lc.acquire(id).close();

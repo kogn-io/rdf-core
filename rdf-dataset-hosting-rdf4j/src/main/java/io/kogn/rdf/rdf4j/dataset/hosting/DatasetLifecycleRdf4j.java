@@ -87,8 +87,8 @@ import lombok.extern.slf4j.Slf4j;
  * freshly seeded new one.</p>
  *
  * <p>{@link #delete(DatasetId)} therefore logs the failure at {@code ERROR} (in
- * addition to rethrowing it, which a caller may swallow) and marks the id as a deletion
- * leftover — every failed delete marks it this way, regardless of how
+ * addition to rethrowing it, which a caller may swallow) and marks the id as carrying a
+ * deletion leftover — every failed delete marks it this way, regardless of how
  * far the on-disk teardown got, even one that failed on its very first file. The
  * mark itself is a {@code .deleting} file written inside the dataset's own
  * directory before the teardown starts and removed by it on success, so it survives
@@ -314,7 +314,7 @@ public final class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMai
    * {@inheritDoc}
    *
    * <p>A failure of the on-disk teardown is logged at {@code ERROR} as well as rethrown, and
-   * marks the dataset as a deletion leftover so the next {@link #acquire(DatasetId)}
+   * marks the id as carrying a deletion leftover so the next {@link #acquire(DatasetId)}
    * does not open it — see the class documentation.</p>
    *
    * <p>If removing the storage fails part-way, the failure is an {@link UncheckedIOException}
