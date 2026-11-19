@@ -54,8 +54,15 @@ The statement is narrowed to what holds and made true.
   `RDF4JBindingSet` is no longer reachable from the term-adapter package.
 - Code in `dataset` and `internal` cannot reach the package-private members, so
   it builds terms and graphs through the RDF4J-free `RDF4JFactory`, and converts
-  terms to RDF4J values by the term interfaces. A result graph is copied instead
-  of wrapping the `Model`, and a language tag of an RDF4J literal passes through
-  its normalised (lower-case) form.
+  terms to RDF4J values by the term interfaces. A language tag of an RDF4J
+  literal passes through its normalised (lower-case) form.
+- A result graph (`match`, `construct`, `export`) is copied into a new graph
+  instead of wrapping the `Model`. That is a chosen implementation, not a
+  consequence of the visibility above: a package-private `ReadableGraph` view
+  over the `Model` in `dataset` would avoid the copy without exposing an RDF4J
+  type. The copy costs O(n) eager work per call; every affected method returns
+  `ReadableGraph`, so moving to a view later breaks no API
+  ([#280](https://github.com/kogn-io/rdf-core/issues/280), with a measurement
+  first).
 - ADR-0004 and ADR-0005 stay as written and point here from their status lines;
   this ADR is their correction.
