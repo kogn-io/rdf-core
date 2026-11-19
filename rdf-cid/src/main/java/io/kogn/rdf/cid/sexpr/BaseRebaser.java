@@ -55,8 +55,8 @@ public final class BaseRebaser {
    *
    * <p>The graph itself is not changed. The bases are checked like the base of
    * {@link ContentAddressedIRIGenerator#generateIRI}: a base carries no {@code #}, is not
-   * the IRI ni-rdf/1 reserves for its placeholder and does not read as a blank node label
-   * ({@code _:}). The graph is not required to describe
+   * the IRI ni-rdf/1 reserves for its placeholder, holds no unpaired surrogate and does not
+   * read as a blank node label ({@code _:}). The graph is not required to describe
    * {@code from} alone; IRIs of other resources are carried over unchanged. It must not
    * already use the new base, though: its IRIs would merge with the renamed ones, and the
    * rename could no longer be undone.</p>
@@ -67,7 +67,8 @@ public final class BaseRebaser {
    * @return a new graph holding the renamed triples, as many as {@code graph} holds
    * @throws IllegalArgumentException if an argument is null; if {@code from} or {@code to}
    *         carries a {@code #} ({@code [INVALID_BASE]}), is the reserved IRI
-   *         ({@code [RESERVED_IRI]}) or begins with {@code _:} ({@code [UNSUPPORTED_TERM]}); if {@code to} differs from {@code from} and the graph
+   *         ({@code [RESERVED_IRI]}), holds an unpaired surrogate or begins with {@code _:}
+   *         ({@code [UNSUPPORTED_TERM]}); if {@code to} differs from {@code from} and the graph
    *         already uses an IRI whose base is {@code to}; if a term is none of an RDF 1.1 IRI,
    *         blank node or literal ({@code [UNSUPPORTED_TERM]}, also a null triple or term); or if the term factory rejects a renamed IRI
    */

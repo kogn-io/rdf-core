@@ -7,7 +7,12 @@ no longer goes into the digest; the port signature is superseded by
 base IRI as an argument; the identifier format (`urn:cid:`) and the canonicalizer
 (URDNA2015) are superseded by
 [ADR-0019](0019-content-addressed-iri-as-ni-name.md): an RFC 6920 `ni:` name over
-an input fixed by an independent specification, canonicalized with RDFC-1.0.
+an input fixed by an independent specification, canonicalized with RDFC-1.0; the
+names and the public surface are superseded by
+[ADR-0025](0025-content-addressed-iri-internals-and-names.md): only the port
+the building blocks of `sexpr` are package-private, beside the implementation
+only `BaseRebaser` is public, and acronyms are written in capitals
+(`ContentAddressedIRIGenerator`, `generateIRI`).
 
 ## Context
 

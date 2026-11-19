@@ -2,7 +2,9 @@
 
 Status: Accepted (2026-10-03) — supersedes the port signature of
 [ADR-0014](0014-content-addressed-iri-module.md) and the inferred base of
-[ADR-0016](0016-content-addressed-iri-self-placeholder.md)
+[ADR-0016](0016-content-addressed-iri-self-placeholder.md); the name `generateIri`
+is superseded by [ADR-0025](0025-content-addressed-iri-internals-and-names.md):
+the method is `generateIRI`
 
 ## Context
 
