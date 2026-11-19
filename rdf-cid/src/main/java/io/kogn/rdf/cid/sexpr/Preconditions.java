@@ -108,7 +108,7 @@ final class Preconditions {
           + " without IRI string, which the RDF 1.1 term contract requires");
     }
     if (baseIRI.indexOf(Terms.FRAGMENT_SEPARATOR) >= 0) {
-      throw failure(INVALID_BASE, "A " + description + " names the resource as a whole and carries no #fragment, "
+      throw failure(INVALID_BASE, "The " + description + " names the resource as a whole and carries no #fragment, "
           + "but got <" + baseIRI + ">");
     }
     if (baseIRI.equals(Terms.RESERVED_IRI)) {

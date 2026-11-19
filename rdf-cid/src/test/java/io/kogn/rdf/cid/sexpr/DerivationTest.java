@@ -22,6 +22,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import io.kogn.rdf.cid.AsWrittenLiteral;
 import io.kogn.rdf.cid.AsWrittenRDF;
 import io.kogn.rdf.terms.BlankNode;
+import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.SimpleRdf;
@@ -184,8 +185,10 @@ class DerivationTest {
       throw broken;
     });
 
-    assertThatExceptionOfType(IllegalStateException.class)
-        .isThrownBy(() -> failing.derive(self, List.of(rdf.createTriple(self, p, rdf.createLiteral("v")))))
+    Graph graph = rdf.createGraph();
+    graph.add(rdf.createTriple(self, p, rdf.createLiteral("v")));
+
+    assertThatExceptionOfType(IllegalStateException.class).isThrownBy(() -> failing.generateIRI(self, graph))
         .isSameAs(broken);
   }
 }
