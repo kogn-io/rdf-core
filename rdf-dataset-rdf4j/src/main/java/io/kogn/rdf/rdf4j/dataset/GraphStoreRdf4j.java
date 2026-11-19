@@ -51,9 +51,9 @@ public class GraphStoreRdf4j implements GraphStore {
    *
    * <p><strong>Inferred statements are counted.</strong> The delta is measured via
    * {@link RepositoryConnection#size}, which has no {@code includeInferred} parameter to exclude
-   * them — RDF4J exposes no such variant — unlike {@link #export}, which requests
+   * them — RDF4J exposes no such variant — unlike {@link #snapshot}, which requests
    * {@code includeInferred=false} explicitly via {@link RepositoryConnection#getStatements}. This
-   * only diverges from {@code export}'s asserted-only view when a reasoning-capable
+   * only diverges from {@code snapshot}'s asserted-only view when a reasoning-capable
    * {@link org.eclipse.rdf4j.sail.Sail Sail} sits underneath; the {@code MemoryStore}/
    * {@code NativeStore} configurations this library ships never infer, so the two views coincide
    * today.</p>
@@ -147,7 +147,7 @@ public class GraphStoreRdf4j implements GraphStore {
    * @throws IllegalStateException if the graph holds an RDF 1.2 triple term
    */
   @Override
-  public ReadableGraph export(final IRI namedGraph) {
+  public ReadableGraph snapshot(final IRI namedGraph) {
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
     final List<Statement> statements = StorageErrors.translating(() -> {
       try (RepositoryConnection conn = Connections.open(repository);

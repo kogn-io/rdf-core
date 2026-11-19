@@ -18,7 +18,7 @@ import io.kogn.rdf.terms.Triple;
 
 /**
  * Unit tests for {@link RDF4JGraph}: a null subject fails with a named {@link NullPointerException}
- * (issue #85), and triples are matched regardless of the statement context an exported graph keeps
+ * (issue #85), and triples are matched regardless of the statement context a snapshot keeps
  * (issue #152 R1-1).
  */
 class RDF4JGraphTest {

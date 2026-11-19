@@ -6,7 +6,7 @@
  * needs:</p>
  *
  * <ul>
- *   <li>{@link io.kogn.rdf.dataset.GraphStore} — named-graph-addressed add/remove/clear/export</li>
+ *   <li>{@link io.kogn.rdf.dataset.GraphStore} — named-graph-addressed add/remove/clear/snapshot</li>
  *   <li>{@link io.kogn.rdf.dataset.SparqlQuery} — SPARQL SELECT, CONSTRUCT and ASK (read)</li>
  *   <li>{@link io.kogn.rdf.dataset.SparqlUpdate} — SPARQL UPDATE (write)</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetExport} — serialization of the whole dataset or one

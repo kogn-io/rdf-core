@@ -136,7 +136,7 @@ class ResourceVersioningTombstoneTest {
 
     final IRI entry = delete(A, PublishDetails.NONE).entry();
 
-    final ReadableGraph history = transactor.inTransaction(tx -> tx.export(VersioningGraphs.HISTORY));
+    final ReadableGraph history = transactor.inTransaction(tx -> tx.snapshot(VersioningGraphs.HISTORY));
     assertThat(history.contains(rdf.createTriple(A, VocabVersioning.ENTRY, entry))).isTrue();
     assertThat(history.contains(rdf.createTriple(entry, VocabRdf.TYPE, VocabVersioning.TOMBSTONE))).isTrue();
     assertThat(
@@ -373,7 +373,7 @@ class ResourceVersioningTombstoneTest {
   }
 
   private long countIn(final IRI graph) {
-    return transactor.inTransaction(tx -> tx.export(graph).stream().count());
+    return transactor.inTransaction(tx -> tx.snapshot(graph).stream().count());
   }
 
   private Graph one(final IRI proxy, final String value) {

@@ -23,7 +23,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * adds two pattern reads that have no non-transactional equivalent:
  * {@link #contains(IRI, BlankNodeOrIRI, IRI, RDFTerm) contains}, the guard read of
  * ADR-0008, and {@link #match(IRI, BlankNodeOrIRI, IRI, RDFTerm) match}, which returns the
- * matching triples and, unlike {@link #export(IRI) export}, observes only its pattern.</p>
+ * matching triples and, unlike {@link #snapshot(IRI) snapshot}, observes only its pattern.</p>
  *
  * <p>Instances are created and managed by {@link DatasetTransactor#inTransaction}
  * and must not be used outside the scope of that call. An instance kept past the end of its
@@ -36,7 +36,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  *
  * <p>This interface does not promise that a blank node read from the store keeps its label. A
  * caller that hands a {@link io.kogn.rdf.terms.BlankNode} obtained from {@link #match} or
- * {@link #export(IRI) export} back to a later pattern read, {@code add} or {@code remove} of the
+ * {@link #snapshot(IRI) snapshot} back to a later pattern read, {@code add} or {@code remove} of the
  * same transaction relies on more than that: that the node still denotes the same node in the
  * store, and that two distinct nodes keep distinct labels. {@code rdf-versioning} does exactly
  * this (it reads a slice's blank nodes as subject and as object and removes them again by the
@@ -67,7 +67,7 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * {@link DatasetTransactor} for what its isolation guarantee does and does not
    * cover.</p>
    *
-   * <p>Unlike the inherited {@link #export(IRI) export}, {@link #select select} and
+   * <p>Unlike the inherited {@link #snapshot(IRI) snapshot}, {@link #select select} and
    * {@link #construct construct}, which fail on an RDF 1.2 triple term (see
    * {@link GraphStore} and {@link SparqlQuery}), this method returns only a boolean and is
    * unaffected by one.</p>
@@ -91,16 +91,16 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * <p>Use {@code null} as a wildcard for any of subject, predicate and object, as in
    * {@link #contains(IRI, BlankNodeOrIRI, IRI, RDFTerm) contains}. {@code match(g, s, null,
    * null)} therefore reads everything {@code g} says about {@code s}; {@code match(g, null,
-   * null, null)} reads the whole graph, like {@link #export(IRI) export}.</p>
+   * null, null)} reads the whole graph, like {@link #snapshot(IRI) snapshot}.</p>
    *
    * <p><strong>Observes only the pattern.</strong> Where the transaction's isolation
    * level tracks what a transaction read, this read counts as having read the pattern,
    * not the named graph: a concurrent commit of a triple outside the pattern does not make
    * this transaction lose its commit, a concurrent commit of a matching triple does. That
-   * is the difference to {@link #export(IRI) export}, which observes the whole named graph
+   * is the difference to {@link #snapshot(IRI) snapshot}, which observes the whole named graph
    * however little of it the caller goes on to use. A read that needs only some subjects
    * of a large, concurrently written graph should therefore state them as patterns here
-   * rather than export the graph and filter. One exception depends on the backend: a
+   * rather than take a snapshot of the graph and filter. One exception depends on the backend: a
    * concurrent commit that clears or drops the whole named graph ({@link #clear(IRI) clear},
    * or a SPARQL {@code CLEAR}/{@code DROP} of it) may count as a change to every pattern read
    * in that graph, including one that matched nothing the clear removed. What the isolation
@@ -109,7 +109,7 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * {@link DatasetTransactor}'s; a first-insert guard reads through {@code contains}
    * (ADR-0008).</p>
    *
-   * <p>Like {@link #export(IRI) export}, the result is a snapshot taken when the call
+   * <p>Like {@link #snapshot(IRI) snapshot}, the result is a snapshot taken when the call
    * returns: later writes in this transaction do not change it, and the caller may keep
    * it. A matching triple whose object is an RDF 1.2 triple term, which the data model
    * cannot represent but a SPARQL update can store, makes the call fail.</p>

@@ -481,7 +481,7 @@ class ResourceVersioningPublishTest {
 
   private static ReadableGraph copy(final DatasetTx tx, final IRI graph) {
     final Graph copy = new SimpleGraph();
-    for (final Triple triple : tx.export(graph).stream().toList()) {
+    for (final Triple triple : tx.snapshot(graph).stream().toList()) {
       copy.add(triple);
     }
     return copy;

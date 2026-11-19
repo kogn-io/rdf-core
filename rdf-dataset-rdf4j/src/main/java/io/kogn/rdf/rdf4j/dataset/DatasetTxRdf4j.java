@@ -48,7 +48,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  *
  * <p>{@link #match(IRI, io.kogn.rdf.terms.BlankNodeOrIRI, IRI, io.kogn.rdf.terms.RDFTerm)} maps
  * to {@link RepositoryConnection#getStatements} with the caller's pattern, the read
- * {@code contains} and {@code export} make as well, and copies the result before returning.
+ * {@code contains} and {@code snapshot} make as well, and copies the result before returning.
  * With a bound component it registers only that pattern as observed, so under
  * {@code SERIALIZABLE} it conflicts with a concurrent commit of a matching triple and with
  * nothing else in the named graph — except, on a {@code NativeStore}, a concurrent commit that
@@ -57,7 +57,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * records it as a cleared context and counts every pattern observed in that context as
  * changed, so the match conflicts even if the clear removed no triple matching it. A
  * {@code MemoryStore} lets such a match commit. Inferred statements are excluded, and an RDF 1.2
- * triple term in the result is rejected like in {@link #export}.</p>
+ * triple term in the result is rejected like in {@link #snapshot}.</p>
  *
  * <p>{@link #add} and {@link #remove} compute their delta per triple, via
  * {@link RepositoryConnection#hasStatement} before mutating each one, instead of sampling
@@ -71,7 +71,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * touch. See <a href="https://github.com/kogn-io/rdf-core/issues/64">issue 64</a> and
  * ADR-0012.</p>
  *
- * <p>{@link #count(IRI)}, {@link #count()} and {@link #export} are unaffected: they still read
+ * <p>{@link #count(IRI)}, {@link #count()} and {@link #snapshot} are unaffected: they still read
  * the whole named graph, and that whole-graph observation is deliberate rather than a gap
  * — a transaction that already asked "how many/which triples are in this graph" is meant to
  * conflict with any concurrent writer to that graph, the same way a {@code contains} guard
@@ -172,7 +172,7 @@ class DatasetTxRdf4j implements DatasetTx {
    * @throws IllegalStateException if the graph holds an RDF 1.2 triple term
    */
   @Override
-  public ReadableGraph export(final IRI namedGraph) {
+  public ReadableGraph snapshot(final IRI namedGraph) {
     requireActive();
     final org.eclipse.rdf4j.model.IRI context = RDF4JConverters.toRDF4JIRI(namedGraph);
     final List<Statement> statements = StorageErrors.translating(() -> {

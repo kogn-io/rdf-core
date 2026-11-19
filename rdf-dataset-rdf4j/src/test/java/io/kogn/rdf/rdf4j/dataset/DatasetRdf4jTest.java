@@ -242,34 +242,50 @@ class DatasetRdf4jTest {
     }
 
     @Test
-    @DisplayName("an exported graph finds, deduplicates and removes its own triples (issue #152 R1-1)")
-    void export_graphFindsItsOwnTriples() {
+    @DisplayName("a snapshot finds, deduplicates and removes its own triples (issue #152 R1-1)")
+    void snapshot_graphFindsItsOwnTriples() {
       // given
       store.add(GRAPH_1, singleTripleGraph());
       final Triple triple = rdf.createTriple(SUBJECT, PREDICATE, OBJECT);
 
       // when
-      final Graph exported = (Graph) store.export(GRAPH_1);
+      final Graph snapshot = (Graph) store.snapshot(GRAPH_1);
 
       // then
-      assertThat(exported.contains(triple)).isTrue();
-      exported.add(triple);
-      assertThat(exported.size()).isEqualTo(1L);
-      exported.remove(triple);
-      assertThat(exported.isEmpty()).isTrue();
+      assertThat(snapshot.contains(triple)).isTrue();
+      snapshot.add(triple);
+      assertThat(snapshot.size()).isEqualTo(1L);
+      snapshot.remove(triple);
+      assertThat(snapshot.isEmpty()).isTrue();
     }
 
     @Test
-    @DisplayName("export returns the added triples")
-    void export_afterAdd_returnsTriples() {
+    @DisplayName("snapshot returns the added triples")
+    void snapshot_afterAdd_returnsTriples() {
       // given
       store.add(GRAPH_1, singleTripleGraph());
 
       // when
-      final ReadableGraph exported = store.export(GRAPH_1);
+      final ReadableGraph snapshot = store.snapshot(GRAPH_1);
 
       // then
-      assertThat(exported.size()).isEqualTo(1L);
+      assertThat(snapshot.size()).isEqualTo(1L);
+    }
+
+    @Test
+    @SuppressWarnings("removal")
+    @DisplayName("the deprecated export(IRI) returns the same graph as snapshot(IRI)")
+    void deprecatedExport_returnsSameGraphAsSnapshot() {
+      // given
+      store.add(GRAPH_1, singleTripleGraph());
+
+      // when
+      final ReadableGraph viaExport = store.export(GRAPH_1);
+      final ReadableGraph viaSnapshot = store.snapshot(GRAPH_1);
+
+      // then
+      assertThat(viaExport.stream().toList()).containsExactlyInAnyOrderElementsOf(viaSnapshot.stream().toList());
+      assertThat(viaExport.size()).isEqualTo(1L);
     }
 
     @Test
@@ -924,7 +940,7 @@ class DatasetRdf4jTest {
 
     @Test
     @DisplayName("named graph that does not exist yields a document with no statements,"
-        + " mirroring GraphStore#export(IRI)")
+        + " mirroring GraphStore#snapshot(IRI)")
     void exportNamedGraph_whenGraphIsAbsent_writesNoStatements() throws IOException {
       // given — GRAPH_2 was never written to
       store.add(GRAPH_1, singleTripleGraph());
@@ -1235,22 +1251,22 @@ class DatasetRdf4jTest {
     }
 
     @Test
-    @DisplayName("a graph exported inside a transaction finds, deduplicates and removes its own triples"
+    @DisplayName("a snapshot taken inside a transaction finds, deduplicates and removes its own triples"
         + " (issue #152 R1-1)")
-    void txExport_graphFindsItsOwnTriples() {
+    void txSnapshot_graphFindsItsOwnTriples() {
       // given
       store.add(GRAPH_1, singleTripleGraph());
       final Triple triple = rdf.createTriple(SUBJECT, PREDICATE, OBJECT);
 
       // when
-      final Graph exported = transactor.inTransaction(tx -> (Graph) tx.export(GRAPH_1));
+      final Graph snapshot = transactor.inTransaction(tx -> (Graph) tx.snapshot(GRAPH_1));
 
       // then
-      assertThat(exported.contains(triple)).isTrue();
-      exported.add(triple);
-      assertThat(exported.size()).isEqualTo(1L);
-      exported.remove(triple);
-      assertThat(exported.isEmpty()).isTrue();
+      assertThat(snapshot.contains(triple)).isTrue();
+      snapshot.add(triple);
+      assertThat(snapshot.size()).isEqualTo(1L);
+      snapshot.remove(triple);
+      assertThat(snapshot.isEmpty()).isTrue();
     }
 
     @Test
@@ -1557,16 +1573,16 @@ class DatasetRdf4jTest {
     }
 
     @Test
-    @DisplayName("export returns the triples added in the same transaction")
-    void inTransaction_exportAfterAdd_returnsTriples() {
+    @DisplayName("snapshot returns the triples added in the same transaction")
+    void inTransaction_snapshotAfterAdd_returnsTriples() {
       // when
-      final ReadableGraph exported = transactor.inTransaction(tx -> {
+      final ReadableGraph snapshot = transactor.inTransaction(tx -> {
         tx.add(GRAPH_1, singleTripleGraph());
-        return tx.export(GRAPH_1);
+        return tx.snapshot(GRAPH_1);
       });
 
       // then
-      assertThat(exported.size()).isEqualTo(1L);
+      assertThat(snapshot.size()).isEqualTo(1L);
     }
 
     @Test

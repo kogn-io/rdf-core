@@ -4,7 +4,7 @@
  * <p>This package provides concrete RDF4J-backed implementations of the
  * dataset port interfaces defined in {@code rdf-dataset}:</p>
  * <ul>
- *   <li>{@link io.kogn.rdf.rdf4j.dataset.GraphStoreRdf4j} - named-graph add/remove/clear/export</li>
+ *   <li>{@link io.kogn.rdf.rdf4j.dataset.GraphStoreRdf4j} - named-graph add/remove/clear/snapshot</li>
  *   <li>{@link io.kogn.rdf.rdf4j.dataset.SparqlQueryRdf4j} - SPARQL SELECT, CONSTRUCT and ASK</li>
  *   <li>{@link io.kogn.rdf.rdf4j.dataset.SparqlUpdateRdf4j} - SPARQL UPDATE</li>
  *   <li>{@link io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j} - atomic unit-of-work</li>

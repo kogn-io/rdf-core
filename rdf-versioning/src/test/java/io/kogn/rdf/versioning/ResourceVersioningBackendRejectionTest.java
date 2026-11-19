@@ -168,7 +168,7 @@ class ResourceVersioningBackendRejectionTest {
         .of(CONTENT, VersioningGraphs.CONTENT_STORE, VersioningGraphs.PUBLISHED, VersioningGraphs.HISTORY,
             VersioningGraphs.CONFIG)
         .stream()
-        .flatMap(graph -> tx.export(graph)
+        .flatMap(graph -> tx.snapshot(graph)
             .stream()
             .map(t -> graph.ntriplesString() + " " + t.getSubject().ntriplesString() + " "
                 + t.getPredicate().ntriplesString() + " " + t.getObject().ntriplesString()))

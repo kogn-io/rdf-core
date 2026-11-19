@@ -10,9 +10,8 @@ import io.kogn.rdf.terms.IRI;
 /**
  * Serialization port — writes a dataset, or one of its named graphs, to a byte stream.
  *
- * <p>The counterpart to {@link GraphStore#export(IRI)}, which despite its name serializes
- * nothing: it hands back an in-memory {@link io.kogn.rdf.terms.ReadableGraph} snapshot of one
- * named graph. This port produces the actual document — Turtle, TriG, N-Triples or N-Quads
+ * <p>Where {@link GraphStore#snapshot(IRI)} hands back an in-memory
+ * {@link io.kogn.rdf.terms.ReadableGraph} of one named graph, this port produces the actual document — Turtle, TriG, N-Triples or N-Quads
  * (see {@link RdfFormat}) — that a dump, a backup or an HTTP response body is made of.</p>
  *
  * <p><strong>Reading, not a unit of work.</strong> Export never mutates the dataset, and like
@@ -22,7 +21,7 @@ import io.kogn.rdf.terms.IRI;
  * for as long as the caller's sink takes to swallow it, and holding a transaction open for that
  * would make an unbounded, caller-paced I/O operation part of an atomic unit of work whose
  * conflict surface is the entire store. A caller who needs a serialized snapshot that is atomic
- * with its other work can take one inside a transaction with {@link DatasetTx#export(IRI)} and
+ * with its other work can take one inside a transaction with {@link DatasetTx#snapshot(IRI)} and
  * serialize the returned graph afterwards. See ADR-0013.</p>
  *
  * <p><strong>The stream belongs to the caller.</strong> Implementations write to it and flush
@@ -50,14 +49,14 @@ public interface DatasetExport {
    * leave statements in the store's default graph. Such statements are serialized
    * untagged (an unnamed block in TriG, no fourth term in N-Quads) and, once written,
    * are reachable only through this whole-dataset export: neither
-   * {@link #export(OutputStream, RdfFormat, IRI)} nor {@link GraphStore#export(IRI)} can
+   * {@link #export(OutputStream, RdfFormat, IRI)} nor {@link GraphStore#snapshot(IRI)} can
    * address a default graph, since both require a named-graph {@link IRI}.</p>
    *
    * <p>This port checks nothing against the RDF 1.1 data model (see {@link io.kogn.rdf.terms})
    * and writes the store's content as it is. Under that precondition the document is RDF 1.1.
    * If the store holds an RDF 1.2 triple term, which a SPARQL update stores unchecked, the
    * document carries it in RDF 1.2 syntax, which an RDF 1.1-only reader does not understand;
-   * unlike {@link GraphStore#export(IRI)}, this port throws no {@link IllegalStateException} for
+   * unlike {@link GraphStore#snapshot(IRI)}, this port throws no {@link IllegalStateException} for
    * such content.</p>
    *
    * <p>An empty dataset yields a document with no statements; depending on the format
@@ -84,7 +83,7 @@ public interface DatasetExport {
    * same named graph.</p>
    *
    * <p>Writes a document with no statements if the named graph does not exist or is empty,
-   * mirroring {@link GraphStore#export(IRI)}, which returns an empty graph in the same
+   * mirroring {@link GraphStore#snapshot(IRI)}, which returns an empty graph in the same
    * case — a dataset does not distinguish an absent named graph from an empty one.</p>
    *
    * @param out the stream to write to; must not be {@code null}. Written to and flushed,

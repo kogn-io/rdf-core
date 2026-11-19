@@ -62,8 +62,8 @@ import io.kogn.rdf.dataset.DatasetTx;
  * <p><strong>What counts as an "observed pattern" differs by operation.</strong> Reads through
  * {@link DatasetTx#contains(io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.BlankNodeOrIRI,
  * io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.RDFTerm) contains}, {@code match}, {@code count},
- * {@code export}, {@code ask} and {@code select} observe exactly the pattern (or, for a wildcard
- * {@code count} / {@code export}, the whole named graph) they read, and participate in conflict
+ * {@code snapshot}, {@code ask} and {@code select} observe exactly the pattern (or, for a wildcard
+ * {@code count} / {@code snapshot}, the whole named graph) they read, and participate in conflict
  * detection accordingly — that is what makes them usable as optimistic-concurrency guards.
  * {@link DatasetTx#add add} and {@link DatasetTx#remove remove}, by contrast, observe only the
  * triples they themselves touch: each is checked and mutated one triple at a time, so a
@@ -136,11 +136,11 @@ import io.kogn.rdf.dataset.DatasetTx;
  * the build.</li>
  * <li>On the {@code NativeStore} (never on the {@code MemoryStore}), a single writer thread
  * occasionally got a {@link ConcurrencyConflictException} without any opposing transaction while
- * other threads read outside transactions ({@code count}, {@code ask}, {@code export}; rates up
+ * other threads read outside transactions ({@code count}, {@code ask}, {@code snapshot}; rates up
  * to about 0.05 % of commits, 6.1.0). The mechanism is not established. Runs of 20 s against
  * 6.2.0-M2 (three reader threads; 231,920 commits with {@code ask}, 11,219 with {@code count},
- * 18,045 with {@code export}) saw none, which does not prove it gone. The failed transaction is
- * rolled back cleanly and a retry succeeds.</li>
+ * 18,045 with {@code snapshot}, then named {@code export}) saw none, which does not prove it
+ * gone. The failed transaction is rolled back cleanly and a retry succeeds.</li>
  * </ul>
  * <p>Whatever the version, a caller on the {@code NativeStore} must treat a
  * {@link ConcurrencyConflictException} as retryable and must not read it as proof that another

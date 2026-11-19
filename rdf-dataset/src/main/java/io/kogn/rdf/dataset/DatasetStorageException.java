@@ -21,7 +21,7 @@ package io.kogn.rdf.dataset;
  *
  * <p>What the type does <em>not</em> cover: a {@code null} argument ({@link NullPointerException}),
  * an RDF 1.2 triple term in a stored graph ({@link IllegalStateException}, see
- * {@link GraphStore#export}), and the use of a {@link DatasetTx} after its transaction has ended
+ * {@link GraphStore#snapshot}), and the use of a {@link DatasetTx} after its transaction has ended
  * ({@link IllegalStateException}, see {@link DatasetTx}) are defects of the call, not failures
  * of the store, and keep their own types. In particular a retry is pointless for them.</p>
  *
