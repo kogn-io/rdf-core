@@ -65,7 +65,7 @@ class ResourceVersioningBackendRejectionTest {
   }
 
   @Test
-  void aReplacementWithAnIriTheBackendRejectsLeavesTheDraftAndTokenAlone() {
+  void aReplacementWithAnIRITheBackendRejectsLeavesTheDraftAndTokenAlone() {
     assertRejectedReplacementChangesNothing(rdf.createTriple(A, Q, WITH_SPACE));
   }
 

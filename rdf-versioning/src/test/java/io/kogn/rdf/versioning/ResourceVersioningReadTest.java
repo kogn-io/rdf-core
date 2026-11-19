@@ -112,7 +112,7 @@ class ResourceVersioningReadTest {
   // --- readVersion by CID
 
   @Test
-  void aVersionIsReadByItsCidWithTheCidAsSubject() {
+  void aVersionIsReadByItsCIDWithTheCIDAsSubject() {
     final Graph draft = one(A, "one");
     draft(A, draft);
     publish(A);
@@ -127,7 +127,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aVersionWithBlankNodesStillVerifiesAgainstItsCid() {
+  void aVersionWithBlankNodesStillVerifiesAgainstItsCID() {
     final BlankNode node = rdf.createBlankNode("n");
     final Graph draft = new SimpleGraph();
     draft.add(A, P, node);
@@ -144,7 +144,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aCidTheContentStoreDoesNotHoldIsEmpty() {
+  void aCIDTheContentStoreDoesNotHoldIsEmpty() {
     draft(A, one(A, "one"));
     publish(A);
     final IRI unknown = generator.generateIRI(A, one(A, "unpublished"));
@@ -153,7 +153,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aCidInAnotherSpellingIsNotFound() {
+  void aCIDInAnotherSpellingIsNotFound() {
     final Graph draft = one(A, "one");
     draft(A, draft);
     publish(A);
@@ -164,7 +164,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aCidWithAFragmentIsRejected() {
+  void aCIDWithAFragmentIsRejected() {
     final IRI withFragment = new SimpleIRI(generator.generateIRI(A, one(A, "one")).getIRIString() + "#part");
 
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersionByCID(tx, withFragment)))
@@ -172,7 +172,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aProxyIRIWhereACidIsExpectedIsRejectedInsteadOfFindingNothing() {
+  void aProxyIRIWhereACIDIsExpectedIsRejectedInsteadOfFindingNothing() {
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersionByCID(tx, A)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("not a CID");
@@ -202,7 +202,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aSelfReferenceBecomesTheCidInAVersionAndStaysTheProxyIRIInThePublishedState() {
+  void aSelfReferenceBecomesTheCIDInAVersionAndStaysTheProxyIRIInThePublishedState() {
     final Graph draft = one(A, "one");
     draft.add(A, Q, A);
     draft(A, draft);
@@ -395,7 +395,7 @@ class ResourceVersioningReadTest {
   }
 
   @Test
-  void aDraftWithTheCidOfTheLatestEntryIsPublishedUnchanged() {
+  void aDraftWithTheCIDOfTheLatestEntryIsPublishedUnchanged() {
     draft(A, one(A, "one"));
     publish(A);
 

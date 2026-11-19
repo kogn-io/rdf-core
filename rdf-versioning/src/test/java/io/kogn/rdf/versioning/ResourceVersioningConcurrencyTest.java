@@ -119,7 +119,7 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
-  void aVersionReadByCidDoesNotConflictWithAPublishOfAnotherProxyIRI() throws InterruptedException {
+  void aVersionReadByCIDDoesNotConflictWithAPublishOfAnotherProxyIRI() throws InterruptedException {
     final IRI cidOfA = transactor.inTransaction(tx -> versioning.history(tx, A).getLast().cid().orElseThrow());
 
     final Throwable outcome = outcomeAgainst(tx -> versioning.readVersionByCID(tx, cidOfA), () -> publish(B));
@@ -250,7 +250,7 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
-  void aVersionReadByCidConflictsWithAPublishOfTheSameContentEvenIfItIsStoredAlready() throws InterruptedException {
+  void aVersionReadByCIDConflictsWithAPublishOfTheSameContentEvenIfItIsStoredAlready() throws InterruptedException {
     final IRI cidOfA = latestCID(A);
     draft(C, resource(C, "a1"));
 
@@ -271,7 +271,7 @@ class ResourceVersioningConcurrencyTest {
   }
 
   @RepeatedTest(RUNS)
-  void aVersionReadByCidConflictsWithADeleteWhoseTombstoneNamesTheCid() throws InterruptedException {
+  void aVersionReadByCIDConflictsWithADeleteWhoseTombstoneNamesTheCID() throws InterruptedException {
     final IRI cidOfB = latestCID(B);
     final RevisionToken tokenOfB = token(B);
 

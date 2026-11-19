@@ -239,7 +239,7 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void aVersionReadByCidUnitesTheFragmentsOfEveryEntryNamingIt() {
+  void aVersionReadByCIDUnitesTheFragmentsOfEveryEntryNamingIt() {
     final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
     draft(A, contentOfA);
     final IRI entryOfA = transactor
@@ -260,7 +260,7 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void aVersionReadBySequenceUnitesTheFragmentsOfEveryEntryNamingItsCid() {
+  void aVersionReadBySequenceUnitesTheFragmentsOfEveryEntryNamingItsCID() {
     final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
     draft(A, contentOfA);
     final IRI entryOfA = transactor
@@ -282,7 +282,7 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void aVersionFragmentOutsideTheEntrysCidIsRejectedAsMalformed() {
+  void aVersionFragmentOutsideTheEntrysCIDIsRejectedAsMalformed() {
     draft(A, graph(triple(A, "one"), triple(A_X, "x")));
     final IRI entry = transactor
         .inTransaction(tx -> versioning.publish(tx, List.of(versioning.readDraft(tx, A).token()), EntryDetails.NONE))
@@ -298,7 +298,7 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void aVersionReadIsRejectedIfAHistorySubjectNamingTheCidIsNotAnIri() {
+  void aVersionReadIsRejectedIfAHistorySubjectNamingTheCIDIsNotAnIRI() {
     final Graph content = graph(triple(A, "one"), triple(A_X, "x"));
     draft(A, content);
     publish(A);
@@ -314,7 +314,7 @@ class ResourceVersioningFragmentIndexTest {
   }
 
   @Test
-  void aVersionReadBySequenceIsRejectedIfAnotherProxyIRIsEntryNamingTheCidIsMalformed() {
+  void aVersionReadBySequenceIsRejectedIfAnotherProxyIRIsEntryNamingTheCIDIsMalformed() {
     final Graph contentOfA = graph(triple(A, "same"), triple(A_X, "part"));
     draft(A, contentOfA);
     publish(A);

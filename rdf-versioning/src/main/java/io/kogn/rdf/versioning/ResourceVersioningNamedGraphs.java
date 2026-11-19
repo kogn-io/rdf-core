@@ -486,10 +486,10 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
   /**
    * Writes the next history entry of the proxy IRI and returns its IRI; {@code versionFragments}
-   * are the fragment IRIs of the version {@code content} names.
+   * are the fragment IRIs of the version {@code cid} names.
    */
   private IRI writeEntry(final DatasetTx tx, final Optional<StoredEntry> last, final IRI proxyIRI, final EntryKind kind,
-      final Optional<IRI> content, final Optional<String> procedure, final Set<IRI> versionFragments,
+      final Optional<IRI> cid, final Optional<String> procedure, final Set<IRI> versionFragments,
       final EntryDetails details) {
     final SimpleRdf rdf = new SimpleRdf();
     final long sequence = last.map(entry -> entry.sequence() + 1).orElse(1L);
@@ -500,7 +500,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
       written.add(entry, VocabRdf.TYPE, VocabVersioning.TOMBSTONE);
     }
     written.add(entry, VocabVersioning.SEQUENCE, rdf.createLiteral(Long.toString(sequence), VocabXsd.INTEGER));
-    content.ifPresent(cid -> written.add(entry, VocabVersioning.CID, cid));
+    cid.ifPresent(name -> written.add(entry, VocabVersioning.CID, name));
     procedure.ifPresent(tag -> written.add(entry, VocabVersioning.PROCEDURE, rdf.createLiteral(tag)));
     for (final IRI fragment : versionFragments) {
       written.add(entry, VocabVersioning.VERSION_FRAGMENT, fragment);
