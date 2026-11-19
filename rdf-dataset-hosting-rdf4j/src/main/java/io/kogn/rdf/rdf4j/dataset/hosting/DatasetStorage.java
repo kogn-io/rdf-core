@@ -59,7 +59,8 @@ import lombok.extern.slf4j.Slf4j;
 class DatasetStorage {
 
   /**
-   * Name of the marker file written inside a dataset's directory while its deletion is unfinished.
+   * Name of the marker file that makes a dataset's directory a deletion leftover: written before the
+   * delete walk starts, removed with the rest of the directory on success.
    * Part of the stored format: a directory carrying it is a deletion leftover, also for an
    * instance of an earlier version over the same root, so the name must not change.
    */
@@ -195,7 +196,7 @@ class DatasetStorage {
   }
 
   /**
-   * Deletes a dataset's directory, marking the id as a deletion leftover on any failure,
+   * Deletes a dataset's directory, marking the id as carrying a deletion leftover on any failure,
    * regardless of how far the walk got: the directory must not be taken for an intact dataset.
    *
    * <p>The failure is logged at {@code ERROR} because rethrowing alone is not enough to make it
@@ -217,7 +218,7 @@ class DatasetStorage {
       deleteDirectory(id);
     } catch (final RuntimeException e) {
       unmarkedDeletionLeftovers.add(id);
-      log.error("Deleting the storage of dataset {} failed; the identifier is marked as a deletion leftover,"
+      log.error("Deleting the storage of dataset {} failed; the identifier is marked as carrying a deletion leftover,"
           + " regardless of how far the on-disk teardown got. It cannot be acquired until the leftover is"
           + " gone — the next acquire() or clearDeletionLeftover() retries the cleanup and fails if it"
           + " cannot complete it.", id.value(), e);

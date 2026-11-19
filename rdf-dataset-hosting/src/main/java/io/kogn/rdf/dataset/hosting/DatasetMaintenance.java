@@ -26,7 +26,7 @@ import java.util.Set;
 public interface DatasetMaintenance {
 
   /**
-   * Returns the identifiers that carry nothing but a deletion leftover, the remains of a
+   * Returns the identifiers that carry nothing but a deletion leftover, what a
    * failed {@link DatasetLifecycle#delete(DatasetId)}.
    *
    * <p>These are exactly the identifiers {@link DatasetLifecycle#acquire(DatasetId)} refuses or
