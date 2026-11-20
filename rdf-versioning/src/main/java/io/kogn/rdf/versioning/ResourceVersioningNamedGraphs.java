@@ -157,9 +157,10 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
   public RevisionToken replaceDraft(final DatasetTx tx, final IRI proxyIRI, final ReadableGraph triples,
       final RevisionToken expected) {
     Objects.requireNonNull(tx, "tx");
-    requireProxy(proxyIRI);
+    Objects.requireNonNull(proxyIRI, "proxyIRI");
     Objects.requireNonNull(triples, "triples");
     Objects.requireNonNull(expected, "expected");
+    requireProxy(proxyIRI);
     if (!proxyIRI.equals(expected.proxyIRI())) {
       throw new IllegalArgumentException(
           "token belongs to " + expected.proxyIRI().ntriplesString() + ", not to " + proxyIRI.ntriplesString());
@@ -207,11 +208,11 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     Objects.requireNonNull(tx, "tx");
     Objects.requireNonNull(expected, "expected");
     Objects.requireNonNull(details, "details");
+    expected.forEach(token -> Objects.requireNonNull(token, "expected must not hold null"));
     bindContentGraph(tx);
     final List<PublishPlan> plans = new ArrayList<>();
     final Set<IRI> proxies = new HashSet<>();
     for (final RevisionToken token : expected) {
-      Objects.requireNonNull(token, "expected must not hold null");
       if (!proxies.add(token.proxyIRI())) {
         throw new IllegalArgumentException("two tokens for " + token.proxyIRI().ntriplesString());
       }
@@ -307,9 +308,10 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
   public DeleteResult delete(final DatasetTx tx, final IRI proxyIRI, final RevisionToken expected,
       final EntryDetails details) {
     Objects.requireNonNull(tx, "tx");
-    requireProxy(proxyIRI);
+    Objects.requireNonNull(proxyIRI, "proxyIRI");
     Objects.requireNonNull(expected, "expected");
     Objects.requireNonNull(details, "details");
+    requireProxy(proxyIRI);
     if (!proxyIRI.equals(expected.proxyIRI())) {
       throw new IllegalArgumentException(
           "token belongs to " + expected.proxyIRI().ntriplesString() + ", not to " + proxyIRI.ntriplesString());
