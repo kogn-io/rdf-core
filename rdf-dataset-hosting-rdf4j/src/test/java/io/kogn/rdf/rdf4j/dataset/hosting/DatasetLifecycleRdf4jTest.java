@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryException;
+import org.eclipse.rdf4j.repository.RepositoryLockedException;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +59,7 @@ import io.kogn.rdf.dataset.hosting.DatasetLifecycle;
 import io.kogn.rdf.dataset.hosting.DatasetShutdownOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
+import io.kogn.rdf.dataset.hosting.DatasetStoreLockedException;
 import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.rdf4j.RDF4JIRI;
 import io.kogn.rdf.terms.Graph;
@@ -658,6 +660,82 @@ class DatasetLifecycleRdf4jTest {
 
       assertThat(lc.list()).doesNotContain(id);
       assertThat(Files.exists(root) ? Files.list(root).count() : 0L).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("a second lifecycle over the same storage root reports the locked store as DatasetStoreLockedException")
+    void acquire_storeHeldOpenByAnotherLifecycle_throwsDatasetStoreLockedException() {
+      final Path root = tmp.resolve("stores");
+      final DatasetLifecycleRdf4j owner = persistent(root);
+      final DatasetId id = new DatasetId("held-elsewhere");
+      try (DatasetHandle ds = owner.acquire(id)) {
+        ds.graphStore().add(GRAPH, singleTriple()); // released, but the owner keeps the store open
+      }
+      final AtomicInteger hookCalls = new AtomicInteger();
+      final DatasetLifecycleRdf4j intruder = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          root, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (datasetId, graphStore) -> hookCalls.incrementAndGet());
+      try {
+        assertThatThrownBy(() -> intruder.acquire(id)).isInstanceOf(DatasetStoreLockedException.class)
+            .isInstanceOf(DatasetStorageException.class)
+            .hasMessageContaining(id.value())
+            .hasCauseInstanceOf(RepositoryLockedException.class);
+
+        // no lease, no hook, nothing cached, nothing removed: the owner's dataset is untouched
+        assertThat(hookCalls).hasValue(0);
+        assertThat(intruder.shutDown(id)).isEqualTo(DatasetShutdownOutcome.NOT_OPEN);
+        assertThat(intruder.list()).contains(id);
+        try (DatasetHandle ds = owner.acquire(id)) {
+          assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+        }
+
+        // once the owner lets go, the very same acquire succeeds over the intact store
+        assertThat(owner.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN);
+        try (DatasetHandle ds = intruder.acquire(id)) {
+          assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue();
+        }
+        assertThat(hookCalls).hasValue(0);
+      } finally {
+        intruder.shutDownAll();
+      }
+    }
+
+    @Test
+    @DisplayName("a store locked while this acquire took it for new is not rolled back: its storage belongs to the owner")
+    void acquire_storeLockedWhileTakenForNew_leavesTheOwnersStorageAlone() throws Exception {
+      final Path root = tmp.resolve("stores");
+      final DatasetLifecycleRdf4j owner = persistent(root);
+      final DatasetId id = new DatasetId("created-concurrently");
+      try (DatasetHandle ds = owner.acquire(id)) {
+        ds.graphStore().add(GRAPH, singleTriple());
+      }
+      // the intruder looked at the directory just before the owner created the store in it
+      final DatasetStorage racingStorage = new DatasetStorage(root) {
+        @Override
+        boolean isNew(final DatasetId candidate) {
+          return candidate.equals(id) || super.isNew(candidate);
+        }
+      };
+      final AtomicInteger hookCalls = new AtomicInteger();
+      final DatasetLifecycleRdf4j intruder = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
+          racingStorage, DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC,
+          (datasetId, graphStore) -> hookCalls.incrementAndGet(), DatasetLifecycleRdf4j::shutDownIfInitialized);
+      final Path directory = racingStorage.directoryOf(id).toPath();
+      try {
+        assertThatThrownBy(() -> intruder.acquire(id)).isInstanceOf(DatasetStoreLockedException.class)
+            .hasCauseInstanceOf(RepositoryLockedException.class);
+
+        assertThat(hookCalls).hasValue(0);
+        assertThat(racingStorage.hasDeletionLeftover(id)).isFalse();
+        try (Stream<Path> entries = Files.list(directory)) {
+          assertThat(entries.count()).isPositive(); // the rollback did not wipe the owner's store
+        }
+        assertThat(owner.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN);
+        try (DatasetHandle ds = owner.acquire(id)) {
+          assertThat(ds.sparqlQuery().ask(ASK_GRAPH)).isTrue(); // and the data survived a reopen
+        }
+      } finally {
+        intruder.shutDownAll();
+      }
     }
 
     @Test
