@@ -12,7 +12,7 @@ import io.kogn.rdf.terms.SimpleRdf;
 /**
  * A language-tagged literal that reports its tag as written, the way a foreign {@link Literal} implementation that
  * does not normalize would. {@link SimpleRdf} lower-cases the tag on creation, so only such a term still reaches the
- * serializer with an upper-case tag, and only with it a test of ni-rdf/1 &sect;4.1 can fail.
+ * hashed-input encoder with an upper-case tag, and only with it a test of ni-rdf/1 &sect;4.1 can fail.
  *
  * @param lexicalForm the lexical form
  * @param languageTag the language tag, kept in the case it is given in

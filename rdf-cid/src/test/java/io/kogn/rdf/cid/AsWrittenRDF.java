@@ -18,7 +18,7 @@ import io.kogn.rdf.terms.Triple;
 
 /**
  * An {@link RDF} factory that keeps a language tag as written, creating {@link AsWrittenLiteral}s, and delegates
- * everything else to {@link SimpleRdf}. Handed to the serializer, it leaves the lower-casing of ni-rdf/1 &sect;4.1 to
+ * everything else to {@link SimpleRdf}. Handed to the generator, it leaves the lower-casing of ni-rdf/1 &sect;4.1 to
  * rdf-cid alone: with {@link SimpleRdf}, which lower-cases on creation, a test of that step stays green even if
  * rdf-cid drops it.
  */
