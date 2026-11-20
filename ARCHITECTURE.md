@@ -77,6 +77,19 @@ over the data model rather than a call into a store (ADR-0014).
 
 (Directory name = artifact id; the Java packages are `io.kogn.rdf.*`.)
 
+**Null arguments.** Every public port, implementation and value object of the
+library reports `null` for a required argument the same way: as a
+`NullPointerException` (`Objects.requireNonNull`, Effective Java item 49),
+raised before the backend is touched and outside every translation region, so a
+`null` never surfaces as a port exception such as `SparqlEvaluationException`,
+`DatasetStorageException` or `RdfExportException`. A value that is not `null`
+but invalid — empty, blank, of the wrong form — is an `IllegalArgumentException`
+or the exception the port documents for it. Where `null` is a legal value the
+signature says so (a wildcard of `DatasetTx#match`, the untagged language of a
+`ShaclMessage`, the empty list of `RDF#createRDFList`). A `null` *inside* the
+graph handed to `rdf-cid` is not an argument but a broken term, and is reported
+with the spec's failure code `[UNSUPPORTED_TERM]`.
+
 ## The data model (`rdf-terms`)
 
 A pure-Java representation of the RDF abstract syntax, modelled after the
@@ -100,8 +113,8 @@ both, escaped, so a consumer that writes N-Triples from it gets valid output
 whichever backend produced the term. `SimpleRdf` is therefore no longer a
 lenient test double:
 code that passes against it does not fail on the RDF4J backend for input
-validity. One gap remains: `RDF4JFactory.createBlankNode` still accepts `null`
-and the empty label, which `SimpleRdf` rejects.
+validity. One gap remains: `RDF4JFactory.createBlankNode` still accepts the
+empty label, which `SimpleRdf` rejects.
 
 ## The dataset ports (`rdf-dataset`)
 
@@ -124,7 +137,7 @@ concern:
   the backend's signal as cause. What stays outside that translation are
   defects of the call, which keep their own types and are not worth a retry: a
   term that cannot be converted, a `NullPointerException` for a `null` argument,
-  and the `IllegalStateException` for an RDF 1.2 triple term in a stored graph
+  an `IllegalArgumentException` for an empty or blank SPARQL string, and the `IllegalStateException` for an RDF 1.2 triple term in a stored graph
   that the data model cannot represent. Every operation of a `DatasetTx` kept
   past the end of its transaction, the SPARQL ones as well as the graph ones,
   fails with an `IllegalStateException`, deliberately neither of the two neutral
