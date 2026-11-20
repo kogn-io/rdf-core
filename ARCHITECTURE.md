@@ -148,7 +148,8 @@ concern:
   `IllegalStateException` for an RDF 1.2 triple term in a stored graph that the
   data model cannot represent. (A triple term in a document handed to
   `GraphImport` is different: the document is the input, not the store's state,
-  and it fails like any other unreadable document, with `RDFImportException`.) Every operation of a `DatasetTx` kept
+  and it fails like any other unreadable document, with `RDFImportException`.)
+  Every operation of a `DatasetTx` kept
   past the end of its transaction, the SPARQL ones as well as the graph ones,
   fails with an `IllegalStateException`, deliberately neither of the two neutral
   types, so retry logic keyed to them does not retry a programming error.
@@ -177,11 +178,14 @@ concern:
   document from a byte stream into a new, caller-owned `Graph`, resolving
   relative references against an absolute base IRI. It touches no store, so it
   is not part of `DatasetTx` or of a hosting handle; to store the result, hand it
-  to `GraphStore#add`. The stream stays the caller's: read to its end, never
-  closed. Blank nodes are scoped to one call, so two imports never share one.
-  Every failure — a syntax error, an RDF 1.2 triple term the data model cannot
-  hold, a failing stream — surfaces as the neutral `RDFImportException` with the
-  backend's signal as cause, and no partial graph is handed out. Turtle only for
+  to `GraphStore#add`. The stream stays the caller's: read, never closed, and
+  decoded as strict UTF-8. Blank nodes are scoped to one call, so two imports
+  never share one. Literals arrive as written, an ill-typed one included;
+  content the data model cannot hold is rejected, not altered to fit. Every
+  failure — a syntax error, bytes that are not UTF-8, an RDF 1.2 triple term or
+  directional language string, an `rdf:langString` without a tag, a failing
+  stream — surfaces as the neutral `RDFImportException`, and no partial graph is
+  handed out. Turtle only for
   now; a further format is meant to arrive as a further operation, and a quad
   format (TriG, N-Quads) needs a result other than a single `Graph`.
 - **`DatasetTransactor`** / **`DatasetTx`** — an atomic, all-or-nothing
@@ -286,9 +290,14 @@ public member names an RDF4J type:
   is built and a dataset larger than memory can still be dumped. The four writer
   modules that serve `RdfFormat` are runtime dependencies, resolved through
   `Rio`'s `ServiceLoader` registry.
-- `GraphImportRdf4j` is the one class here without a `Repository`: it runs
-  `Rio`'s Turtle parser and adds each statement to the result graph as it is
-  reported, rejecting a triple term with the same check the read paths use.
+- `GraphImportRdf4j` is the one class here without a `Repository`: it runs a
+  subclass of RDF4J's `TurtleParser` (so `rdf4j-rio-turtle` is a compile
+  dependency) that refuses directional language strings and a tagless
+  `rdf:langString` before RDF4J rewrites them to `xsd:string`, and adds each
+  statement to the result as it is reported, rejecting a triple term with the
+  same check the read paths use. The result is a backend-free `SimpleGraph`:
+  `RDF4JGraph` re-creates terms through RDF4J's validating value factory and
+  would refuse an ill-typed literal.
 - Foreign term implementations are accepted throughout via `RDF4JConverters`,
   so the adapter is a genuine portability layer rather than an RDF4J-only island
   ([ADR-0004](docs/adr/0004-converter-based-interop.md)).
@@ -678,8 +687,9 @@ and [CONTRIBUTING](CONTRIBUTING.md) for the day-to-day commands.
 - No default graph / full RDF 1.1 dataset semantics (see above).
 - No RDF 1.2 extensions: the data model is RDF 1.1. Triple terms and
   directional language strings have no representation; keeping them out of a
-  store is the caller's job, the read paths and `GraphImport` reject a triple
-  term they meet, and `DatasetExport` writes whatever the store holds.
+  store is the caller's job, the read paths reject a triple term they meet,
+  `GraphImport` rejects both extensions, and `DatasetExport` writes whatever
+  the store holds.
 - No SPARQL `DESCRIBE`.
 - No object mapping, and no general reasoning or inference layer — this is a
   data-model and store-access abstraction, not a framework. The one exception is
