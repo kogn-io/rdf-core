@@ -15,9 +15,9 @@ import java.util.function.Function;
  * <p>Example usage:</p>
  * <pre>{@code
  * IRI result = transactor.inTransaction(tx -> {
- *     tx.add(graphIri, triples);
+ *     tx.add(graphIRI, triples);
  *     tx.update("DELETE WHERE { ... }");
- *     return computeResultIri();
+ *     return computeResultIRI();
  * });
  * }</pre>
  *

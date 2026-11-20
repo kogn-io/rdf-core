@@ -17,8 +17,7 @@ import io.kogn.rdf.terms.RDFTerm;
  * RDF4J-based implementation of {@link SparqlUpdate}.
  *
  * <p>Each operation opens a dedicated {@link RepositoryConnection} and closes
- * it immediately after execution, following the same pattern used throughout
- * the existing RDF4J service layer (e.g. {@code CollectionStoreRdf4j}).</p>
+ * it immediately after execution.</p>
  */
 public class SparqlUpdateRdf4j implements SparqlUpdate {
 

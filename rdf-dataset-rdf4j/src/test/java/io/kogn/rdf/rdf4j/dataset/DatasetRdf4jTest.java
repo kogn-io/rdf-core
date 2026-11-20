@@ -84,8 +84,7 @@ import io.kogn.rdf.terms.Triple;
 /**
  * Tests for the RDF4J dataset port implementations.
  *
- * <p>Uses an in-memory RDF4J store; no Spring context required.
- * Follows the same setUp/tearDown pattern as {@code CollectionStoreRdf4jTest}.</p>
+ * <p>Uses an in-memory RDF4J store; no Spring context required.</p>
  */
 class DatasetRdf4jTest {
 
@@ -433,16 +432,16 @@ class DatasetRdf4jTest {
     @DisplayName("DELETE DATA removes the triple")
     void update_deleteData_tripleIsGone() {
       // given
-      final String graphIri = GRAPH_1.getIRIString();
+      final String graphIRI = GRAPH_1.getIRIString();
       final String triple = " <" + SUBJECT.getIRIString() + "> <" + PREDICATE.getIRIString() + "> <"
           + OBJECT.getIRIString() + "> ";
-      sparqlUpdate.update("INSERT DATA { GRAPH <" + graphIri + "> {" + triple + "} }");
+      sparqlUpdate.update("INSERT DATA { GRAPH <" + graphIRI + "> {" + triple + "} }");
 
       // when
-      sparqlUpdate.update("DELETE DATA { GRAPH <" + graphIri + "> {" + triple + "} }");
+      sparqlUpdate.update("DELETE DATA { GRAPH <" + graphIRI + "> {" + triple + "} }");
 
       // then
-      assertThat(sparqlQuery.ask("ASK { GRAPH <" + graphIri + "> { ?s ?p ?o } }")).isFalse();
+      assertThat(sparqlQuery.ask("ASK { GRAPH <" + graphIRI + "> { ?s ?p ?o } }")).isFalse();
     }
 
     @Test

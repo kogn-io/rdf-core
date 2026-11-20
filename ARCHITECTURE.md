@@ -318,7 +318,7 @@ Settled semantics worth knowing before consuming it:
   leases and the call was a no-op, or the lifecycle was not holding it at all.
   That last case is not an
   error — an already-evicted or merely persisted identifier is exactly what a
-  sweep runs into, and `list()` reports persisted-but-closed datasets too, so it
+  sweep runs into, and `list()` reports persisted-but-not-open datasets too, so it
   cannot be reconstructed from a second call. The distinction is what lets a
   consumer's idle/TTL policy retry only when a lease is genuinely held, count an
   eviction it really performed, and treat an identifier already gone as done
@@ -368,8 +368,9 @@ Settled semantics worth knowing before consuming it:
   path that guards against open leases. An identifier carrying neither is
   reported as `NOTHING_TO_CLEAR`, not as an error, and a cleanup that fails again
   rethrows and leaves the identifier barred. It is a separate port rather than
-  more methods on `DatasetLifecycle` so that no implementation outside this
-  repository breaks, and a consumer that never runs maintenance never sees it.
+  more methods on `DatasetLifecycle` because clearing up a deletion leftover is
+  maintenance, not working with a dataset, and a consumer that never runs
+  maintenance never sees it.
 - **Storage that cannot be determined fails, it is not guessed.** `list()` and
   `acquire` throw `UncheckedIOException` when the storage root or a dataset's
   deletion mark cannot be read, rather than treat an unreadable directory as
@@ -617,8 +618,8 @@ config — named by `VersioningGraphs` and described by the vocabulary
 `VocabVersioning`
 ([ADR-0023](docs/adr/0023-versioned-dataset-fixed-named-graphs.md)). A query
 without `FROM` / `GRAPH` runs over the union of all named graphs of the dataset
-and so sees duplicates and CID subjects; consumers name their graphs. The design discussion behind the three
-records is kept as historical background in
+and so sees duplicates and CID subjects; consumers name their graphs. The design discussion behind ADR-0021–0023
+is kept as historical background in
 [`docs/design/105-versioning.md`](docs/design/105-versioning.md).
 
 ## Build & release
