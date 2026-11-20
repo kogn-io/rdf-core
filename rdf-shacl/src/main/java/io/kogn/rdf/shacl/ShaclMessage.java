@@ -4,6 +4,7 @@
 package io.kogn.rdf.shacl;
 
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * One {@code sh:resultMessage} literal, with its language tag preserved.
@@ -55,13 +56,11 @@ public record ShaclMessage(String text, String language) {
   /**
    * Validates the message and lower-cases the language tag.
    *
-   * @throws IllegalArgumentException if {@code text} is {@code null}, or if
-   *     {@code language} is non-{@code null} but blank
+   * @throws NullPointerException if {@code text} is {@code null}
+   * @throws IllegalArgumentException if {@code language} is non-{@code null} but blank
    */
   public ShaclMessage {
-    if (text == null) {
-      throw new IllegalArgumentException("text must not be null");
-    }
+    Objects.requireNonNull(text, "text must not be null");
     if (language != null) {
       if (language.isBlank()) {
         throw new IllegalArgumentException("language must not be blank; use null for an untagged message");
@@ -75,7 +74,7 @@ public record ShaclMessage(String text, String language) {
    *
    * @param text the message text; must not be {@code null}
    * @return an untagged message
-   * @throws IllegalArgumentException if {@code text} is {@code null}
+   * @throws NullPointerException if {@code text} is {@code null}
    */
   public static ShaclMessage untagged(String text) {
     return new ShaclMessage(text, null);

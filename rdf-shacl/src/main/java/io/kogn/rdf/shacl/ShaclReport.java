@@ -4,6 +4,7 @@
 package io.kogn.rdf.shacl;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The outcome of validating a data graph against a set of SHACL shapes.
@@ -22,14 +23,12 @@ public record ShaclReport(boolean conforms, List<ShaclResult> results) {
   /**
    * Validates and defensively copies the report.
    *
-   * @throws IllegalArgumentException if {@code results} is {@code null}, or if
-   *     {@code conforms} is {@code true} while {@code results} contains a
-   *     {@link Severity#VIOLATION}
+   * @throws NullPointerException if {@code results} is {@code null} or contains {@code null}
+   * @throws IllegalArgumentException if {@code conforms} is {@code true} while {@code results}
+   *     contains a {@link Severity#VIOLATION}
    */
   public ShaclReport {
-    if (results == null) {
-      throw new IllegalArgumentException("results must not be null");
-    }
+    Objects.requireNonNull(results, "results must not be null");
     results = List.copyOf(results);
     if (conforms && results.stream().anyMatch(result -> result.severity() == Severity.VIOLATION)) {
       throw new IllegalArgumentException("conforms must be false when results contain a VIOLATION");

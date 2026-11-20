@@ -63,7 +63,8 @@ class ShaclMessageTest {
 
   @Test
   void nullTextIsRejected() {
-    assertThatThrownBy(() -> new ShaclMessage(null, "de")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new ShaclMessage(null, "de")).isExactlyInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> ShaclMessage.untagged(null)).isExactlyInstanceOf(NullPointerException.class);
   }
 
   /**

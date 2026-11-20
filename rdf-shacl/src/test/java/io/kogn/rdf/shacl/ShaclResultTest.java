@@ -46,19 +46,19 @@ class ShaclResultTest {
   @Test
   void nullFocusNodeIsRejected() {
     assertThatThrownBy(() -> new ShaclResult(null, null, Severity.VIOLATION, VIOLATION_IRI, List.of()))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isExactlyInstanceOf(NullPointerException.class);
   }
 
   @Test
   void nullSeverityIsRejected() {
     assertThatThrownBy(() -> new ShaclResult(ALICE, null, null, VIOLATION_IRI, List.of()))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isExactlyInstanceOf(NullPointerException.class);
   }
 
   @Test
   void nullMessagesAreRejected() {
     assertThatThrownBy(() -> new ShaclResult(ALICE, null, Severity.VIOLATION, VIOLATION_IRI, null))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isExactlyInstanceOf(NullPointerException.class);
   }
 
   @Test
@@ -74,7 +74,7 @@ class ShaclResultTest {
   @Test
   void nullSeverityIRIIsRejected() {
     assertThatThrownBy(() -> new ShaclResult(ALICE, null, Severity.VIOLATION, null, List.of()))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isExactlyInstanceOf(NullPointerException.class);
   }
 
   @Test
