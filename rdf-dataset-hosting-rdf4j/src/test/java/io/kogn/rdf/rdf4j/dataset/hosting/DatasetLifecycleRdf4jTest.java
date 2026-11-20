@@ -138,8 +138,8 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("close reports STILL_LEASED and is a no-op while a lease is open")
-    void close_whileLeaseOpen_isNoOp() {
+    @DisplayName("shutDown reports STILL_LEASED and is a no-op while a lease is open")
+    void shutDown_whileLeaseOpen_isNoOp() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("busy");
       try (DatasetHandle ds = lc.acquire(id)) {
@@ -154,7 +154,7 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("shutDown reports SHUT_DOWN once the lease holding it open is released")
-    void close_afterLeaseReleased_reportsClosed() {
+    void shutDown_afterLeaseReleased_reportsShutDown() {
       final DatasetLifecycleRdf4j lc = inMemory();
       final DatasetId id = new DatasetId("idle");
       lc.acquire(id).close();
@@ -163,8 +163,8 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("close reports NOT_OPEN for an id the lifecycle has never seen")
-    void close_unknownId_reportsNotOpen() {
+    @DisplayName("shutDown reports NOT_OPEN for an id the lifecycle has never seen")
+    void shutDown_unknownId_reportsNotOpen() {
       final DatasetLifecycleRdf4j lc = inMemory();
 
       assertThat(lc.shutDown(new DatasetId("never-opened"))).isEqualTo(DatasetShutdownOutcome.NOT_OPEN);
@@ -246,7 +246,7 @@ class DatasetLifecycleRdf4jTest {
             }
           }
         });
-        // Workers: acquire → operate → close. The operation must never see a closed store.
+        // Workers: acquire → operate → close. The operation must never see a shut-down store.
         for (int w = 0; w < workers; w++) {
           pool.submit(() -> {
             for (int i = 0; i < iterations; i++) {
@@ -610,11 +610,11 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("closing a persisted-but-not-open dataset again reports NOT_OPEN, not STILL_LEASED")
-    void close_twice_reportsClosedThenNotOpen() {
+    @DisplayName("shutting down a persisted-but-not-open dataset again reports NOT_OPEN, not STILL_LEASED")
+    void shutDown_twice_reportsShutDownThenNotOpen() {
       final Path root = tmp.resolve("stores");
       final DatasetLifecycleRdf4j lc = persistent(root);
-      final DatasetId id = new DatasetId("closed-twice");
+      final DatasetId id = new DatasetId("shut-down-twice");
       lc.acquire(id).close(); // release the lease
 
       assertThat(lc.shutDown(id)).isEqualTo(DatasetShutdownOutcome.SHUT_DOWN);
@@ -625,8 +625,8 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("close discards data for an in-memory store — there is no storage to resume")
-    void close_discardsData_forInMemoryStore() {
+    @DisplayName("shutDown discards data for an in-memory store — there is no storage to resume")
+    void shutDown_discardsData_forInMemoryStore() {
       final AtomicInteger calls = new AtomicInteger();
       lifecycle = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.IN_MEMORY), null,
           DatasetLifecycleRdf4j.DEFAULT_INDEX_SPEC, (id, graphStore) -> calls.incrementAndGet());
@@ -906,10 +906,10 @@ class DatasetLifecycleRdf4jTest {
     }
 
     @Test
-    @DisplayName("a close whose repository teardown fails still drops the cache entry; retry re-opens a live store")
-    void close_teardownFails_dropsCacheEntryAndSurfacesFailure() {
+    @DisplayName("a shutDown whose repository teardown fails still drops the cache entry; retry re-opens a live store")
+    void shutDown_teardownFails_dropsCacheEntryAndSurfacesFailure() {
       final Path root = tmp.resolve("stores");
-      final DatasetId id = new DatasetId("close-fails");
+      final DatasetId id = new DatasetId("shutdown-fails");
       final RepositoryException teardownFailure = new RepositoryException("simulated shutdown failure");
       final AtomicBoolean failNext = new AtomicBoolean(true);
       final DatasetLifecycleRdf4j lc = new DatasetLifecycleRdf4j(new DatasetStoreConfig(Persistence.PERSISTENT),
@@ -1297,7 +1297,7 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("R2-3: shutDownAll waits for a first acquire still creating its store; the id can be acquired again")
-    void shutDownAll_duringFirstCreation_closesItAndAllowsReacquire() throws Exception {
+    void shutDownAll_duringFirstCreation_shutsItDownAndAllowsReacquire() throws Exception {
       final Path root = tmp.resolve("stores");
       final CountDownLatch inHook = new CountDownLatch(1);
       final CountDownLatch releaseHook = new CountDownLatch(1);
@@ -1439,7 +1439,7 @@ class DatasetLifecycleRdf4jTest {
 
     @Test
     @DisplayName("shutDown(null) throws NullPointerException")
-    void close_null_throws() {
+    void shutDown_null_throws() {
       assertThatThrownBy(() -> inMemory().shutDown(null)).isInstanceOf(NullPointerException.class);
     }
 
