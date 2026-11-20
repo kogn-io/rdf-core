@@ -15,8 +15,8 @@ Licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-
 | Directory | Maven artifact | Role |
 |---|---|---|
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | RDF data model — technology-agnostic term interfaces, graph types and vocabulary constants. Zero external dependencies. |
-| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset content ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetExport` (serialize the dataset or one named graph to a stream, in an `RdfFormat`), `DatasetTransactor`, `DatasetTx`. Nothing here presumes the library hosts the store. |
-| `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J backend implementing the dataset content ports — store-agnostic wrappers over a caller-supplied `Repository`. |
+| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Low-level dataset content ports: `GraphStore`, `SparqlQuery` (read), `SparqlUpdate` (write), `DatasetExport` (serialize the dataset or one named graph to a stream, in an `RdfFormat`), `GraphImport` (parse a Turtle document from a stream into a `Graph`), `DatasetTransactor`, `DatasetTx`. Nothing here presumes the library hosts the store. |
+| `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J backend implementing the dataset content ports — store-agnostic wrappers over a caller-supplied `Repository`; the Turtle import `GraphImportRdf4j` needs none. |
 | `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` (open-or-create/shut down/delete/list/shut down all by opaque `DatasetId`, lease-protected; `acquire` returns a leased `DatasetHandle` — an access handle, not an RDF dataset, and reports a store another owner holds locked as `DatasetStoreLockedException`), with `DatasetStoreConfig`; `DatasetMaintenance` (find and clear the deletion leftover of a failed delete) beside it. Depends on `rdf-dataset` for the content ports the handle exposes. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J backend for the hosting port: builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Standalone SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning a neutral `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity`. Every `sh:message` survives with its language tag — the port selects no language, so a multilingual shape reaches the caller intact. Depends only on `rdf-terms` — no rdf4j. |
@@ -43,7 +43,8 @@ implementation states what it enforces when it meets some. The `rdf-terms`
 factories reject `rdf:dirLangString` as a plain datatype. The read paths that
 convert into the data model — `GraphStore#snapshot`, `SparqlQuery#select` and
 `#construct`, the same operations on `DatasetTx`, and `DatasetTx#match` — reject
-an RDF 1.2 triple term with an `IllegalStateException`. A SPARQL update that
+an RDF 1.2 triple term with an `IllegalStateException`; `GraphImport` rejects a
+document holding one with its `RDFImportException`. A SPARQL update that
 stores one is not rejected, and `DatasetExport` writes the store's content as it is, in RDF 1.2
 syntax if the store holds such a term.
 
