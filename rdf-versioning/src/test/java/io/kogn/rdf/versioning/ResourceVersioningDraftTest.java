@@ -33,10 +33,10 @@ import io.kogn.rdf.terms.SimpleRdf;
 import io.kogn.rdf.terms.vocab.VocabXsd;
 
 /**
- * The slice operations of a versioned dataset (ADR-0022), run against a real
+ * The draft operations of a versioned dataset (ADR-0022), run against a real
  * {@code DatasetTx} over an in-memory RDF4J store.
  */
-class ResourceVersioningSliceTest {
+class ResourceVersioningDraftTest {
 
   private static final IRI CONTENT = new SimpleIRI("https://example.org/graph/content");
   private static final IRI A = new SimpleIRI("https://example.org/res/A");
@@ -75,21 +75,21 @@ class ResourceVersioningSliceTest {
 
   @Test
   void aFirstWriteOnAnEmptyDraftIsAcceptedAndReadBack() {
-    final Graph content = graph();
-    content.add(A, P, rdf.createLiteral("one"));
+    final Graph triples = graph();
+    triples.add(A, P, rdf.createLiteral("one"));
 
-    write(A, content, read(A).token());
+    write(A, triples, read(A).token());
 
     assertThat(read(A).triples().contains(rdf.createTriple(A, P, rdf.createLiteral("one")))).isTrue();
   }
 
   @Test
   void theSliceHoldsFragmentSubjectsEvenWithoutALinkFromTheProxyIRI() {
-    final Graph content = graph();
-    content.add(A, P, rdf.createLiteral("one"));
-    content.add(A_FRAGMENT, P, rdf.createLiteral("part"));
+    final Graph triples = graph();
+    triples.add(A, P, rdf.createLiteral("one"));
+    triples.add(A_FRAGMENT, P, rdf.createLiteral("part"));
 
-    write(A, content, read(A).token());
+    write(A, triples, read(A).token());
 
     assertThat(read(A).triples().size()).isEqualTo(2);
   }
@@ -98,12 +98,12 @@ class ResourceVersioningSliceTest {
   void theSliceFollowsBlankNodesTransitively() {
     final BlankNode first = rdf.createBlankNode("first");
     final BlankNode second = rdf.createBlankNode("second");
-    final Graph content = graph();
-    content.add(A, P, first);
-    content.add(first, Q, second);
-    content.add(second, Q, rdf.createLiteral("deep"));
+    final Graph triples = graph();
+    triples.add(A, P, first);
+    triples.add(first, Q, second);
+    triples.add(second, Q, rdf.createLiteral("deep"));
 
-    write(A, content, read(A).token());
+    write(A, triples, read(A).token());
 
     assertThat(read(A).triples().size()).isEqualTo(3);
   }
@@ -123,9 +123,9 @@ class ResourceVersioningSliceTest {
         new SimpleIRI("https://EXAMPLE.org/res/A"), new SimpleIRI("https://example.org/res/a"),
         new SimpleIRI("https://example.org/res/%41"));
     for (final IRI spelling : spellings) {
-      final Graph content = graph();
-      content.add(spelling, P, rdf.createLiteral("other"));
-      write(spelling, content, read(spelling).token());
+      final Graph triples = graph();
+      triples.add(spelling, P, rdf.createLiteral("other"));
+      write(spelling, triples, read(spelling).token());
     }
 
     assertThat(read(A).triples().isEmpty()).isTrue();
@@ -167,10 +167,10 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void anEmptyContentEmptiesTheDraftButRaisesTheToken() {
-    final Graph content = graph();
-    content.add(A, P, rdf.createLiteral("one"));
-    final RevisionToken first = write(A, content, read(A).token());
+  void noTriplesEmptyTheDraftButRaiseTheToken() {
+    final Graph triples = graph();
+    triples.add(A, P, rdf.createLiteral("one"));
+    final RevisionToken first = write(A, triples, read(A).token());
 
     final RevisionToken second = write(A, graph(), first);
 
@@ -194,9 +194,9 @@ class ResourceVersioningSliceTest {
   @Test
   void aStaleTokenIsReportedAndChangesNothing() {
     final RevisionToken stale = read(A).token();
-    final Graph content = graph();
-    content.add(A, P, rdf.createLiteral("one"));
-    write(A, content, stale);
+    final Graph triples = graph();
+    triples.add(A, P, rdf.createLiteral("one"));
+    write(A, triples, stale);
     final Graph competing = graph();
     competing.add(A, P, rdf.createLiteral("two"));
 
@@ -225,12 +225,12 @@ class ResourceVersioningSliceTest {
 
   @Test
   void aForeignSubjectIsRejectedAndChangesNothing() {
-    final Graph content = graph();
-    content.add(A, P, rdf.createLiteral("one"));
-    content.add(B, P, rdf.createLiteral("foreign"));
+    final Graph triples = graph();
+    triples.add(A, P, rdf.createLiteral("one"));
+    triples.add(B, P, rdf.createLiteral("foreign"));
     final RevisionToken token = read(A).token();
 
-    assertThatThrownBy(() -> write(A, content, token)).isInstanceOf(IllegalArgumentException.class)
+    assertThatThrownBy(() -> write(A, triples, token)).isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(B.getIRIString());
 
     assertThat(read(A).token()).isEqualTo(token);
@@ -239,10 +239,10 @@ class ResourceVersioningSliceTest {
 
   @Test
   void anUnreachableBlankNodeSubjectIsRejected() {
-    final Graph content = graph();
-    content.add(rdf.createBlankNode("loose"), P, rdf.createLiteral("x"));
+    final Graph triples = graph();
+    triples.add(rdf.createBlankNode("loose"), P, rdf.createLiteral("x"));
 
-    assertThatThrownBy(() -> write(A, content, read(A).token())).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> write(A, triples, read(A).token())).isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -271,12 +271,12 @@ class ResourceVersioningSliceTest {
 
   @Test
   void anAbortedTransactionLeavesNeitherTriplesNorCounterBehind() {
-    final Graph content = graph();
-    content.add(A, P, rdf.createLiteral("one"));
+    final Graph triples = graph();
+    triples.add(A, P, rdf.createLiteral("one"));
     final RevisionToken token = read(A).token();
 
     assertThatThrownBy(() -> transactor.inTransaction(tx -> {
-      versioning.replaceDraft(tx, A, content, token);
+      versioning.replaceDraft(tx, A, triples, token);
       throw new IllegalStateException("abort");
     })).hasMessage("abort");
 
@@ -286,7 +286,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void theSliceOperationsBindTheContentGraph() {
+  void theDraftOperationsBindTheContentGraph() {
     read(A);
 
     final ResourceVersioning other = new ResourceVersioningNamedGraphs(new SimpleIRI("https://example.org/graph/o"));
@@ -308,19 +308,19 @@ class ResourceVersioningSliceTest {
   @Test
   void aTripleTheBackendHoldsUnderAnotherSpellingOfItsLanguageTagStaysInTheDraft() {
     // given: a draft whose language tag the store holds in mixed case, written past rdf-terms;
-    // reading lower-cases the tag, so the draft and the new content agree on it
+    // reading lower-cases the tag, so the draft and the new triples agree on it
     // (the case where the data model still tells two triples apart is the CaseKeepingLiteral test below)
     transactor.inTransaction(tx -> {
       tx.update("INSERT DATA { GRAPH <" + CONTENT.getIRIString() + "> { <" + A.getIRIString() + "> <" + P.getIRIString()
           + "> \"x\"@en-US } }");
       return null;
     });
-    final Graph content = graph();
-    content.add(A, P, rdf.createLiteral("x", "en-us"));
-    content.add(A, Q, rdf.createLiteral("y"));
+    final Graph triples = graph();
+    triples.add(A, P, rdf.createLiteral("x", "en-us"));
+    triples.add(A, Q, rdf.createLiteral("y"));
 
     // when
-    write(A, content, read(A).token());
+    write(A, triples, read(A).token());
 
     // then
     final ReadableGraph draft = read(A).triples();
@@ -331,16 +331,16 @@ class ResourceVersioningSliceTest {
   @Test
   void aTripleTheBackendTakesForAnOldOneStaysInTheDraftEvenIfTheDataModelTellsThemApart() {
     // given: the same literal in the draft and, under a tag spelled in mixed case, in the new
-    // content; RDF4J takes them for one triple, a Literal that keeps the case does not
+    // triples; RDF4J takes them for one triple, a Literal that keeps the case does not
     final Graph old = graph();
     old.add(A, P, rdf.createLiteral("x", "en-us"));
     final RevisionToken token = write(A, old, read(A).token());
-    final Graph content = graph();
-    content.add(A, P, new CaseKeepingLiteral("x", "en-US"));
-    content.add(A, Q, rdf.createLiteral("y"));
+    final Graph triples = graph();
+    triples.add(A, P, new CaseKeepingLiteral("x", "en-US"));
+    triples.add(A, Q, rdf.createLiteral("y"));
 
     // when
-    write(A, content, token);
+    write(A, triples, token);
 
     // then
     final ReadableGraph draft = read(A).triples();
@@ -349,7 +349,7 @@ class ResourceVersioningSliceTest {
   }
 
   @Test
-  void aBlankNodeOfTheReplacedSliceThatAnotherSliceUsesIsRejectedEvenIfTheNewContentDropsIt() {
+  void aBlankNodeOfTheReplacedSliceThatAnotherSliceUsesIsRejectedEvenIfTheNewTriplesDropIt() {
     final BlankNode shared = rdf.createBlankNode("shared");
     final Graph existing = graph();
     existing.add(A, P, shared);
@@ -418,8 +418,8 @@ class ResourceVersioningSliceTest {
     final CountDownLatch competitorCommitted = new CountDownLatch(1);
     final Graph competing = graph();
     competing.add(A, P, rdf.createLiteral("competitor"));
-    final Graph slowContent = graph();
-    slowContent.add(A, P, rdf.createLiteral("slow"));
+    final Graph slowTriples = graph();
+    slowTriples.add(A, P, rdf.createLiteral("slow"));
     final AtomicReference<Throwable> competitorFailure = new AtomicReference<>();
     final Thread competitor = new Thread(() -> {
       try {
@@ -441,7 +441,7 @@ class ResourceVersioningSliceTest {
         versioning.readDraft(tx, A);
         slowHasRead.countDown();
         awaitCommitted(competitorCommitted);
-        return versioning.replaceDraft(tx, A, slowContent, token);
+        return versioning.replaceDraft(tx, A, slowTriples, token);
       });
     } catch (final RuntimeException e) {
       outcome = e;
@@ -451,7 +451,7 @@ class ResourceVersioningSliceTest {
     return outcome;
   }
 
-  /** The content under A is the competitor's alone and the counter stands at {@code revision}. */
+  /** The triples under A are the competitor's alone and the counter stands at {@code revision}. */
   private void assertWinnerOnly(final long revision) {
     final DraftSlice slice = read(A);
     assertThat(slice.triples().size()).isEqualTo(1);
@@ -481,8 +481,8 @@ class ResourceVersioningSliceTest {
     return transactor.inTransaction(tx -> versioning.readDraft(tx, proxy));
   }
 
-  private RevisionToken write(final IRI proxy, final ReadableGraph content, final RevisionToken token) {
-    return transactor.inTransaction(tx -> versioning.replaceDraft(tx, proxy, content, token));
+  private RevisionToken write(final IRI proxy, final ReadableGraph triples, final RevisionToken token) {
+    return transactor.inTransaction(tx -> versioning.replaceDraft(tx, proxy, triples, token));
   }
 
   private long contentCount() {

@@ -175,14 +175,14 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
     final Set<IRI> oldFragments = indexedFragments(tx, proxyIRI, VocabVersioning.DRAFT_FRAGMENT);
     final Set<IRI> newFragments = fragmentsOf(copy, proxyIRI);
-    // A fragment the new content names for the first time is replaced as a whole, including
+    // A fragment the new triples name for the first time is replaced as a whole, including
     // triples written on it past the library.
     final Set<IRI> replaced = new LinkedHashSet<>(oldFragments);
     replaced.addAll(newFragments);
     final Graph old = draftOf(tx, proxyIRI, replaced);
     requireNoSharedBlankNode(tx, copy, old, proxyIRI);
 
-    // Add first: the backend may reject a term of the new content, and it does so before the
+    // Add first: the backend may reject a term of the new triples, and it does so before the
     // first change, so a caller that catches the rejection still holds the old draft. Then
     // remove the whole old slice and add again: computing old minus new here would compare by
     // the data model's equality, which can differ from the backend's, and lose a triple the
@@ -705,7 +705,7 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
 
   /**
    * The slice of {@code proxyIRI} in an in-memory {@code graph}: members, plus the blank-node
-   * closure. Used on the caller's content, never on a stored graph (see {@link #storedSlice}).
+   * closure. Used on the caller's triples, never on a stored graph (see {@link #storedSlice}).
    */
   private static Graph sliceOf(final ReadableGraph graph, final IRI proxyIRI) {
     final String proxy = proxyIRI.getIRIString();
@@ -819,33 +819,33 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     }
   }
 
-  private static Graph copyOf(final ReadableGraph content) {
+  private static Graph copyOf(final ReadableGraph triples) {
     final Graph copy = new SimpleGraph();
-    for (final Triple triple : content.stream().toList()) {
+    for (final Triple triple : triples.stream().toList()) {
       copy.add(triple);
     }
     return copy;
   }
 
-  private static void requireSlice(final Graph content, final IRI proxyIRI) {
-    final Graph slice = sliceOf(content, proxyIRI);
-    if (slice.size() == content.size()) {
+  private static void requireSlice(final Graph triples, final IRI proxyIRI) {
+    final Graph slice = sliceOf(triples, proxyIRI);
+    if (slice.size() == triples.size()) {
       return;
     }
-    final Triple stray = content.stream().filter(t -> !slice.contains(t)).findFirst().orElseThrow();
+    final Triple stray = triples.stream().filter(t -> !slice.contains(t)).findFirst().orElseThrow();
     throw new IllegalArgumentException(
         "triple is not part of the slice of " + proxyIRI.ntriplesString() + ": " + stray.getSubject().ntriplesString()
             + " " + stray.getPredicate().ntriplesString() + " " + stray.getObject().ntriplesString());
   }
 
   /**
-   * Rejects the write if a blank node of {@code content} or of the {@code old} slice is used by
+   * Rejects the write if a blank node of {@code triples} or of the {@code old} slice is used by
    * a triple of the content graph outside {@code old}. Reads each node as subject and as object,
    * so only those patterns are observed.
    */
-  private void requireNoSharedBlankNode(final DatasetTx tx, final Graph content, final Graph old, final IRI proxyIRI) {
+  private void requireNoSharedBlankNode(final DatasetTx tx, final Graph triples, final Graph old, final IRI proxyIRI) {
     final Set<BlankNode> nodes = new HashSet<>();
-    collectBlankNodes(content, nodes);
+    collectBlankNodes(triples, nodes);
     collectBlankNodes(old, nodes);
     for (final BlankNode node : nodes) {
       for (final ReadableGraph uses : List.of(tx.match(contentGraph, node, null, null),

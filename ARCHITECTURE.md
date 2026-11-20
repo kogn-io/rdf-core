@@ -552,8 +552,8 @@ the fragment IRIs of the draft and of the published slice come from the draft
 and the published fragment index in the history graph. Per operation:
 `readDraft` reads the counter, the draft fragment index and the draft;
 `replaceDraft` the counter, the draft fragment index, the draft over the
-indexed fragment IRIs and every fragment IRI the new content names, and each
-blank node of the new content and the old draft (the shared-blank-node check);
+indexed fragment IRIs and every fragment IRI the new triples name, and each
+blank node of the new triples and the old draft (the shared-blank-node check);
 `publish` the counter, the draft fragment index, the draft and the history
 entries, and unless unchanged the published fragment index, the published slice
 and whether the content store holds the version, by one pattern on the CID or
@@ -584,8 +584,8 @@ version is stored already, or a `delete` whose tombstone names it), and a read
 by sequence number also against a write of an entry of its proxy IRI. A
 `replaceDraft` fails if a write past the library commits first that touches a
 triple in the content graph about the proxy IRI, about a fragment IRI the new
-content names or the draft fragment index records, or about a blank node of the
-new content or the old slice;
+triples name or the draft fragment index records, or about a blank node of the
+new triples or the old slice;
 committing first, it makes the foreign writer fail only if that one read a
 pattern the `replaceDraft` changed — a `DatasetTx#add` observes only the
 triples it adds. A `readPublished`, `history` or version read of a proxy IRI

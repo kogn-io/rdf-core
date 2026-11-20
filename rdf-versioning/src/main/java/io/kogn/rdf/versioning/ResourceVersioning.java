@@ -41,7 +41,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * literal and an invalid language tag. The operations report that as an
  * {@link IllegalArgumentException} and raise it before their first write, so a caller that
  * catches it inside the transaction and commits still finds the dataset as it was (apart from
- * the binding of the content graph on first use): {@link #replaceDraft} hands the new content
+ * the binding of the content graph on first use): {@link #replaceDraft} hands the new triples
  * to the store before it removes the old draft, {@link #publish} and {@link #delete} write the
  * history entry, which carries the caller's creator, before anything else.</p>
  *
@@ -77,8 +77,8 @@ import io.kogn.rdf.terms.ReadableGraph;
  *   <li>{@link #readDraft} reads the revision counter, the draft fragment index and the
  *   draft slice;</li>
  *   <li>{@link #replaceDraft} reads the revision counter, the draft fragment index, and the
- *   draft slice over the indexed fragment IRIs and every fragment IRI the new content
- *   names; then each blank node of the new content and of that old slice, as subject and as
+ *   draft slice over the indexed fragment IRIs and every fragment IRI the new triples
+ *   name; then each blank node of the new triples and of that old slice, as subject and as
  *   object, in the content graph (the check for shared blank nodes). It reads no history
  *   entry, nothing of the published view and nothing of the content store;</li>
  *   <li>{@link #publish} reads, for each proxy IRI, the revision counter, the draft
@@ -108,7 +108,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * each reading the revision counter the other raises; two publishes that store the same
  * new version, each reading the content store where the other adds it; two of the first
  * operations on an unbound dataset, each reading the binding the other writes; and two
- * {@link #replaceDraft} calls on disjoint proxy IRIs whose contents carry the same blank
+ * {@link #replaceDraft} calls on disjoint proxy IRIs whose triples carry the same blank
  * node, as a parser labelling each document from {@code _:b0} produces, each reading that
  * blank node in the content graph where the other adds it — one after the other, the
  * second fails with {@link AmbiguousBlankNodeException}, concurrently the second to commit
@@ -120,8 +120,8 @@ import io.kogn.rdf.terms.ReadableGraph;
  * names it as the last version), and a read by sequence number also against a publish or
  * {@link #delete} of its proxy IRI that writes an entry. A {@link #replaceDraft} of a
  * proxy IRI fails if a change past the library commits before it that touches a triple in
- * the content graph about that proxy IRI, about a fragment IRI the new content names or
- * the draft fragment index records, or about a blank node of the new content or the old
+ * the content graph about that proxy IRI, about a fragment IRI the new triples name or
+ * the draft fragment index records, or about a blank node of the new triples or the old
  * slice; committing first, it makes that other transaction fail only if the other read a
  * pattern the {@link #replaceDraft} changed. A {@link #readPublished}, a {@link #history}
  * or a version read of a proxy IRI, on the other hand, does not conflict with a
@@ -202,7 +202,7 @@ public interface ResourceVersioning {
    *
    * <p><strong>Which fragment IRIs.</strong> A fragment IRI cannot be found by a statement
    * pattern, so the library records, in the history graph, the fragment subjects of the
-   * content each {@link #replaceDraft} wrote ({@link VocabVersioning#DRAFT_FRAGMENT}), and
+   * triples each {@link #replaceDraft} wrote ({@link VocabVersioning#DRAFT_FRAGMENT}), and
    * reads the slice subject by subject. A fragment IRI belongs to the stored slice if the
    * last write through the library had it as a subject. A triple written to the content
    * graph past the library, on a fragment IRI that write did not have, is not part of the

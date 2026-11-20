@@ -38,7 +38,7 @@ import io.kogn.rdf.terms.SimpleRdf;
  * {@code NativeStore}, beside the {@code MemoryStore} the other tests use. These are
  * end-state and race regression tests, not a pin of the {@code contains} guard of ADR-0008:
  * replacing that guard with an {@code ASK} left the first-write, follow-up-write and bind races green (1000 runs each). Each race is held by latches, not by timing: the slow transaction has read and written
- * before the competitor commits, and commits afterwards (in {@code ResourceVersioningSliceTest} the slow
+ * before the competitor commits, and commits afterwards (in {@code ResourceVersioningDraftTest} the slow
  * write only comes after the competitor's commit).
  *
  * <p>Only invariants of the same proxy IRI and of equal content are pinned; no race here
