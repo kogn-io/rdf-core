@@ -20,6 +20,13 @@ import io.kogn.rdf.terms.RDFTerm;
  * that class's Javadoc for why binding a value is preferable to concatenating it into
  * the update string.</p>
  *
+ * <p>A {@code null} argument — the update string, the bindings map, a name or a value in it — is
+ * a {@link NullPointerException}, and an empty or blank update string an
+ * {@link IllegalArgumentException}; both are raised before the store is touched and are never
+ * reported as {@link MalformedSparqlException} or {@link SparqlEvaluationException}. An empty
+ * string is a valid SPARQL 1.1 update that does nothing; this port rejects it all the same, as a
+ * call that most likely lost its update on the way.</p>
+ *
  * <p><strong>Caller must address named graphs explicitly.</strong> The dataset model has
  * no default graph (see the package documentation), but this port does not parse or
  * police the SPARQL text it is given: an {@code INSERT DATA} (or {@code DELETE DATA},
@@ -51,7 +58,9 @@ public interface SparqlUpdate {
    * {@code INSERT/DELETE WHERE}, and {@code CLEAR}. The operation is executed
    * atomically if the underlying store supports it.</p>
    *
-   * @param sparql the SPARQL Update string; must not be {@code null} or empty
+   * @param sparql the SPARQL Update string; must not be {@code null}, empty or blank
+   * @throws NullPointerException if {@code sparql} is {@code null}
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it
@@ -66,10 +75,13 @@ public interface SparqlUpdate {
    * {@code bindings} substitutes its value for the same-named {@code ?variable} in
    * {@code sparql} before execution.</p>
    *
-   * @param sparql the SPARQL Update string; must not be {@code null} or empty
+   * @param sparql the SPARQL Update string; must not be {@code null}, empty or blank
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
    *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
    *     {@link #update(String)}
+   * @throws NullPointerException if {@code sparql} or {@code bindings} is {@code null}, or
+   *     {@code bindings} holds a {@code null} name or value
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it

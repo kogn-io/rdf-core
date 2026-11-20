@@ -4,6 +4,7 @@
 package io.kogn.rdf.rdf4j.dataset;
 
 import java.util.Map;
+import java.util.Objects;
 
 import org.eclipse.rdf4j.query.QueryLanguage;
 import org.eclipse.rdf4j.query.Update;
@@ -29,9 +30,10 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
    * @param repository the repository to open connections against; must be
    *     initialized — an operation on a repository that is not (shut down, or never initialized)
    *     fails, it does not initialize the repository again
+   * @throws NullPointerException if {@code repository} is {@code null}
    */
   public SparqlUpdateRdf4j(final Repository repository) {
-    this.repository = repository;
+    this.repository = Objects.requireNonNull(repository, "repository must not be null");
   }
 
   @Override
@@ -41,6 +43,7 @@ public class SparqlUpdateRdf4j implements SparqlUpdate {
 
   @Override
   public void update(final String sparql, final Map<String, RDFTerm> bindings) {
+    SparqlErrors.requireArguments(sparql, bindings);
     try (RepositoryConnection conn = SparqlErrors.translating(() -> Connections.open(repository))) {
       final Update operation = SparqlErrors
           .bound(SparqlErrors.translating(() -> conn.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings);

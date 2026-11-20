@@ -4,6 +4,7 @@
 package io.kogn.rdf.rdf4j;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.eclipse.rdf4j.model.BNode;
 import org.eclipse.rdf4j.model.Model;
@@ -63,6 +64,7 @@ public final class RDF4JFactory implements RDF {
 
   @Override
   public BlankNode createBlankNode(String identifier) {
+    Objects.requireNonNull(identifier, "identifier must not be null");
     return new RDF4JBlankNode(valueFactory.createBNode(identifier));
   }
 

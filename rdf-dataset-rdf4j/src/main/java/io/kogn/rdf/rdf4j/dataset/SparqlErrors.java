@@ -4,6 +4,7 @@
 package io.kogn.rdf.rdf4j.dataset;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import org.eclipse.rdf4j.query.MalformedQueryException;
@@ -33,13 +34,37 @@ import io.kogn.rdf.terms.RDFTerm;
  * reason {@code DatasetExportRdf4j} catches broadly: a sail — an inferencer, a federation — may
  * signal through a foreign unchecked exception that {@code SailRepositoryConnection} passes on
  * unwrapped. What makes the blanket catch safe is what the callers keep <em>out</em> of it:
- * binding the caller's terms ({@link #bound}) and converting the RDF4J result into port types
- * both run outside, so a defect in this library — or a {@code null} binding value the port
- * forbids — is never disguised as an evaluation failure. Only RDF4J calls go in.</p>
+ * checking the caller's arguments ({@link #requireArguments}), binding the caller's terms
+ * ({@link #bound}) and converting the RDF4J result into port types all run outside, so a defect
+ * in this library — or a {@code null} argument the port forbids — is never disguised as an
+ * evaluation failure. Only RDF4J calls go in.</p>
  */
 final class SparqlErrors {
 
   private SparqlErrors() {
+  }
+
+  /**
+   * Checks the arguments of a SPARQL operation before any RDF4J call is made: a {@code null}
+   * string, a {@code null} bindings map or a {@code null} name or value in it is a
+   * {@link NullPointerException}, an empty or blank string an {@link IllegalArgumentException}.
+   *
+   * @param sparql the caller's SPARQL string
+   * @param bindings the caller's pre-bound variables
+   * @throws NullPointerException if {@code sparql} or {@code bindings} is {@code null}, or
+   *     {@code bindings} holds a {@code null} name or value
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
+   */
+  static void requireArguments(final String sparql, final Map<String, RDFTerm> bindings) {
+    Objects.requireNonNull(sparql, "sparql must not be null");
+    Objects.requireNonNull(bindings, "bindings must not be null");
+    bindings.forEach((name, value) -> {
+      Objects.requireNonNull(name, "bindings must not hold a null name");
+      Objects.requireNonNull(value, () -> "bindings must not hold a null value, but ?" + name + " is null");
+    });
+    if (sparql.isBlank()) {
+      throw new IllegalArgumentException("sparql must not be empty or blank");
+    }
   }
 
   /**

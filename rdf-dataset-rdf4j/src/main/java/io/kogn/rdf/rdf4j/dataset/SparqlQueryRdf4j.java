@@ -5,6 +5,7 @@ package io.kogn.rdf.rdf4j.dataset;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import org.eclipse.rdf4j.model.Model;
@@ -40,9 +41,10 @@ public class SparqlQueryRdf4j implements SparqlQuery {
    * @param repository the repository to open connections against; must be
    *     initialized — an operation on a repository that is not (shut down, or never initialized)
    *     fails, it does not initialize the repository again
+   * @throws NullPointerException if {@code repository} is {@code null}
    */
   public SparqlQueryRdf4j(final Repository repository) {
-    this.repository = repository;
+    this.repository = Objects.requireNonNull(repository, "repository must not be null");
   }
 
   @Override
@@ -52,6 +54,7 @@ public class SparqlQueryRdf4j implements SparqlQuery {
 
   @Override
   public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
+    SparqlErrors.requireArguments(sparql, bindings);
     try (RepositoryConnection conn = SparqlErrors.translating(() -> Connections.open(repository))) {
       final TupleQuery query = SparqlErrors
           .bound(SparqlErrors.translating(() -> conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings);
@@ -76,6 +79,7 @@ public class SparqlQueryRdf4j implements SparqlQuery {
    */
   @Override
   public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
+    SparqlErrors.requireArguments(sparql, bindings);
     try (RepositoryConnection conn = SparqlErrors.translating(() -> Connections.open(repository))) {
       final GraphQuery query = SparqlErrors
           .bound(SparqlErrors.translating(() -> conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
@@ -92,6 +96,7 @@ public class SparqlQueryRdf4j implements SparqlQuery {
 
   @Override
   public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
+    SparqlErrors.requireArguments(sparql, bindings);
     try (RepositoryConnection conn = SparqlErrors.translating(() -> Connections.open(repository))) {
       final BooleanQuery query = SparqlErrors
           .bound(SparqlErrors.translating(() -> conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings);

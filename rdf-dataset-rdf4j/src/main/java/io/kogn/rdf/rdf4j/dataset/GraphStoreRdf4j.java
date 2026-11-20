@@ -4,6 +4,7 @@
 package io.kogn.rdf.rdf4j.dataset;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToLongFunction;
 
 import org.eclipse.rdf4j.common.transaction.IsolationLevels;
@@ -40,9 +41,10 @@ public class GraphStoreRdf4j implements GraphStore {
    * @param repository the repository to open connections against; must be
    *     initialized — an operation on a repository that is not (shut down, or never initialized)
    *     fails, it does not initialize the repository again
+   * @throws NullPointerException if {@code repository} is {@code null}
    */
   public GraphStoreRdf4j(final Repository repository) {
-    this.repository = repository;
+    this.repository = Objects.requireNonNull(repository, "repository must not be null");
   }
 
   /**

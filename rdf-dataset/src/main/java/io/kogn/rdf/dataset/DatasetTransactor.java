@@ -60,6 +60,7 @@ public interface DatasetTransactor {
    * @param <T> the result type produced by {@code work}
    * @param work the operations to execute; must not be {@code null}
    * @return the value returned by {@code work}
+   * @throws NullPointerException if {@code work} is {@code null}; no transaction is opened
    * @throws ConcurrencyConflictException if the commit was rejected because this
    *     transaction lost a race against a concurrently committed, conflicting
    *     transaction on the same dataset (see class Javadoc), which is no proof that a
