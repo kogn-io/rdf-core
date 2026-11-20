@@ -16,7 +16,8 @@
  *
  * <p>Each implementation is a store-agnostic wrapper over a caller-supplied RDF4J
  * {@code Repository} and does not expose RDF4J types in its public signatures apart from the
- * constructor taking that {@code Repository} (ADR-0026) — callers only see the port interfaces. These wrappers do not build a store; assembling and owning a
+ * constructor taking that {@code Repository} (ADR-0026) — callers only see the port interfaces.
+ * These wrappers do not build a store; assembling and owning a
  * {@code Repository} is the job of the hosting adapter ({@code rdf-dataset-hosting-rdf4j}),
  * which composes these same wrappers behind a leased handle (see ADR-0009).</p>
  *
