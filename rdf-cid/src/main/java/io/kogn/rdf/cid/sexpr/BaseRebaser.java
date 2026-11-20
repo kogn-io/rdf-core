@@ -66,7 +66,8 @@ public final class BaseRebaser {
    * @param to the base IRI that takes its place; carries no {@code #}
    * @return a new graph holding the renamed triples, as many as {@code graph} holds
    * @throws NullPointerException if an argument is null
-   * @throws IllegalArgumentException if {@code from} or {@code to} carries a {@code #} ({@code [INVALID_BASE]}), is the reserved IRI
+   * @throws IllegalArgumentException if {@code from} or {@code to} carries a {@code #}
+   *         ({@code [INVALID_BASE]}), is the reserved IRI
    *         ({@code [RESERVED_IRI]}), holds an unpaired surrogate or begins with {@code _:}
    *         ({@code [UNSUPPORTED_TERM]}); if {@code to} differs from {@code from} and the graph
    *         already uses an IRI whose base is {@code to}; if a term is none of an RDF 1.1 IRI,
