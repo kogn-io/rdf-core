@@ -73,9 +73,8 @@ public final class ContentAddressedIRIGeneratorSexpr implements ContentAddressed
 
   @Override
   public IRI generateIRI(IRI base, ReadableGraph graph) {
-    if (graph == null) {
-      throw new IllegalArgumentException("Graph cannot be null");
-    }
+    Objects.requireNonNull(base, "base must not be null");
+    Objects.requireNonNull(graph, "graph must not be null");
     return derive(base, graph.stream().toList()).identifier();
   }
 
@@ -85,9 +84,9 @@ public final class ContentAddressedIRIGeneratorSexpr implements ContentAddressed
    * @param base the base IRI of the resource the triples describe
    * @param triples the input graph describing that resource
    * @return the identifier together with the hashed input it was derived from
-   * @throws IllegalArgumentException if {@code base} or {@code triples} is null, or if a
-   *         precondition of §3 does not hold; the message then starts with its failure code in
-   *         brackets, the first failing one in the order of §3
+   * @throws NullPointerException if {@code base} or {@code triples} is null
+   * @throws IllegalArgumentException if a precondition of §3 does not hold; the message then
+   *         starts with its failure code in brackets, the first failing one in the order of §3
    * @throws CanonicalizationResourceLimitExceededException if the cost bound of the blank nodes
    *         exceeds the resource limit of §4.3
    * @throws ContentAddressingException if canonicalization otherwise fails

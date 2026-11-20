@@ -65,17 +65,15 @@ public final class BaseRebaser {
    * @param from the base IRI to replace; carries no {@code #}
    * @param to the base IRI that takes its place; carries no {@code #}
    * @return a new graph holding the renamed triples, as many as {@code graph} holds
-   * @throws IllegalArgumentException if an argument is null; if {@code from} or {@code to}
-   *         carries a {@code #} ({@code [INVALID_BASE]}), is the reserved IRI
+   * @throws NullPointerException if an argument is null
+   * @throws IllegalArgumentException if {@code from} or {@code to} carries a {@code #} ({@code [INVALID_BASE]}), is the reserved IRI
    *         ({@code [RESERVED_IRI]}), holds an unpaired surrogate or begins with {@code _:}
    *         ({@code [UNSUPPORTED_TERM]}); if {@code to} differs from {@code from} and the graph
    *         already uses an IRI whose base is {@code to}; if a term is none of an RDF 1.1 IRI,
    *         blank node or literal ({@code [UNSUPPORTED_TERM]}, also a null triple or term); or if the term factory rejects a renamed IRI
    */
   public Graph rebase(ReadableGraph graph, IRI from, IRI to) {
-    if (graph == null) {
-      throw new IllegalArgumentException("Graph cannot be null");
-    }
+    Objects.requireNonNull(graph, "graph must not be null");
     final String fromIRI = checkedBase(from, "old");
     final String toIRI = checkedBase(to, "new");
     final Graph result = rdf.createGraph();
@@ -89,9 +87,7 @@ public final class BaseRebaser {
   }
 
   private static String checkedBase(IRI base, String which) {
-    if (base == null) {
-      throw new IllegalArgumentException("The " + which + " base IRI cannot be null");
-    }
+    Objects.requireNonNull(base, () -> "the " + which + " base IRI must not be null");
     return Preconditions.checkBase(base, which + " base IRI");
   }
 

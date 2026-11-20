@@ -158,16 +158,14 @@ class BaseRebaserTest {
   }
 
   @Test
-  @DisplayName("null arguments are rejected")
+  @DisplayName("null arguments are rejected as NullPointerException")
   void rejectsNulls() {
     final Graph graph = rdf.createGraph();
 
-    assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(NullPointerException.class)
         .isThrownBy(() -> rebaser.rebase(null, provisional, provisional));
-    assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> rebaser.rebase(graph, null, provisional));
-    assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> rebaser.rebase(graph, provisional, null));
+    assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> rebaser.rebase(graph, null, provisional));
+    assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> rebaser.rebase(graph, provisional, null));
   }
 
   @Test
