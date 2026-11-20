@@ -4,7 +4,8 @@
 package io.kogn.rdf.dataset;
 
 /**
- * Signals that the store failed while carrying out a graph operation or committing a transaction.
+ * Signals that the store failed while carrying out a graph operation, committing a transaction or
+ * being opened.
  *
  * <p>Thrown by the graph operations of {@link GraphStore} — and therefore of {@link DatasetTx},
  * which inherits them — and by {@link DatasetTx#contains}, when the backend could not do its
@@ -13,9 +14,8 @@ package io.kogn.rdf.dataset;
  * the commit fails for any reason other than a lost race, which is reported as the more
  * specific {@link ConcurrencyConflictException}.</p>
  *
- * <p>The hosting port in {@code rdf-dataset-hosting} extends it: a dataset that cannot be opened
- * because another owner holds its store locked is reported as its subtype
- * {@code DatasetStoreLockedException}.</p>
+ * <p>A port that opens stores, rather than working with one it was handed, may report a store
+ * that cannot be opened with this type or with a more specific subtype of its own.</p>
  *
  * <p>This is the neutral, backend-independent form of a storage failure, the counterpart of
  * {@link SparqlEvaluationException} for the graph operations. Implementations translate their
