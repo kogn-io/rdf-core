@@ -133,7 +133,7 @@ class ShaclValidationRdf4jTest {
     ShaclResult result = report.results().get(0);
     assertThat(result.focusNode()).isEqualTo(ex("bob"));
     assertThat(result.path()).isEqualTo("<" + ex("name").getIRIString() + ">");
-    assertThat(result.severityIri()).isEqualTo(sh("Violation"));
+    assertThat(result.severityIRI()).isEqualTo(sh("Violation"));
     assertThat(result.severity()).isEqualTo(Severity.VIOLATION);
     assertThat(result.messages()).containsExactly(ShaclMessage.untagged("Name is required"));
   }
@@ -571,7 +571,7 @@ class ShaclValidationRdf4jTest {
   }
 
   @Test
-  void severityIriIsKeptAlongsideTheEnum() {
+  void severityIRIIsKeptAlongsideTheEnum() {
     Graph shapes = personShapeRequiringOneValueOf(ex("nickname"));
     shapes.add(shapeProperty(shapes), sh("severity"), sh("Warning"));
     Graph data = rdf.createGraph();
@@ -580,7 +580,7 @@ class ShaclValidationRdf4jTest {
     ShaclResult result = validation.validate(data, shapes, ValidationOptions.defaults()).results().get(0);
 
     assertThat(result.severity()).isEqualTo(Severity.WARNING);
-    assertThat(result.severityIri()).isEqualTo(sh("Warning"));
+    assertThat(result.severityIRI()).isEqualTo(sh("Warning"));
   }
 
   @Test
@@ -594,7 +594,7 @@ class ShaclValidationRdf4jTest {
 
     assertThat(result.severity()).isEqualTo(Severity.VIOLATION);
     // RDF4J's validation report knows only sh:Violation/Warning/Info and drops a custom severity IRI itself
-    assertThat(result.severityIri()).isEqualTo(sh("Violation"));
+    assertThat(result.severityIRI()).isEqualTo(sh("Violation"));
   }
 
   @Test
@@ -644,7 +644,7 @@ class ShaclValidationRdf4jTest {
     Graph shapes = rdf.createGraph();
     BlankNode path = pathNode(shapes, "alternativePath", pathList(shapes, ex("knows"), ex("name")));
 
-    assertThat(resultPathOf(shapes, path)).isEqualTo(pathIri("knows") + "|" + pathIri("name"));
+    assertThat(resultPathOf(shapes, path)).isEqualTo(pathIRI("knows") + "|" + pathIRI("name"));
   }
 
   @Test
@@ -653,7 +653,7 @@ class ShaclValidationRdf4jTest {
     BlankNode alternative = pathNode(shapes, "alternativePath", pathList(shapes, ex("b"), ex("c")));
     BlankNode path = pathList(shapes, ex("a"), alternative);
 
-    assertThat(resultPathOf(shapes, path)).isEqualTo(pathIri("a") + "/(" + pathIri("b") + "|" + pathIri("c") + ")");
+    assertThat(resultPathOf(shapes, path)).isEqualTo(pathIRI("a") + "/(" + pathIRI("b") + "|" + pathIRI("c") + ")");
   }
 
   /*
@@ -786,7 +786,7 @@ class ShaclValidationRdf4jTest {
     Graph shapes = rdf.createGraph();
     BlankNode path = pathNode(shapes, "inversePath", pathNode(shapes, "inversePath", ex("p")));
 
-    assertThat(resultPathOf(shapes, path)).isEqualTo("^(^" + pathIri("p") + ")");
+    assertThat(resultPathOf(shapes, path)).isEqualTo("^(^" + pathIRI("p") + ")");
   }
 
   @Test
@@ -1167,7 +1167,7 @@ class ShaclValidationRdf4jTest {
     assertThat(report.conforms()).isTrue();
   }
 
-  private String pathIri(String local) {
+  private String pathIRI(String local) {
     return "<" + ex(local).getIRIString() + ">";
   }
 

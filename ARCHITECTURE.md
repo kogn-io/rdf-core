@@ -410,10 +410,10 @@ Settled semantics worth knowing before consuming it:
   confused with an IRI of the same text. `path()` is rendered in SPARQL property
   path syntax (`<iri>`, `^`, `/`, `|`, `*`, `+`, `?`), not as a blank node
   label, and is `null` for a shape without a path. `severity()` is the closed
-  `Severity` enum; `severityIri()` is the reported `sh:resultSeverity` IRI next
+  `Severity` enum; `severityIRI()` is the reported `sh:resultSeverity` IRI next
   to it, so a custom severity can keep its identity on a backend that reports
   it. The RDF4J backend reports a custom severity as `sh:Violation`, so there
-  `severityIri` is `sh:Violation` as well.
+  `severityIRI` is `sh:Violation` as well.
 - **RDFS subclass reasoning is opt-in** (`ValidationOptions.rdfsSubClassReasoning`,
   default off), and a silent no-op if no `rdfs:subClassOf` axioms are present in
   either graph.

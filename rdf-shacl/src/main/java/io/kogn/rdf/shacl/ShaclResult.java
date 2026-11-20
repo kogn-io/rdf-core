@@ -41,20 +41,20 @@ import io.kogn.rdf.terms.RDFTerm;
  * @param severity the severity of this result, mapped onto the closed {@link Severity}
  *     enum (a severity IRI other than {@code sh:Warning}/{@code sh:Info} maps to
  *     {@link Severity#VIOLATION}); must not be {@code null}
- * @param severityIri the {@code sh:resultSeverity} IRI as reported, so a custom severity
+ * @param severityIRI the {@code sh:resultSeverity} IRI as reported, so a custom severity
  *     keeps its identity even though {@code severity} cannot express it; must not be
  *     {@code null}
  * @param messages every {@code sh:resultMessage} of this result, in no meaningful order;
  *     must not be {@code null}, possibly empty
  */
-public record ShaclResult(RDFTerm focusNode, String path, Severity severity, IRI severityIri,
+public record ShaclResult(RDFTerm focusNode, String path, Severity severity, IRI severityIRI,
     List<ShaclMessage> messages) {
 
   /**
    * Validates and defensively copies the result.
    *
    * @throws IllegalArgumentException if {@code focusNode}, {@code severity},
-   *     {@code severityIri} or {@code messages} is {@code null}
+   *     {@code severityIRI} or {@code messages} is {@code null}
    * @throws NullPointerException if {@code messages} contains {@code null}
    */
   public ShaclResult {
@@ -64,8 +64,8 @@ public record ShaclResult(RDFTerm focusNode, String path, Severity severity, IRI
     if (severity == null) {
       throw new IllegalArgumentException("severity must not be null");
     }
-    if (severityIri == null) {
-      throw new IllegalArgumentException("severityIri must not be null");
+    if (severityIRI == null) {
+      throw new IllegalArgumentException("severityIRI must not be null");
     }
     if (messages == null) {
       throw new IllegalArgumentException("messages must not be null");
