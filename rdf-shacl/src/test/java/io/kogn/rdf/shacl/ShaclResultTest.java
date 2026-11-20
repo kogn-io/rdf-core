@@ -72,13 +72,13 @@ class ShaclResultTest {
   }
 
   @Test
-  void nullSeverityIriIsRejected() {
+  void nullSeverityIRIIsRejected() {
     assertThatThrownBy(() -> new ShaclResult(ALICE, null, Severity.VIOLATION, null, List.of()))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
-  void focusNodeKeepsItsTermKindAndSeverityIriIsKept() {
+  void focusNodeKeepsItsTermKindAndSeverityIRIIsKept() {
     RDFTerm literal = RDF_FACTORY.createLiteral("42",
         RDF_FACTORY.createIRI("http://www.w3.org/2001/XMLSchema#integer"));
     IRI custom = RDF_FACTORY.createIRI("https://example.org/Critical");
@@ -86,6 +86,6 @@ class ShaclResultTest {
     ShaclResult result = new ShaclResult(literal, null, Severity.VIOLATION, custom, List.of());
 
     assertThat(result.focusNode()).isSameAs(literal);
-    assertThat(result.severityIri()).isEqualTo(custom);
+    assertThat(result.severityIRI()).isEqualTo(custom);
   }
 }

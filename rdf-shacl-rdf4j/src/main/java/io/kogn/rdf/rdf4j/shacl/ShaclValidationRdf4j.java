@@ -485,13 +485,13 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     String path = firstObject(model, resultId, SHACL.RESULT_PATH).map(resultPath -> toPropertyPath(model, resultPath))
         .orElse(null);
     Value severityValue = firstObject(model, resultId, SHACL.RESULT_SEVERITY).orElse(SHACL.VIOLATION);
-    IRI severityIri = severityValue instanceof IRI iri ? iri : SHACL.VIOLATION;
+    IRI severityIRI = severityValue instanceof IRI iri ? iri : SHACL.VIOLATION;
     List<ShaclMessage> messages = model.filter(resultId, SHACL.RESULT_MESSAGE, null)
         .stream()
         .map(Statement::getObject)
         .map(ShaclValidationRdf4j::toShaclMessage)
         .toList();
-    return new ShaclResult(focusNode, path, toSeverity(severityIri), TERMS.createIRI(severityIri.stringValue()),
+    return new ShaclResult(focusNode, path, toSeverity(severityIRI), TERMS.createIRI(severityIRI.stringValue()),
         messages);
   }
 
@@ -599,11 +599,11 @@ public final class ShaclValidationRdf4j implements ShaclValidation {
     return ShaclMessage.untagged(message.stringValue());
   }
 
-  private static Severity toSeverity(Value severityIri) {
-    if (SHACL.WARNING.equals(severityIri)) {
+  private static Severity toSeverity(Value severityIRI) {
+    if (SHACL.WARNING.equals(severityIRI)) {
       return Severity.WARNING;
     }
-    if (SHACL.INFO.equals(severityIri)) {
+    if (SHACL.INFO.equals(severityIRI)) {
       return Severity.INFO;
     }
     return Severity.VIOLATION;
