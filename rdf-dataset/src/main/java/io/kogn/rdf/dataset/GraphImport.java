@@ -102,4 +102,32 @@ public interface GraphImport {
    *     fails
    */
   Graph readTurtle(InputStream in, IRI base);
+
+  /**
+   * Reads a Turtle document that needs no base IRI from outside into a new graph.
+   *
+   * <p>Meant for a document whose IRIs are all absolute, such as bundled shapes or ontology
+   * axioms, where a base argument would be boilerplate. <strong>No base is assumed:</strong> a
+   * relative IRI reference resolves only against a base the document declares itself with an
+   * absolute {@code @base} or {@code BASE}, from that point on. A relative reference before any
+   * such declaration — an IRI, a {@code @prefix} namespace, a datatype, or a relative
+   * {@code @base} — has nothing to resolve against and fails the import, with the line where
+   * available; it never becomes a relative or otherwise made-up IRI in the graph.</p>
+   *
+   * <p>Apart from the base, everything {@link #readTurtle(InputStream, IRI)} states holds here
+   * unchanged: the stream is decoded as strict UTF-8 and never closed, blank nodes are scoped to
+   * the call, the result is the complete document or nothing, and the same content is rejected
+   * for the same reasons. For a document that holds no relative reference both forms yield the
+   * same triples.</p>
+   *
+   * @param in the stream to read the document from; must not be {@code null}. Read up to the end
+   *     of the document or the failure, never closed
+   * @return a new, modifiable graph holding the document's triples, owned by the caller
+   * @throws NullPointerException if {@code in} is {@code null}
+   * @throws RDFImportException if the document holds a relative IRI reference that no absolute
+   *     {@code @base} of its own resolves, or for any reason {@link #readTurtle(InputStream, IRI)}
+   *     names: the document is not valid Turtle, holds content the data model cannot represent or
+   *     a literal the store would refuse, or reading from {@code in} fails
+   */
+  Graph readTurtle(InputStream in);
 }

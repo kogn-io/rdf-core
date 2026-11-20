@@ -426,6 +426,113 @@ class GraphImportRdf4jTest {
     assertThat(graph).isInstanceOf(io.kogn.rdf.terms.SimpleGraph.class);
   }
 
+  @Test
+  @DisplayName("without a base, a document of absolute IRIs imports as it does with one")
+  void withoutBaseAbsoluteDocumentImports() {
+    final String document = """
+        @prefix ex: <https://example.org/> .
+        ex:s ex:p ex:o , <urn:x:y> , "plain" , "Hallo"@de .
+        _:b ex:p 1 .
+        """;
+
+    final Graph graph = graphImport.readTurtle(turtle(document));
+
+    assertThat(graph.size()).isEqualTo(5);
+    assertThat(graph.contains(rdf.createTriple(s, p, rdf.createIRI(EX + "o")))).isTrue();
+    assertThat(graph.contains(rdf.createTriple(s, p, rdf.createIRI("urn:x:y")))).isTrue();
+    assertThat(graph.contains(rdf.createTriple(s, p, rdf.createLiteral("Hallo", "de")))).isTrue();
+    assertThat(graph.stream(null, p, null).map(Triple::getSubject)).anyMatch(BlankNode.class::isInstance);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"<a> <https://example.org/p> 1 .", "<https://example.org/s> <https://example.org/p> <b> .",
+      "<> <https://example.org/p> 1 .", "<#f> <https://example.org/p> 1 .",
+      "@prefix ex: <rel/> . ex:s <https://example.org/p> 1 .",
+      "<https://example.org/s> <https://example.org/p> \"1\"^^<integer> .",
+      "@base <rel/> . <https://example.org/s> <https://example.org/p> 1 .",
+      "BASE <rel/> <https://example.org/s> <https://example.org/p> 1 ."})
+  @DisplayName("without a base, a relative reference nothing in the document resolves is rejected")
+  void withoutBaseRelativeReferenceIsRejected(final String document) {
+    assertThatThrownBy(() -> graphImport.readTurtle(turtle(document))).isExactlyInstanceOf(RDFImportException.class)
+        .hasMessageContaining("line 1")
+        .cause()
+        .isNotNull();
+  }
+
+  @Test
+  @DisplayName("without a base, the rejection of a relative reference names its line")
+  void withoutBaseRejectionNamesTheLine() {
+    final String document = "<https://example.org/s> <https://example.org/p> 1 .\n<a> <https://example.org/p> 1 .";
+
+    assertThatThrownBy(() -> graphImport.readTurtle(turtle(document))).isExactlyInstanceOf(RDFImportException.class)
+        .hasMessageContaining("line 2");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"@base <https://other.example/> . <a> <https://example.org/p> <b> .",
+      "BASE <https://other.example/> <a> <https://example.org/p> <b> .",
+      "@base <https://other.example/x/> . @base <../> . <a> <https://example.org/p> <b> ."})
+  @DisplayName("without a base, the document's own absolute @base resolves relative references")
+  void withoutBaseDocumentBaseResolves(final String document) {
+    final Graph graph = graphImport.readTurtle(turtle(document));
+
+    assertThat(graph.size()).isEqualTo(1);
+    assertThat(graph.contains(
+        rdf.createTriple(rdf.createIRI("https://other.example/a"), p, rdf.createIRI("https://other.example/b"))))
+        .isTrue();
+  }
+
+  @Test
+  @DisplayName("without a base, a null stream is a NullPointerException")
+  void withoutBaseNullStreamIsNullPointerException() {
+    assertThatThrownBy(() -> graphImport.readTurtle(null)).isExactlyInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  @DisplayName("without a base, the stream is read but not closed")
+  void withoutBaseLeavesTheStreamOpen() {
+    final CloseTrackingStream in = new CloseTrackingStream("<https://example.org/s> <https://example.org/p> 1 .");
+
+    graphImport.readTurtle(in);
+
+    assertThat(in.read).isTrue();
+    assertThat(in.closed).isFalse();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"<https://example.org/s> <https://example.org/p>\n \"abc\"^^<" + XSD + "integer> .",
+      "<https://example.org/s> <https://example.org/p>\n \"x\"@abcdefghi .",
+      "<https://example.org/s> <https://example.org/p>\n \"x\"@en--ltr .",
+      "<https://example.org/s> <https://example.org/p>\n <<( <https://example.org/a> <https://example.org/b> 1 )>> ."})
+  @DisplayName("without a base, content the two-argument form rejects is rejected the same way")
+  void withoutBaseRejectsWhatTheTwoArgumentFormRejects(final String document) {
+    final RDFImportException withBase = catchImport(() -> graphImport.readTurtle(turtle(document), base));
+    final RDFImportException withoutBase = catchImport(() -> graphImport.readTurtle(turtle(document)));
+
+    assertThat(withoutBase).hasMessage(withBase.getMessage()).hasMessageContaining("line 2");
+  }
+
+  @Test
+  @DisplayName("without a base, bytes that are not UTF-8 are rejected and a byte order mark is skipped")
+  void withoutBaseDecodesStrictUTF8() {
+    final byte[] latin1 = "<https://example.org/s> <https://example.org/p> \"ä\" ."
+        .getBytes(StandardCharsets.ISO_8859_1);
+
+    assertThatThrownBy(() -> graphImport.readTurtle(new ByteArrayInputStream(latin1)))
+        .isExactlyInstanceOf(RDFImportException.class);
+    assertThat(graphImport.readTurtle(turtle("﻿<https://example.org/s> <https://example.org/p> \"ä\" ."))
+        .contains(rdf.createTriple(s, p, rdf.createLiteral("ä")))).isTrue();
+  }
+
+  private static RDFImportException catchImport(final Runnable action) {
+    try {
+      action.run();
+    } catch (final RDFImportException e) {
+      return e;
+    }
+    throw new AssertionError("expected an RDFImportException");
+  }
+
   /** A stream over a fixed document that records whether it was read from or closed. */
   private static final class CloseTrackingStream extends ByteArrayInputStream {
 
