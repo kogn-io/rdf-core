@@ -48,17 +48,25 @@
       <groupId>org.eclipse.rdf4j</groupId>
       <artifactId>rdf4j-sail-api</artifactId>
     </dependency>
-    <!-- Rio: RDFFormat/Rio/RDFHandlerException, used by DatasetExportRdf4j -->
+    <!-- Rio: RDFFormat/Rio/RDFHandlerException/RDFParser, used by DatasetExportRdf4j and
+         GraphImportRdf4j -->
     <dependency>
       <groupId>org.eclipse.rdf4j</groupId>
       <artifactId>rdf4j-rio-api</artifactId>
+    </dependency>
+    <!-- ParsedIRI, which GraphImportRdf4j checks the base IRI with; already on the classpath
+         through rdf4j-model, declared because it is imported directly -->
+    <dependency>
+      <groupId>org.eclipse.rdf4j</groupId>
+      <artifactId>rdf4j-common-io</artifactId>
     </dependency>
 
     <!-- The four writers DatasetExport promises, resolved by Rio through its ServiceLoader
          registry: needed at runtime, never imported, so runtime scope. Unlike the concrete
          Sail stores below these are not a consumer choice — the port names exactly these
          formats, so the adapter has to be able to write them. (trig pulls in turtle and
-         nquads pulls in ntriples, but each is declared: what is promised is listed.) -->
+         nquads pulls in ntriples, but each is declared: what is promised is listed.) The
+         Turtle module also brings the parser GraphImport promises. -->
     <dependency>
       <groupId>org.eclipse.rdf4j</groupId>
       <artifactId>rdf4j-rio-turtle</artifactId>
