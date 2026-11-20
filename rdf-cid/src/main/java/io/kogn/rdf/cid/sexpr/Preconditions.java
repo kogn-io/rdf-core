@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,16 +51,12 @@ final class Preconditions {
    * @param base the base IRI
    * @param triples the input graph
    * @return the IRI string of {@code base}
-   * @throws IllegalArgumentException if {@code base} or {@code triples} is null, or for the
-   *         first of conditions 1 to 4 that does not hold
+   * @throws NullPointerException if {@code base} or {@code triples} is null
+   * @throws IllegalArgumentException for the first of conditions 1 to 4 that does not hold
    */
   static String checkTerms(IRI base, Collection<Triple> triples) {
-    if (base == null) {
-      throw new IllegalArgumentException("Base IRI cannot be null");
-    }
-    if (triples == null) {
-      throw new IllegalArgumentException("Graph cannot be null");
-    }
+    Objects.requireNonNull(base, "base must not be null");
+    Objects.requireNonNull(triples, "graph must not be null");
     String baseIRI = checkBaseShape(base, "base IRI");
     if (triples.isEmpty()) {
       throw failure(EMPTY_GRAPH, "The graph holds no triple");

@@ -375,7 +375,7 @@ class ContentAddressedIRIGeneratorSexprTest {
     @Test
     @DisplayName("null graph")
     void nullGraph() {
-      assertThatExceptionOfType(IllegalArgumentException.class)
+      assertThatExceptionOfType(NullPointerException.class)
           .isThrownBy(() -> generator.generateIRI(rdf.createIRI(EX + "doc"), null));
     }
 
@@ -468,7 +468,7 @@ class ContentAddressedIRIGeneratorSexprTest {
       Graph graph = graph();
       graph.add(rdf.createIRI(EX + "doc"), rdf.createIRI(EX + "value"), rdf.createLiteral("1"));
 
-      assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> generator.generateIRI(null, graph));
+      assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> generator.generateIRI(null, graph));
     }
 
     @Test

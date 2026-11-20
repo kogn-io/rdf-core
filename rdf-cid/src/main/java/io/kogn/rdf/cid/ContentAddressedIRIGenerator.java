@@ -98,8 +98,9 @@ public interface ContentAddressedIRIGenerator {
    * graph or its terms, and any raised by the term factory when it builds the mapped terms (for
    * instance {@link IllegalArgumentException} for a datatype IRI the factory rejects as not
    * absolute, or for an empty blank node reference), passes through untranslated. The {@code [CODE]} prefix marks the failures of the
-   * specification's §5 only: an {@link IllegalArgumentException} without it is a {@code null}
-   * argument or a rejection by the graph or the term factory, not a precondition failure. A
+   * specification's §5 only: an {@link IllegalArgumentException} without it is a rejection by
+   * the graph or the term factory, not a precondition failure. A {@code null} argument is a
+   * {@link NullPointerException}, raised before the graph is read. A
    * failure of the canonicalization itself is a {@link ContentAddressingException}.</p>
    *
    * <p><strong>Not every graph meeting those preconditions gets an identifier.</strong>
@@ -119,9 +120,9 @@ public interface ContentAddressedIRIGenerator {
    * @param base the base IRI of the resource the graph describes; carries no {@code #}
    * @param graph the RDF graph describing that resource
    * @return a content-addressed IRI of the form {@code ni:///sha3-256;<43 base64url characters>}
-   * @throws IllegalArgumentException if {@code base} or the graph is null, or a precondition
-   *         does not hold: the base carries a {@code #} or is the reserved IRI, the graph is
-   *         empty, holds a term other than an RDF 1.1 IRI, blank node or literal, uses an IRI
+   * @throws NullPointerException if {@code base} or {@code graph} is null
+   * @throws IllegalArgumentException if a precondition does not hold: the base carries a
+   *         {@code #} or is the reserved IRI, the graph is empty, holds a term other than an RDF 1.1 IRI, blank node or literal, uses an IRI
    *         whose base is the reserved IRI, holds an IRI subject that is neither {@code base}
    *         nor a fragment IRI of it, holds no IRI subject, or holds triples not reachable from
    *         an IRI subject
