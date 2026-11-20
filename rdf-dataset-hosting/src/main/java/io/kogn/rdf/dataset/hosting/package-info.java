@@ -31,6 +31,10 @@
  *       the leftover, or found nothing to clear</li>
  *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetStoreConfig} — the backend-neutral store knobs
  *       (persistence)</li>
+ *   <li>{@link io.kogn.rdf.dataset.hosting.DatasetStoreLockedException} — what
+ *       {@link io.kogn.rdf.dataset.hosting.DatasetLifecycle#acquire} throws when another owner of
+ *       the same storage holds the dataset's store locked; a
+ *       {@link io.kogn.rdf.dataset.DatasetStorageException}</li>
  * </ul>
  *
  * <p>Hosting is a concern of whatever process owns the pool of stores, not an RDF concept: a

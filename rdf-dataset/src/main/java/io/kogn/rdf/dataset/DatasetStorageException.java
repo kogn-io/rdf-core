@@ -13,6 +13,10 @@ package io.kogn.rdf.dataset;
  * the commit fails for any reason other than a lost race, which is reported as the more
  * specific {@link ConcurrencyConflictException}.</p>
  *
+ * <p>The hosting port in {@code rdf-dataset-hosting} extends it: a dataset that cannot be opened
+ * because another owner holds its store locked is reported as its subtype
+ * {@code DatasetStoreLockedException}.</p>
+ *
  * <p>This is the neutral, backend-independent form of a storage failure, the counterpart of
  * {@link SparqlEvaluationException} for the graph operations. Implementations translate their
  * backend's failure signal into it and keep the original as {@linkplain Throwable#getCause()

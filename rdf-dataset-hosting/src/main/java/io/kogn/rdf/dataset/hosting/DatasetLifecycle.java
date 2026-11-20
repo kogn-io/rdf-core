@@ -65,6 +65,12 @@ public interface DatasetLifecycle {
    * the rollback itself fails: what is left is then treated like a deletion leftover
    * (see above).</p>
    *
+   * <p>A dataset whose store is held open by another owner of the same storage — another
+   * lifecycle, in this process or in another one — is reported as a
+   * {@link DatasetStoreLockedException}, with the backend's lock signal as cause, whether this call
+   * found the dataset existing or took it for new. Such a call created nothing: no lease is taken,
+   * the on-create hook does not run, and the locked store's storage is left untouched.</p>
+   *
    * @param id the dataset identifier; must not be {@code null}
    * @return an open, leased handle to the dataset; never {@code null}
    * @throws NullPointerException if {@code id} is {@code null}
@@ -72,7 +78,10 @@ public interface DatasetLifecycle {
    *     that cannot be cleared away
    * @throws UncheckedIOException if the storage of the dataset cannot be read, so that it
    *     is unknown whether the dataset exists; the storage is then left untouched
-   * @throws RuntimeException if the backend fails to open or create the store, or if the
+   * @throws DatasetStoreLockedException if the dataset's store is locked by another owner of
+   *     the same storage
+   * @throws RuntimeException if the backend fails to open or create the store for any other
+   *     reason, or if the
    *     on-create hook fails; the hook's exception is passed on unchanged, and an
    *     {@link Error} it raises is passed on as well
    */

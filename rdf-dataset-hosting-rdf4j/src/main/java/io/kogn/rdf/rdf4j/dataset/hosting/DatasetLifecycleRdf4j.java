@@ -17,6 +17,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.eclipse.rdf4j.repository.Repository;
+import org.eclipse.rdf4j.repository.RepositoryLockedException;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
 import org.eclipse.rdf4j.sail.nativerdf.NativeStore;
 
@@ -29,6 +30,7 @@ import io.kogn.rdf.dataset.hosting.DatasetMaintenance;
 import io.kogn.rdf.dataset.hosting.DatasetShutdownOutcome;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig;
 import io.kogn.rdf.dataset.hosting.DatasetStoreConfig.Persistence;
+import io.kogn.rdf.dataset.hosting.DatasetStoreLockedException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -53,9 +55,12 @@ import lombok.extern.slf4j.Slf4j;
  * <p>An instance <strong>owns its {@code storageRoot} exclusively</strong>. Each
  * dataset's store is cached in this instance and held open, and RDF4J's
  * {@link NativeStore} locks its directory. Two lifecycles over the same
- * {@code storageRoot} therefore do not share the physical store: the second one
- * fails with RDF4J's {@code RepositoryLockedException} as soon as it touches the
- * same {@link DatasetId}.</p>
+ * {@code storageRoot} therefore do not share the physical store: the second one's
+ * {@link #acquire(DatasetId)} of the same {@link DatasetId} fails with a
+ * {@link DatasetStoreLockedException}, the RDF4J lock signal kept as its cause. It takes no
+ * lease, runs no on-create hook and removes nothing, not even a store it took for new because
+ * the other owner created it in the same moment. An {@code IN_MEMORY} store has no directory and
+ * never locks.</p>
  *
  * <p>So construct <strong>one</strong> lifecycle per storage location and share it
  * across every logical repository that reads or writes there — a single injected
@@ -252,6 +257,8 @@ public final class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMai
    *
    * @throws NullPointerException if {@code id} is {@code null}
    * @throws IllegalStateException if a failed delete left a deletion leftover that could not be cleaned up
+   * @throws DatasetStoreLockedException if another lifecycle, in this process or another one, holds the
+   *     dataset's {@link NativeStore} open — see "One instance per storage location" above
    * @throws UncheckedIOException if the state of the dataset's storage cannot be determined
    *     (the storage is then left untouched)
    */
@@ -515,6 +522,18 @@ public final class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMai
     }
     try {
       repository.init();
+    } catch (final RepositoryLockedException e) {
+      // another owner holds the store open, so this call created nothing: there is nothing to roll
+      // back, and removing the storage — even one isNew took for new, in a race with that owner —
+      // would wipe the owner's dataset from under it.
+      throw new DatasetStoreLockedException("dataset '" + id.value() + "' cannot be opened: its store is locked by"
+          + " another owner of the storage (another lifecycle over the same storage root, in this or another"
+          + " process)", e);
+    } catch (final RuntimeException | Error e) {
+      rollBackCreation(id, repository, isNew, e);
+      throw e;
+    }
+    try {
       final ManagedDataset managed = new ManagedDataset(repository);
       if (isNew && onCreate != null) {
         insideOnCreate.set(Boolean.TRUE);
@@ -529,27 +548,37 @@ public final class DatasetLifecycleRdf4j implements DatasetLifecycle, DatasetMai
       }
       return managed;
     } catch (final RuntimeException | Error e) {
-      // init or the on-create seed failed (an Error from the hook included): don't leak the (possibly)
-      // initialised store, and don't leave a half-created persistent store on disk — that would make
-      // isNew false on the next acquire, so onCreate would never run again and the dataset would
-      // stay unseeded. Restore the invariant: a dataset is created-and-seeded atomically, or not at all.
-      try {
-        repositoryShutdown.accept(repository);
-      } catch (final RuntimeException teardownFailure) {
-        // as below: report the failure that started this, and still try to remove the storage.
-        e.addSuppressed(teardownFailure);
-      }
-      if (isNew && storage != null) {
-        try {
-          storage.deleteOrMarkDeletionLeftover(id);
-        } catch (final RuntimeException rollbackFailure) {
-          // the rollback itself failed, so the invariant cannot be restored here: the mark keeps
-          // the leftover from being handed out. Report the failure that started this, not the one
-          // from cleaning up after it.
-          e.addSuppressed(rollbackFailure);
-        }
-      }
+      rollBackCreation(id, repository, isNew, e);
       throw e;
+    }
+  }
+
+  /**
+   * Undoes a creation that failed in {@code init} or in the on-create hook; the caller rethrows
+   * {@code failure}, which carries any failure of the rollback itself as suppressed exceptions.
+   *
+   * <p>Doesn't leak the (possibly) initialised store, and doesn't leave a half-created persistent
+   * store on disk — that would make {@code isNew} false on the next acquire, so {@code onCreate}
+   * would never run again and the dataset would stay unseeded. Restores the invariant: a dataset is
+   * created-and-seeded atomically, or not at all.</p>
+   */
+  private void rollBackCreation(final DatasetId id, final Repository repository, final boolean isNew,
+      final Throwable failure) {
+    try {
+      repositoryShutdown.accept(repository);
+    } catch (final RuntimeException teardownFailure) {
+      // as below: report the failure that started this, and still try to remove the storage.
+      failure.addSuppressed(teardownFailure);
+    }
+    if (isNew && storage != null) {
+      try {
+        storage.deleteOrMarkDeletionLeftover(id);
+      } catch (final RuntimeException rollbackFailure) {
+        // the rollback itself failed, so the invariant cannot be restored here: the mark keeps
+        // the leftover from being handed out. Report the failure that started this, not the one
+        // from cleaning up after it.
+        failure.addSuppressed(rollbackFailure);
+      }
     }
   }
 
