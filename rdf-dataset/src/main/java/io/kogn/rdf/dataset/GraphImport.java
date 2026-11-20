@@ -24,22 +24,40 @@ import io.kogn.rdf.terms.IRI;
  * TriG or N-Quads, which {@link DatasetExport} also writes, carries graph names a single
  * {@link Graph} has no place for and needs a different result.</p>
  *
- * <p><strong>The stream belongs to the caller.</strong> Implementations read it to its end but
- * never close it — opening and closing it is the caller's business, as for
- * {@link DatasetExport}. A typical call therefore sits inside a try-with-resources block of the
- * caller's. The bytes are decoded as UTF-8, the only encoding Turtle allows.</p>
+ * <p><strong>The stream belongs to the caller.</strong> Implementations read it up to the end of
+ * the document, or up to the point where the import fails, but never close it — opening and
+ * closing it is the caller's business, as for {@link DatasetExport}. A typical call therefore
+ * sits inside a try-with-resources block of the caller's. The bytes are decoded as UTF-8, the
+ * only encoding Turtle allows; a byte sequence that is not UTF-8 fails the import rather than
+ * being replaced, and a leading byte order mark is skipped.</p>
  *
  * <p><strong>All or nothing.</strong> A call either returns the graph of the complete document or
  * throws; the triples read before a failure are discarded, never handed out as a partial
  * graph.</p>
  *
+ * <p><strong>Literals as written.</strong> A literal keeps its lexical form and datatype; values
+ * are neither validated nor normalized, so an ill-typed literal such as
+ * {@code "abc"^^xsd:integer}, which is valid RDF, arrives unchanged. Language tags arrive
+ * lower-cased, as everywhere in the data model.</p>
+ *
  * <p><strong>The RDF 1.1 data model.</strong> The port data model is RDF 1.1 (see
- * {@link io.kogn.rdf.terms}). A document holding an RDF 1.2 triple term — written
- * {@code <<( s p o )>>}, or produced by the reification syntax {@code << s p o >>} or an
- * annotation {@code {| … |}} — cannot be represented and is rejected, as the other read paths
- * of this library reject such content. Where they report it as an {@link IllegalStateException},
- * since there it is the state of the store, here the document is the input, and the rejection is
- * an {@link RDFImportException} like that of any other document that cannot be read.</p>
+ * {@link io.kogn.rdf.terms}). A document holding content it cannot represent is rejected rather
+ * than altered to fit:</p>
+ *
+ * <ul>
+ *   <li>an RDF 1.2 triple term — written {@code <<( s p o )>>}, or produced by the reification
+ *       syntax {@code << s p o >>} or an annotation {@code {| … |}};</li>
+ *   <li>an RDF 1.2 directional language string — {@code "x"@en--ltr}, or a literal of datatype
+ *       {@code rdf:dirLangString}. This rejection may be loosened once the data model's treatment
+ *       of such literals is settled; no caller relying on it today can be broken by that;</li>
+ *   <li>a literal of datatype {@code rdf:langString} without a language tag, which is not an RDF
+ *       literal at all.</li>
+ * </ul>
+ *
+ * <p>The read paths of this library reject a triple term too, but report it as an
+ * {@link IllegalStateException}, since there it is the state of the store. Here the document is
+ * the input, and the rejection is an {@link RDFImportException} like that of any other document
+ * that cannot be read.</p>
  */
 public interface GraphImport {
 
@@ -63,15 +81,17 @@ public interface GraphImport {
    * <p>A triple stated more than once is held once, as a graph is a set of triples. A document
    * without statements yields an empty graph.</p>
    *
-   * @param in the stream to read the document from; must not be {@code null}. Read to its end,
-   *     never closed
+   * @param in the stream to read the document from; must not be {@code null}. Read up to the end
+   *     of the document or the failure, never closed
    * @param base the absolute IRI to resolve relative IRI references against; must not be
    *     {@code null}
    * @return a new, modifiable graph holding the document's triples, owned by the caller
    * @throws NullPointerException if {@code in} or {@code base} is {@code null}
    * @throws IllegalArgumentException if {@code base} is not an absolute IRI
-   * @throws RDFImportException if the document is not valid Turtle, holds an RDF 1.2 triple term,
-   *     or reading from {@code in} fails
+   * @throws RDFImportException if the document is not valid Turtle (including a relative reference
+   *     that does not resolve to an absolute IRI, and bytes that are not UTF-8), holds content the
+   *     data model cannot represent (an RDF 1.2 triple term, a directional language string, an
+   *     {@code rdf:langString} literal without a language tag), or reading from {@code in} fails
    */
   Graph readTurtle(InputStream in, IRI base);
 }

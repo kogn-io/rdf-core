@@ -10,6 +10,7 @@ import io.kogn.rdf.rdf4j.RDF4JFactory;
 import io.kogn.rdf.terms.BlankNodeOrIRI;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
+import io.kogn.rdf.terms.RDF;
 import io.kogn.rdf.terms.RDFTerm;
 
 /**
@@ -32,17 +33,28 @@ final class RDF4JValues {
    * @throws IllegalArgumentException if the value is none of these
    */
   static RDFTerm toTerm(final org.eclipse.rdf4j.model.Value value) {
+    return toTerm(value, FACTORY);
+  }
+
+  /**
+   * Converts an RDF4J value to a term created by the given factory.
+   *
+   * @param value an RDF4J IRI, blank node or literal
+   * @param rdf the factory to create the term with
+   * @return the term
+   * @throws IllegalArgumentException if the value is none of these
+   */
+  static RDFTerm toTerm(final org.eclipse.rdf4j.model.Value value, final RDF rdf) {
     if (value instanceof org.eclipse.rdf4j.model.IRI iri) {
-      return FACTORY.createIRI(iri.stringValue());
+      return rdf.createIRI(iri.stringValue());
     }
     if (value instanceof org.eclipse.rdf4j.model.BNode bnode) {
-      return FACTORY.createBlankNode(bnode.getID());
+      return rdf.createBlankNode(bnode.getID());
     }
     if (value instanceof org.eclipse.rdf4j.model.Literal literal) {
       return literal.getLanguage()
-          .map(tag -> FACTORY.createLiteral(literal.getLabel(), tag))
-          .orElseGet(
-              () -> FACTORY.createLiteral(literal.getLabel(), FACTORY.createIRI(literal.getDatatype().stringValue())));
+          .map(tag -> rdf.createLiteral(literal.getLabel(), tag))
+          .orElseGet(() -> rdf.createLiteral(literal.getLabel(), rdf.createIRI(literal.getDatatype().stringValue())));
     }
     throw new IllegalArgumentException("Unknown RDF4J Value type: " + value.getClass());
   }
