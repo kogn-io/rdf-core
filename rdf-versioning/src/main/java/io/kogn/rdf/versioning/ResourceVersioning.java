@@ -356,7 +356,8 @@ public interface ResourceVersioning {
    *     is malformed: a revision counter, a latest entry or a fragment index of a proxy
    *     IRI that does not read back
    * @throws DatasetStorageException if the backend fails
-   * @throws NullPointerException if an argument is {@code null}
+   * @throws NullPointerException if an argument is {@code null} or {@code expected} holds
+   *     {@code null}; checked before the dataset is touched
    */
   PublishResult publish(DatasetTx tx, Collection<RevisionToken> expected, EntryDetails details);
 

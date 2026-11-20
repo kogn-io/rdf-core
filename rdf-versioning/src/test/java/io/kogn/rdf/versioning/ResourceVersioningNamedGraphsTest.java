@@ -6,6 +6,10 @@ package io.kogn.rdf.versioning;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+
 import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
 import org.eclipse.rdf4j.sail.memory.MemoryStore;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.kogn.rdf.dataset.DatasetTransactor;
+import io.kogn.rdf.dataset.DatasetTx;
 import io.kogn.rdf.rdf4j.dataset.DatasetTransactorRdf4j;
 import io.kogn.rdf.terms.Graph;
 import io.kogn.rdf.terms.IRI;
@@ -150,6 +155,29 @@ class ResourceVersioningNamedGraphsTest {
     assertThatThrownBy(() -> new ResourceVersioningNamedGraphs(null)).isInstanceOf(NullPointerException.class);
     final ResourceVersioning versioning = new ResourceVersioningNamedGraphs(CONTENT);
     assertThatThrownBy(() -> versioning.bindContentGraph(null)).isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void aNullArgumentIsReportedBeforeTheContentGraphIsCheckedOrAnArgumentIsValidated() {
+    // given a dataset bound to another content graph, so binding would fail with a mismatch
+    bind(new ResourceVersioningNamedGraphs(OTHER));
+    final ResourceVersioning versioning = new ResourceVersioningNamedGraphs(CONTENT);
+    final IRI proxy = new SimpleIRI("https://example.org/resource/a");
+    final IRI withFragment = new SimpleIRI("https://example.org/resource/a#part");
+    final RevisionToken token = new RevisionToken(proxy, 0);
+    final List<RevisionToken> holdingNull = Arrays.asList(token, null);
+
+    // when, then
+    for (final Function<DatasetTx, ?> call : List.<Function<DatasetTx, ?>>of(tx -> versioning.readDraft(tx, null),
+        tx -> versioning.replaceDraft(tx, proxy, null, token),
+        tx -> versioning.replaceDraft(tx, withFragment, new SimpleGraph(), null),
+        tx -> versioning.publish(tx, holdingNull, EntryDetails.NONE), tx -> versioning.readPublished(tx, null),
+        tx -> versioning.readVersionByCID(tx, null), tx -> versioning.readVersion(tx, null, 0),
+        tx -> versioning.history(tx, null), tx -> versioning.publishState(tx, null),
+        tx -> versioning.delete(tx, withFragment, null, EntryDetails.NONE),
+        tx -> versioning.delete(tx, proxy, token, null))) {
+      assertThatThrownBy(() -> transactor.inTransaction(call)).isExactlyInstanceOf(NullPointerException.class);
+    }
   }
 
   @Test
