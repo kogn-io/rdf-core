@@ -77,7 +77,31 @@ public class GraphImportRdf4j implements GraphImport {
   public Graph readTurtle(final InputStream in, final IRI base) {
     Objects.requireNonNull(in, "in must not be null");
     Objects.requireNonNull(base, "base must not be null");
-    final String baseIRI = requireAbsolute(base);
+    return parse(in, requireAbsolute(base));
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The parser runs with no base at all. RDF4J's Turtle parser then refuses every relative
+   * reference that no absolute {@code @base} of the document resolves, as a fatal parse error
+   * carrying the line; it does not fall back to an empty or made-up base.</p>
+   */
+  @Override
+  public Graph readTurtle(final InputStream in) {
+    Objects.requireNonNull(in, "in must not be null");
+    return parse(in, null);
+  }
+
+  /**
+   * Parses the document; the one path behind both forms of {@code readTurtle}.
+   *
+   * @param in the caller's stream, already checked for {@code null}
+   * @param baseIRI the absolute base IRI, already checked, or {@code null} for none
+   * @return the graph of the complete document
+   * @throws RDFImportException if the import fails for any reason
+   */
+  private static Graph parse(final InputStream in, final String baseIRI) {
     final Graph graph = TERMS.createGraph();
     final RDFParser parser = new GuardedTurtleParser();
     final GraphCollector collector = new GraphCollector(graph);

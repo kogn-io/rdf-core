@@ -176,7 +176,11 @@ concern:
   afterwards.
 - **`GraphImport`** — the reading direction for a single document: a Turtle
   document from a byte stream into a new, caller-owned `Graph`, resolving
-  relative references against an absolute base IRI. It touches no store, so it
+  relative references against an absolute base IRI. A second form takes no base
+  and assumes none: for a document of absolute IRIs, such as bundled shapes, a
+  relative reference resolves only against the document's own absolute `@base`
+  and is rejected otherwise, never turned into a relative or made-up IRI; every
+  other rule below holds for both forms. It touches no store, so it
   is not part of `DatasetTx` or of a hosting handle; to store the result, hand it
   to `GraphStore#add`. The stream stays the caller's: read, never closed, and
   decoded as strict UTF-8. Blank nodes are scoped to one call, so two imports
@@ -302,7 +306,11 @@ public member names an RDF4J type:
   `GraphStoreRdf4j#add` applies (`RDF4JConverters.toRDF4JValue`, RDF4J's
   validating literal creation). It adds each statement to the result as it is
   reported, rejecting a triple term with the same check the read paths use. The
-  result is a backend-free `SimpleGraph`, so it carries no RDF4J type.
+  result is a backend-free `SimpleGraph`, so it carries no RDF4J type. Both
+  forms of `readTurtle` share this one path; the form without a base hands the
+  parser no base at all (`null`, not an empty string), and the parser then
+  refuses a relative reference no absolute `@base` resolves as a fatal error
+  with its line.
 - Foreign term implementations are accepted throughout via `RDF4JConverters`,
   so the adapter is a genuine portability layer rather than an RDF4J-only island
   ([ADR-0004](docs/adr/0004-converter-based-interop.md)).
