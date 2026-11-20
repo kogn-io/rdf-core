@@ -68,7 +68,7 @@ over the data model rather than a call into a store (ADR-0014).
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
 | `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetExport` (with `RdfFormat`), `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
 | `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository`. No RDF4J type appears in a public signature, except the caller-supplied `Repository` the dataset wrappers take by design and the `internal` package ([ADR-0026](docs/adr/0026-rdf4j-adapter-public-surface.md)). |
-| `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig`; `DatasetMaintenance` for the deletion leftover of a failed delete. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
+| `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig` and `DatasetStoreLockedException` (a dataset whose store another owner holds locked); `DatasetMaintenance` for the deletion leftover of a failed delete. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
 | `rdf-shacl-rdf4j` | `io.kogn.rdf:rdf-shacl-rdf4j` | RDF4J implementation of the SHACL port, wrapping `ShaclValidator`. Store-independent: it does not depend on `rdf-dataset` or its adapter. |
@@ -302,7 +302,11 @@ Settled semantics worth knowing before consuming it:
 - **A persistent lifecycle owns its storage location exclusively.** It caches
   each dataset's store and holds it open, and the backing engine locks the
   directory. Two lifecycles over the same storage root do not share the physical
-  store — the second one fails on the lock. Construct one lifecycle per storage
+  store — the second one's `acquire` of the same dataset fails with
+  `DatasetStoreLockedException`, a `DatasetStorageException` of the hosting port
+  with the engine's lock signal as cause, so a consumer can tell the user
+  "another process holds this dataset" without importing an engine type. That
+  call takes no lease, runs no on-create hook and removes nothing. Construct one lifecycle per storage
   location and share it across every logical repository that reads or writes
   there; that is also what makes cross-repository reads within a dataset possible
   at all. The lock is process-held, so a second JVM over the same directory fails
