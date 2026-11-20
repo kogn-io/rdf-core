@@ -303,11 +303,12 @@ Settled semantics worth knowing before consuming it:
   each dataset's store and holds it open, and the backing engine locks the
   directory. Two lifecycles over the same storage root do not share the physical
   store — the second one's `acquire` of the same dataset fails with
-  `DatasetStoreLockedException`, a `DatasetStorageException` of the hosting port
-  with the engine's lock signal as cause, so a consumer can tell the user
-  "another process holds this dataset" without importing an engine type. That
-  call takes no lease, runs no on-create hook and removes nothing. Construct one lifecycle per storage
-  location and share it across every logical repository that reads or writes
+  `DatasetStoreLockedException`, the hosting port's subtype of
+  `rdf-dataset`'s `DatasetStorageException`, with the engine's lock signal as
+  cause, so a consumer can tell the user "another process holds this dataset"
+  without importing an engine type. That call takes no lease, runs no on-create
+  hook and removes nothing. Construct one lifecycle per storage location and
+  share it across every logical repository that reads or writes
   there; that is also what makes cross-repository reads within a dataset possible
   at all. The lock is process-held, so a second JVM over the same directory fails
   the same way — no in-process arrangement avoids it.
