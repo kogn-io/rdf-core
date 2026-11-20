@@ -44,7 +44,7 @@ factories reject `rdf:dirLangString` as a plain datatype. The read paths that
 convert into the data model — `GraphStore#snapshot`, `SparqlQuery#select` and
 `#construct`, the same operations on `DatasetTx`, and `DatasetTx#match` — reject
 an RDF 1.2 triple term with an `IllegalStateException`; `GraphImport` rejects a
-document holding one with its `RDFImportException`. A SPARQL update that
+document holding either extension with its `RDFImportException`. A SPARQL update that
 stores one is not rejected, and `DatasetExport` writes the store's content as it is, in RDF 1.2
 syntax if the store holds such a term.
 

@@ -250,6 +250,95 @@ class GraphImportRdf4jTest {
         .isTrue();
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"abc|integer", "yes|boolean", "2026-13-45|date", " 42|integer"})
+  @DisplayName("an ill-typed literal is valid RDF 1.1 and arrives with lexical form and datatype unchanged")
+  void illTypedLiteralArrivesAsWritten(final String lexicalAndType) {
+    final String lexical = lexicalAndType.substring(0, lexicalAndType.indexOf('|'));
+    final IRI datatype = rdf.createIRI(XSD + lexicalAndType.substring(lexicalAndType.indexOf('|') + 1));
+    final String document = "<https://example.org/s> <https://example.org/p> \"" + lexical + "\"^^<"
+        + datatype.getIRIString() + "> .";
+
+    final Graph graph = graphImport.readTurtle(turtle(document), base);
+
+    assertThat(graph.size()).isEqualTo(1);
+    assertThat(graph.contains(rdf.createTriple(s, p, rdf.createLiteral(lexical, datatype)))).isTrue();
+  }
+
+  @Test
+  @DisplayName("a language tag arrives lower-cased")
+  void languageTagArrivesLowerCased() {
+    final Graph graph = graphImport.readTurtle(turtle("<https://example.org/s> <https://example.org/p> \"x\"@DE-ch ."),
+        base);
+
+    final io.kogn.rdf.terms.Literal literal = (io.kogn.rdf.terms.Literal) graph.stream()
+        .findFirst()
+        .orElseThrow()
+        .getObject();
+    assertThat(literal.getLanguageTag()).contains("de-ch");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"<https://example.org/s> <https://example.org/p> \"x\"@en--ltr .",
+      "<https://example.org/s> <https://example.org/p> \"x\"@ar--rtl .",
+      "<https://example.org/s> <https://example.org/p> \"x\"^^<http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString> ."})
+  @DisplayName("an RDF 1.2 directional language string, in either form, is rejected")
+  void directionalLanguageStringIsRejected(final String document) {
+    assertThatThrownBy(() -> graphImport.readTurtle(turtle(document), base))
+        .isExactlyInstanceOf(RDFImportException.class)
+        .hasMessageContaining("directional language string");
+  }
+
+  @Test
+  @DisplayName("rdf:langString without a language tag is rejected, not rewritten to xsd:string")
+  void langStringWithoutTagIsRejected() {
+    final String document = "<https://example.org/s> <https://example.org/p>"
+        + " \"x\"^^<http://www.w3.org/1999/02/22-rdf-syntax-ns#langString> .";
+
+    assertThatThrownBy(() -> graphImport.readTurtle(turtle(document), base))
+        .isExactlyInstanceOf(RDFImportException.class)
+        .hasMessageContaining("requires a language tag");
+  }
+
+  @Test
+  @DisplayName("content the data model cannot hold is reported with the line the parser had reached")
+  void contentRejectionNamesTheLine() {
+    final String document = "<https://example.org/s> <https://example.org/p> 1 .\n"
+        + "<https://example.org/s> <https://example.org/p> <<( <https://example.org/a> <https://example.org/b> 1 )>> .";
+
+    assertThatThrownBy(() -> graphImport.readTurtle(turtle(document), base))
+        .isExactlyInstanceOf(RDFImportException.class)
+        .hasMessageContaining("triple term")
+        .hasMessageContaining("line 2");
+  }
+
+  @Test
+  @DisplayName("bytes that are not UTF-8 are an RDFImportException, not replaced")
+  void malformedUTF8IsRejected() {
+    final byte[] latin1 = "<https://example.org/s> <https://example.org/p> \"\u00e4\" ."
+        .getBytes(StandardCharsets.ISO_8859_1);
+
+    assertThatThrownBy(() -> graphImport.readTurtle(new ByteArrayInputStream(latin1), base))
+        .isExactlyInstanceOf(RDFImportException.class);
+  }
+
+  @Test
+  @DisplayName("non-ASCII UTF-8 and a leading byte order mark are read")
+  void readsUTF8WithByteOrderMark() {
+    final Graph graph = graphImport
+        .readTurtle(turtle("\uFEFF<https://example.org/s> <https://example.org/p> \"\u00e4\u20ac\" ."), base);
+
+    assertThat(graph.contains(rdf.createTriple(s, p, rdf.createLiteral("\u00e4\u20ac")))).isTrue();
+  }
+
+  @Test
+  @DisplayName("the result is a backend-free graph")
+  void resultIsBackendFree() {
+    final Graph graph = graphImport.readTurtle(turtle("<https://example.org/s> <https://example.org/p> 1 ."), base);
+
+    assertThat(graph).isInstanceOf(io.kogn.rdf.terms.SimpleGraph.class);
+  }
+
   /** A stream over a fixed document that records whether it was read from or closed. */
   private static final class CloseTrackingStream extends ByteArrayInputStream {
 
