@@ -77,6 +77,7 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * @param predicate the predicate to match, or {@code null} for any predicate
    * @param object the object to match, or {@code null} for any object
    * @return {@code true} if the named graph contains at least one matching triple
+   * @throws NullPointerException if {@code namedGraph} is {@code null}
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
    *     the pattern (see {@link GraphStore})
    * @throws DatasetStorageException if the backend fails while carrying out the lookup
@@ -119,6 +120,7 @@ public interface DatasetTx extends GraphStore, SparqlQuery, SparqlUpdate {
    * @param predicate the predicate to match, or {@code null} for any predicate
    * @param object the object to match, or {@code null} for any object
    * @return the matching triples, empty if there are none; never {@code null}
+   * @throws NullPointerException if {@code namedGraph} is {@code null}
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
    *     the pattern (see {@link GraphStore})
    * @throws DatasetStorageException if the backend fails while carrying out the read

@@ -26,8 +26,9 @@ import io.kogn.rdf.terms.ReadableGraph;
  *
  * <p>A failure of the store itself — an I/O error, a store that is shut down — reaches the
  * caller as the neutral {@link DatasetStorageException} on every operation, never as a backend
- * type; the original is kept as cause. A defect of the call ({@code null} arguments) is not a
- * storage failure and keeps its own type.</p>
+ * type; the original is kept as cause. A defect of the call is not a storage failure and keeps
+ * its own type: a {@code null} argument is a {@link NullPointerException}, raised before the
+ * store is touched.</p>
  *
  * <p>A backend may reject a term the data model accepts: {@link io.kogn.rdf.terms} checks
  * little more than RDF 1.1 requires, a backend may check more. The RDF4J backend, for one,
@@ -56,6 +57,7 @@ public interface GraphStore {
    *     delta shares the exactness guarantee of {@link #count(IRI)}: it is exact
    *     wherever the implementation's triple count is exact, and no more precise
    *     than an estimate where the count is one.
+   * @throws NullPointerException if {@code namedGraph} or {@code triples} is {@code null}
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
    *     {@code triples}; nothing of the call is written then
    * @throws DatasetStorageException if the backend fails while carrying out the operation
@@ -78,6 +80,7 @@ public interface GraphStore {
    *     the exactness guarantee of {@link #count(IRI)}: it is exact wherever the
    *     implementation's triple count is exact, and no more precise than an
    *     estimate where the count is one.
+   * @throws NullPointerException if {@code namedGraph} or {@code triples} is {@code null}
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph} or a term of
    *     {@code triples}; nothing of the call is removed then
    * @throws DatasetStorageException if the backend fails while carrying out the operation
@@ -91,6 +94,7 @@ public interface GraphStore {
    * enumeration if the underlying store only tracks non-empty graphs.</p>
    *
    * @param namedGraph IRI identifying the named graph to clear; must not be {@code null}
+   * @throws NullPointerException if {@code namedGraph} is {@code null}
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    */
@@ -107,6 +111,7 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the named graph to snapshot; must not be {@code null}
    * @return a snapshot of all triples in the named graph
+   * @throws NullPointerException if {@code namedGraph} is {@code null}
    * @throws IllegalStateException if the named graph holds an RDF 1.2 triple term
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
@@ -120,6 +125,7 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the named graph to snapshot; must not be {@code null}
    * @return a snapshot of all triples in the named graph
+   * @throws NullPointerException if {@code namedGraph} is {@code null}
    * @throws IllegalStateException if the named graph holds an RDF 1.2 triple term
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
@@ -144,6 +150,7 @@ public interface GraphStore {
    *
    * @param namedGraph IRI identifying the named graph; must not be {@code null}
    * @return triple count; {@code 0} if the named graph does not exist
+   * @throws NullPointerException if {@code namedGraph} is {@code null}
    * @throws IllegalArgumentException if the backend rejects {@code namedGraph}
    * @throws DatasetStorageException if the backend fails while carrying out the operation
    */

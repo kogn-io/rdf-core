@@ -3,6 +3,7 @@
 
 package io.kogn.rdf.rdf4j.dataset;
 
+import java.util.Objects;
 import java.util.function.Function;
 
 import org.eclipse.rdf4j.common.transaction.IsolationLevels;
@@ -158,13 +159,15 @@ public class DatasetTransactorRdf4j implements DatasetTransactor {
    * @param repository the repository to open transactional connections against; must be
    *     initialized — an operation on a repository that is not (shut down, or never initialized)
    *     fails, it does not initialize the repository again
+   * @throws NullPointerException if {@code repository} is {@code null}
    */
   public DatasetTransactorRdf4j(final Repository repository) {
-    this.repository = repository;
+    this.repository = Objects.requireNonNull(repository, "repository must not be null");
   }
 
   @Override
   public <T> T inTransaction(final Function<DatasetTx, T> work) {
+    Objects.requireNonNull(work, "work must not be null");
     if (inTransaction.get()) {
       throw new IllegalStateException("nested transactions are not supported");
     }

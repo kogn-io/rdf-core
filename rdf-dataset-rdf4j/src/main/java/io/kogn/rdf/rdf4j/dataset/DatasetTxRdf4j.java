@@ -206,6 +206,7 @@ class DatasetTxRdf4j implements DatasetTx {
   @Override
   public void update(final String sparql, final Map<String, RDFTerm> bindings) {
     requireActive();
+    SparqlErrors.requireArguments(sparql, bindings);
     final Update operation = SparqlErrors
         .bound(SparqlErrors.translating(() -> connection.prepareUpdate(QueryLanguage.SPARQL, sparql)), bindings);
     SparqlErrors.executing(operation::execute);
@@ -219,6 +220,7 @@ class DatasetTxRdf4j implements DatasetTx {
   @Override
   public Stream<BindingSet> select(final String sparql, final Map<String, RDFTerm> bindings) {
     requireActive();
+    SparqlErrors.requireArguments(sparql, bindings);
     final TupleQuery query = SparqlErrors
         .bound(SparqlErrors.translating(() -> connection.prepareTupleQuery(QueryLanguage.SPARQL, sparql)), bindings);
     final List<org.eclipse.rdf4j.query.BindingSet> rows = SparqlErrors
@@ -277,6 +279,7 @@ class DatasetTxRdf4j implements DatasetTx {
   @Override
   public boolean ask(final String sparql, final Map<String, RDFTerm> bindings) {
     requireActive();
+    SparqlErrors.requireArguments(sparql, bindings);
     final BooleanQuery query = SparqlErrors
         .bound(SparqlErrors.translating(() -> connection.prepareBooleanQuery(QueryLanguage.SPARQL, sparql)), bindings);
     return SparqlErrors.translating(query::evaluate);
@@ -298,6 +301,7 @@ class DatasetTxRdf4j implements DatasetTx {
   @Override
   public ReadableGraph construct(final String sparql, final Map<String, RDFTerm> bindings) {
     requireActive();
+    SparqlErrors.requireArguments(sparql, bindings);
     final GraphQuery query = SparqlErrors
         .bound(SparqlErrors.translating(() -> connection.prepareGraphQuery(QueryLanguage.SPARQL, sparql)), bindings);
     final Model model = SparqlErrors.translating(() -> QueryResults.asModel(query.evaluate()));

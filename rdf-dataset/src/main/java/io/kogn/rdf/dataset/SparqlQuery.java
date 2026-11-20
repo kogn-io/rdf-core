@@ -33,6 +33,12 @@ import io.kogn.rdf.terms.ReadableGraph;
  * bindings map itself must not be {@code null}, and none of its values may be
  * {@code null} either — there is no such thing as binding a variable to "no value".</p>
  *
+ * <p>A {@code null} argument — the query string, the bindings map, a name or a value in it — is
+ * a {@link NullPointerException}, and an empty or blank query string an
+ * {@link IllegalArgumentException}; both are raised before the store is touched and are never
+ * reported as {@link MalformedSparqlException} or {@link SparqlEvaluationException}, which
+ * describe the query and the store, not a defect of the call.</p>
+ *
  * <p><strong>Content outside the RDF 1.1 data model.</strong> A store can hold an RDF 1.2
  * triple term (see {@link io.kogn.rdf.terms}; a SPARQL update stores one unchecked).
  * {@link #select} and {@link #construct} fail with an {@link IllegalStateException} if a result
@@ -48,8 +54,10 @@ public interface SparqlQuery {
    * {@link BindingSet}. The returned stream is fully materialised and may be
    * consumed after this method returns; no store resources are held open.</p>
    *
-   * @param sparql the SPARQL SELECT query string; must not be {@code null} or empty
+   * @param sparql the SPARQL SELECT query string; must not be {@code null}, empty or blank
    * @return a stream of binding sets; never {@code null}
+   * @throws NullPointerException if {@code sparql} is {@code null}
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it
@@ -65,11 +73,14 @@ public interface SparqlQuery {
    * {@code sparql} before evaluation — see the class-level Javadoc for why this is
    * preferable to concatenating the value into the query string.</p>
    *
-   * @param sparql the SPARQL SELECT query string; must not be {@code null} or empty
+   * @param sparql the SPARQL SELECT query string; must not be {@code null}, empty or blank
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
    *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
    *     {@link #select(String)}
    * @return a stream of binding sets; never {@code null}
+   * @throws NullPointerException if {@code sparql} or {@code bindings} is {@code null}, or
+   *     {@code bindings} holds a {@code null} name or value
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it
@@ -82,8 +93,10 @@ public interface SparqlQuery {
    * <p>The graph contains the triples produced by the CONSTRUCT template and
    * pattern matching against the current committed state of the dataset.</p>
    *
-   * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null} or empty
+   * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null}, empty or blank
    * @return the constructed graph; never {@code null}
+   * @throws NullPointerException if {@code sparql} is {@code null}
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it
@@ -99,11 +112,14 @@ public interface SparqlQuery {
    * {@code sparql} before evaluation — see the class-level Javadoc for why this is
    * preferable to concatenating the value into the query string.</p>
    *
-   * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null} or empty
+   * @param sparql the SPARQL CONSTRUCT query string; must not be {@code null}, empty or blank
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
    *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
    *     {@link #construct(String)}
    * @return the constructed graph; never {@code null}
+   * @throws NullPointerException if {@code sparql} or {@code bindings} is {@code null}, or
+   *     {@code bindings} holds a {@code null} name or value
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it
@@ -116,8 +132,10 @@ public interface SparqlQuery {
    * <p>Returns {@code true} if the query pattern matches at least one solution in
    * the dataset, {@code false} otherwise.</p>
    *
-   * @param sparql the SPARQL ASK query string; must not be {@code null} or empty
+   * @param sparql the SPARQL ASK query string; must not be {@code null}, empty or blank
    * @return {@code true} if the pattern has at least one match
+   * @throws NullPointerException if {@code sparql} is {@code null}
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it
@@ -133,11 +151,14 @@ public interface SparqlQuery {
    * before evaluation — see the class-level Javadoc for why this is preferable to
    * concatenating the value into the query string.</p>
    *
-   * @param sparql the SPARQL ASK query string; must not be {@code null} or empty
+   * @param sparql the SPARQL ASK query string; must not be {@code null}, empty or blank
    * @param bindings variable name (without the leading {@code ?}) to value; must not be
    *     {@code null}; no entry's value may be {@code null} either; an empty map behaves like
    *     {@link #ask(String)}
    * @return {@code true} if the pattern has at least one match
+   * @throws NullPointerException if {@code sparql} or {@code bindings} is {@code null}, or
+   *     {@code bindings} holds a {@code null} name or value
+   * @throws IllegalArgumentException if {@code sparql} is empty or blank
    * @throws MalformedSparqlException if the SPARQL string is syntactically invalid
    * @throws SparqlEvaluationException if the SPARQL string is well-formed but the backend fails
    *     while evaluating it

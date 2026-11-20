@@ -794,7 +794,7 @@ class DatasetRdf4jTest {
       // fallback.
       assertThatThrownBy(() -> sparqlQuery.select("SELECT * WHERE {}", bindings).toList())
           .isInstanceOf(NullPointerException.class)
-          .hasMessage("term must not be null");
+          .hasMessage("bindings must not hold a null value, but ?s is null");
     }
   }
 
