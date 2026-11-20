@@ -12,6 +12,8 @@
  *   <li>{@link io.kogn.rdf.dataset.DatasetExport} — serialization of the whole dataset or one
  *       named graph to a byte stream, in one of the {@link io.kogn.rdf.dataset.RdfFormat}
  *       formats (read; not part of the transactional unit of work, see ADR-0013)</li>
+ *   <li>{@link io.kogn.rdf.dataset.GraphImport} — parsing of a Turtle document from a byte
+ *       stream into a new {@link io.kogn.rdf.terms.Graph}; touches no store</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTransactor} — atomic unit-of-work boundary</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — composes the three ports above into one
  *       atomic unit-of-work, plus the transaction-only pattern reads {@code contains} (the

@@ -6,6 +6,7 @@ package io.kogn.rdf.rdf4j.dataset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.List;
@@ -312,6 +313,17 @@ class NullArgumentsTest {
     assertThatThrownBy(() -> export.export(out, RdfFormat.TURTLE, null))
         .isExactlyInstanceOf(NullPointerException.class);
     assertThat(connectionsOpened).hasValue(0);
+  }
+
+  @Test
+  @DisplayName("a null argument to an import is a NullPointerException, before the stream is read")
+  void graphImport_nullArgument_isNullPointerException() {
+    final GraphImportRdf4j graphImport = new GraphImportRdf4j();
+    final ByteArrayInputStream in = new ByteArrayInputStream(new byte[] {'!'});
+
+    assertThatThrownBy(() -> graphImport.readTurtle(null, GRAPH)).isExactlyInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> graphImport.readTurtle(in, null)).isExactlyInstanceOf(NullPointerException.class);
+    assertThat(in.available()).isEqualTo(1);
   }
 
   @Test
