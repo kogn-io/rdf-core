@@ -37,3 +37,4 @@ not a historical log of every change that led here.
 | [0026](0026-rdf4j-adapter-public-surface.md) | The RDF4J adapters keep RDF4J types out of their public surface; corrects ADR-0004 and ADR-0005 |
 | [0027](0027-versioning-cid-term-and-port-names.md) | The stored term of a history entry's CID is `versioning:cid`; the port names follow what they carry; corrects ADR-0024 |
 | [0028](0028-hosting-port-names.md) | The hosting port names its acts and its states once; corrects ADR-0015 and ADR-0018 |
+| [0029](0029-null-arguments-raise-nullpointerexception.md) | A null argument raises `NullPointerException`; corrects ADR-0017 |
