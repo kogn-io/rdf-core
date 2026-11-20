@@ -61,10 +61,10 @@ public interface DatasetLifecycle {
    * a failure of the on-create hook leaves nothing behind: a half-created dataset is
    * rolled back, no lease is taken, and the failure reaches the caller as it was raised —
    * the backend's exception for the store, the hook's own exception (or error) for the
-   * hook. A store locked by another owner is the exception: it was not created by this call,
-   * is not rolled back and is reported as described below. The next {@code acquire} then starts from scratch, the hook included — unless
+   * hook. The next {@code acquire} then starts from scratch, the hook included — unless
    * the rollback itself fails: what is left is then treated like a deletion leftover
-   * (see above).</p>
+   * (see above). None of this applies to a store locked by another owner: this call did not
+   * create it, does not roll it back and reports it as described below.</p>
    *
    * <p>A dataset whose store is held open by another owner of the same storage — another
    * lifecycle, in this process or in another one — is reported as a
