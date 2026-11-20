@@ -122,7 +122,8 @@ public interface ContentAddressedIRIGenerator {
    * @return a content-addressed IRI of the form {@code ni:///sha3-256;<43 base64url characters>}
    * @throws NullPointerException if {@code base} or {@code graph} is null
    * @throws IllegalArgumentException if a precondition does not hold: the base carries a
-   *         {@code #} or is the reserved IRI, the graph is empty, holds a term other than an RDF 1.1 IRI, blank node or literal, uses an IRI
+   *         {@code #} or is the reserved IRI, the graph is empty, holds a term other than an
+   *         RDF 1.1 IRI, blank node or literal, uses an IRI
    *         whose base is the reserved IRI, holds an IRI subject that is neither {@code base}
    *         nor a fragment IRI of it, holds no IRI subject, or holds triples not reachable from
    *         an IRI subject

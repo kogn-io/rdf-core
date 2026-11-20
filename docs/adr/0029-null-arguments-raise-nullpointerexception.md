@@ -16,11 +16,15 @@ the type whether its input was refused or its call was broken.
 
 ## Decision
 
-Every public port, implementation and value object of the library reports
+Every public port, implementation and value object of `rdf-dataset`,
+`rdf-dataset-hosting`, `rdf-shacl`, `rdf-cid` and `rdf-versioning`, with their
+RDF4J modules, reports
 `null` for a required argument as `NullPointerException` (Effective Java,
 item 49), raised before the backend is touched and outside every translation
 region. A value that is not `null` but invalid stays `IllegalArgumentException`
-or the exception the port documents for it.
+or the exception the port documents for it. The `rdf-terms` data model
+(term and graph interfaces in the style of Commons RDF) is outside this rule;
+only its `RDF` factory documents `NullPointerException`.
 
 For `rdf-cid` this means: a `null` base or graph raises `NullPointerException`;
 a base containing `#` (and every other failed precondition of ni-rdf/1 §3)
