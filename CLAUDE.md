@@ -65,7 +65,9 @@ Deployment runs **exclusively through CI** (GitHub Actions), never locally:
   the version goes in without a leading `v`. It builds with `-Drevision=X.Y.Z
   -Pcentral-release`, GPG-signs, uploads the bundle, and only then tags the
   commit `vX.Y.Z` and cuts a GitHub release — so a failed run leaves no tag
-  behind. Pushing a `v*` tag by hand triggers nothing.
+  behind. A version with a SemVer pre-release suffix (`0.4.0-M1`) becomes a
+  GitHub pre-release, never the "Latest" release. Pushing a `v*` tag by hand
+  triggers nothing.
 
 The POM sets `autoPublish=false`: Central validates the bundle, and the final
 "Publish" is confirmed by hand in the portal. The tag therefore marks *uploaded*,

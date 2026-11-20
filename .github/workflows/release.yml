@@ -95,4 +95,10 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git tag -a "v$VERSION" -m "Release $VERSION"
           git push origin "v$VERSION"
-          gh release create "v$VERSION" --title "v$VERSION" --generate-notes --verify-tag
+          # A SemVer pre-release (X.Y.Z-<suffix>, e.g. 0.4.0-M1) is marked as such on
+          # GitHub, so it never shows as the "Latest" release.
+          prerelease=()
+          case "$VERSION" in
+            *-*) prerelease=(--prerelease) ;;
+          esac
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes --verify-tag "${prerelease[@]}"
