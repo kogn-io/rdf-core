@@ -169,6 +169,17 @@ class BaseRebaserTest {
   }
 
   @Test
+  @DisplayName("a null argument is a NullPointerException even when another argument is invalid")
+  void nullIsCheckedBeforeTheBases() {
+    final Graph graph = rdf.createGraph();
+    final IRI withFragment = rdf.createIRI(EX + "a#b");
+
+    assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> rebaser.rebase(graph, withFragment, null));
+    assertThatExceptionOfType(NullPointerException.class)
+        .isThrownBy(() -> rebaser.rebase(null, withFragment, provisional));
+  }
+
+  @Test
   @DisplayName("a graph using the new base IRI itself is rejected as well")
   void rejectsCollisionWithNewBaseItself() {
     final IRI target = rdf.createIRI(EX + "final");

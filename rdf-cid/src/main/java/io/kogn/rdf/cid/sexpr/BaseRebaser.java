@@ -74,8 +74,10 @@ public final class BaseRebaser {
    */
   public Graph rebase(ReadableGraph graph, IRI from, IRI to) {
     Objects.requireNonNull(graph, "graph must not be null");
-    final String fromIRI = checkedBase(from, "old");
-    final String toIRI = checkedBase(to, "new");
+    Objects.requireNonNull(from, "the old base IRI must not be null");
+    Objects.requireNonNull(to, "the new base IRI must not be null");
+    final String fromIRI = Preconditions.checkBase(from, "old base IRI");
+    final String toIRI = Preconditions.checkBase(to, "new base IRI");
     final Graph result = rdf.createGraph();
     graph.stream().forEach(triple -> {
       if (triple == null) {
@@ -84,11 +86,6 @@ public final class BaseRebaser {
       result.add(renamed(triple, fromIRI, toIRI));
     });
     return result;
-  }
-
-  private static String checkedBase(IRI base, String which) {
-    Objects.requireNonNull(base, () -> "the " + which + " base IRI must not be null");
-    return Preconditions.checkBase(base, which + " base IRI");
   }
 
   private Triple renamed(Triple triple, String from, String to) {
