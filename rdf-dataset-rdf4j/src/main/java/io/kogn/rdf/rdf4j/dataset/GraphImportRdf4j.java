@@ -38,21 +38,22 @@ import io.kogn.rdf.terms.SimpleRdf;
  *
  * <p><strong>Streamed into a backend-free graph.</strong> Every statement the parser reports is
  * converted and added to the result as it arrives; no intermediate RDF4J {@code Model} is built.
- * The result is a {@link io.kogn.rdf.terms.SimpleGraph} of {@link SimpleRdf} terms, not an RDF4J
- * graph: the RDF4J graph re-creates each term through RDF4J's validating value factory and would
- * refuse an ill-typed literal such as {@code "abc"^^xsd:integer}, which is valid RDF and arrives as
- * written.</p>
+ * The result is a {@link io.kogn.rdf.terms.SimpleGraph} of {@link SimpleRdf} terms, so it carries
+ * no RDF4J type, and each term is converted once; the literals have already passed the store's
+ * validation (below), so the graph can be handed to {@code GraphStoreRdf4j#add} as it is.</p>
  *
  * <p><strong>Parser settings.</strong> The parser runs with RDF4J's defaults: literal values are
- * neither validated nor normalized, so an ill-typed literal keeps its lexical form and datatype;
- * language tags arrive lower-cased, as everywhere in this library (ADR-0026); blank-node labels are
- * not preserved, which is what keeps the blank nodes of two calls apart. The bytes go through a
- * strict UTF-8 decoder, so a byte sequence that is not UTF-8 fails the import instead of turning
- * into U+FFFD; a leading byte order mark is skipped.</p>
+ * not normalized, so a well-typed literal keeps its lexical form ({@code "042"^^xsd:integer} stays
+ * {@code "042"}); language tags arrive lower-cased, as everywhere in this library (ADR-0026);
+ * blank-node labels are not preserved, which is what keeps the blank nodes of two calls apart. The
+ * bytes go through a strict UTF-8 decoder, so a byte sequence that is not UTF-8 fails the import
+ * instead of turning into U+FFFD; a leading byte order mark is skipped.</p>
  *
- * <p><strong>Rejected content.</strong> A directional language string and an
- * {@code rdf:langString} literal without a language tag are refused while the parser creates the
- * literal, so the message carries the parser's line and column. A triple term is refused while the
+ * <p><strong>Rejected content.</strong> A directional language string, an {@code rdf:langString}
+ * literal without a language tag and a literal the store would refuse — checked through the same
+ * conversion {@code GraphStoreRdf4j#add} applies, so an ill-typed literal such as
+ * {@code "abc"^^xsd:integer} fails here exactly when it would fail there — are refused while the
+ * parser creates the literal, so the message carries the parser's line and column. A triple term is refused while the
  * statement carrying it is handled, through the same check the read paths use
  * ({@code RDF4JConverters.requireNoTripleTerm}); that message names the line the parser had
  * reached. Either way a document fails at its first such content, not after it has been read
@@ -177,8 +178,9 @@ public class GraphImportRdf4j implements GraphImport {
    * although the data model cannot hold them: a directional language string ({@code "x"@en--ltr},
    * or one written as {@code "x"^^rdf:dirLangString}) and an {@code rdf:langString} without a
    * language tag. RDF4J rewrites the last two to {@code xsd:string} before any value factory or
-   * handler sees them, so the check sits here, where the datatype is still as written. A refusal is
-   * a fatal parse error and carries the parser's line and column.
+   * handler sees them, so the check sits here, where the datatype is still as written. It also
+   * refuses a literal the store would refuse, such as an ill-typed one. A refusal is a fatal parse
+   * error and carries the parser's line and column.
    */
   private static final class GuardedTurtleParser extends TurtleParser {
 
@@ -195,7 +197,23 @@ public class GraphImportRdf4j implements GraphImport {
       if (literal.getBaseDirection() != Literal.BaseDirection.NONE) {
         reportFatalError(DIRECTIONAL + " (@" + lang + ")", lineNo, columnNo);
       }
+      requireStorable(literal, lineNo, columnNo);
       return literal;
+    }
+
+    /**
+     * Refuses a literal the store would refuse, by running it through the very conversion
+     * {@code GraphStoreRdf4j#add} applies ({@code RDF4JConverters.toRDF4JValue}, RDF4J's
+     * validating literal creation), so the import is exactly as strict as the store and has no
+     * rule of its own.
+     */
+    private void requireStorable(final Literal literal, final long lineNo, final long columnNo) {
+      try {
+        RDF4JConverters.toRDF4JValue(RDF4JValues.toTerm(literal, TERMS));
+      } catch (final IllegalArgumentException e) {
+        reportFatalError("literal " + literal + " is not valid for its datatype (" + e.getMessage() + ")", e, lineNo,
+            columnNo);
+      }
     }
   }
 }

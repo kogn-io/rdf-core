@@ -180,12 +180,15 @@ concern:
   is not part of `DatasetTx` or of a hosting handle; to store the result, hand it
   to `GraphStore#add`. The stream stays the caller's: read, never closed, and
   decoded as strict UTF-8. Blank nodes are scoped to one call, so two imports
-  never share one. Literals arrive as written, an ill-typed one included;
-  content the data model cannot hold is rejected, not altered to fit. Every
-  failure — a syntax error, bytes that are not UTF-8, an RDF 1.2 triple term or
-  directional language string, an `rdf:langString` without a tag, a failing
-  stream — surfaces as the neutral `RDFImportException`, and no partial graph is
-  handed out. Turtle only for
+  never share one. The import is as strict as the store: a literal is accepted
+  exactly when `GraphStore#add` would accept it, by the same rule, so an
+  ill-typed literal (`"abc"^^xsd:integer`) is rejected and an imported graph can
+  always be stored; an accepted literal keeps its lexical form. Content the data
+  model cannot hold is rejected, not altered to fit. Every failure of these
+  kinds — a syntax error, bytes that are not UTF-8, an RDF 1.2 triple term or
+  directional language string, an `rdf:langString` without a tag, an ill-typed
+  literal, a failing stream — surfaces as the neutral `RDFImportException`, and
+  no partial graph is handed out. Turtle only for
   now; a further format is meant to arrive as a further operation, and a quad
   format (TriG, N-Quads) needs a result other than a single `Graph`.
 - **`DatasetTransactor`** / **`DatasetTx`** — an atomic, all-or-nothing
@@ -293,11 +296,12 @@ public member names an RDF4J type:
 - `GraphImportRdf4j` is the one class here without a `Repository`: it runs a
   subclass of RDF4J's `TurtleParser` (so `rdf4j-rio-turtle` is a compile
   dependency) that refuses directional language strings and a tagless
-  `rdf:langString` before RDF4J rewrites them to `xsd:string`, and adds each
-  statement to the result as it is reported, rejecting a triple term with the
-  same check the read paths use. The result is a backend-free `SimpleGraph`:
-  `RDF4JGraph` re-creates terms through RDF4J's validating value factory and
-  would refuse an ill-typed literal.
+  `rdf:langString` before RDF4J rewrites them to `xsd:string`, and refuses a
+  literal the store would refuse by running it through the conversion
+  `GraphStoreRdf4j#add` applies (`RDF4JConverters.toRDF4JValue`, RDF4J's
+  validating literal creation). It adds each statement to the result as it is
+  reported, rejecting a triple term with the same check the read paths use. The
+  result is a backend-free `SimpleGraph`, so it carries no RDF4J type.
 - Foreign term implementations are accepted throughout via `RDF4JConverters`,
   so the adapter is a genuine portability layer rather than an RDF4J-only island
   ([ADR-0004](docs/adr/0004-converter-based-interop.md)).

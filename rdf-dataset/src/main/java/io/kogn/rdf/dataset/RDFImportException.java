@@ -15,11 +15,13 @@ package io.kogn.rdf.dataset;
  *   <li>it holds content the port data model cannot represent — an RDF 1.2 triple term, a
  *       directional language string, an {@code rdf:langString} literal without a language
  *       tag;</li>
+ *   <li>it holds a literal the store would refuse — an ill-typed one such as
+ *       {@code "abc"^^xsd:integer}, judged by the same rule as
+ *       {@link GraphStore#add(io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.ReadableGraph)};</li>
  *   <li>or reading the caller's stream fails.</li>
  * </ul>
  *
- * <p>No graph is handed out in any of these cases. A literal whose lexical form does not fit its
- * datatype ({@code "abc"^^xsd:integer}) is valid RDF and is not among them.</p>
+ * <p>No graph is handed out in any of these cases.</p>
  *
  * <p>This is the neutral, backend-independent form of that failure, the counterpart of
  * {@link RdfExportException} on the reading side. Implementations translate their backend's

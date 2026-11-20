@@ -250,19 +250,81 @@ class GraphImportRdf4jTest {
         .isTrue();
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"abc|integer", "yes|boolean", "2026-13-45|date", " 42|integer"})
-  @DisplayName("an ill-typed literal is valid RDF 1.1 and arrives with lexical form and datatype unchanged")
-  void illTypedLiteralArrivesAsWritten(final String lexicalAndType) {
-    final String lexical = lexicalAndType.substring(0, lexicalAndType.indexOf('|'));
-    final IRI datatype = rdf.createIRI(XSD + lexicalAndType.substring(lexicalAndType.indexOf('|') + 1));
-    final String document = "<https://example.org/s> <https://example.org/p> \"" + lexical + "\"^^<"
-        + datatype.getIRIString() + "> .";
+  private static String typedLiteralDocument(final String lexical, final IRI datatype) {
+    return "<https://example.org/s> <https://example.org/p>\n \"" + lexical + "\"^^<" + datatype.getIRIString() + "> .";
+  }
 
-    final Graph graph = graphImport.readTurtle(turtle(document), base);
+  private IRI xsd(final String localName) {
+    return rdf.createIRI(XSD + localName);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"abc|integer", "yes|boolean", "2026-13-45|date", "1.5|integer"})
+  @DisplayName("an ill-typed literal is rejected, with the line and column of the literal")
+  void illTypedLiteralIsRejected(final String lexicalAndType) {
+    final String lexical = lexicalAndType.substring(0, lexicalAndType.indexOf('|'));
+    final IRI datatype = xsd(lexicalAndType.substring(lexicalAndType.indexOf('|') + 1));
+
+    assertThatThrownBy(() -> graphImport.readTurtle(turtle(typedLiteralDocument(lexical, datatype)), base))
+        .isExactlyInstanceOf(RDFImportException.class)
+        .hasMessageContaining(lexical)
+        .hasMessageContaining("line 2");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"42|integer", "042|integer", "+42|integer", "true|boolean", "1|boolean", "1.50|decimal",
+      "2026-11-20|date"})
+  @DisplayName("a well-typed literal keeps its lexical form, canonical or not")
+  void wellTypedLiteralKeepsItsLexicalForm(final String lexicalAndType) {
+    final String lexical = lexicalAndType.substring(0, lexicalAndType.indexOf('|'));
+    final IRI datatype = xsd(lexicalAndType.substring(lexicalAndType.indexOf('|') + 1));
+
+    final Graph graph = graphImport.readTurtle(turtle(typedLiteralDocument(lexical, datatype)), base);
 
     assertThat(graph.size()).isEqualTo(1);
     assertThat(graph.contains(rdf.createTriple(s, p, rdf.createLiteral(lexical, datatype)))).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {" 42|integer", "42 |integer", "abc|integer", "42|integer", "yes|boolean", "x|string",
+      "2026-13-45|date"})
+  @DisplayName("import accepts a typed literal exactly when GraphStore#add does")
+  void importIsAsStrictAsTheStore(final String lexicalAndType) {
+    final String lexical = lexicalAndType.substring(0, lexicalAndType.indexOf('|'));
+    final IRI datatype = xsd(lexicalAndType.substring(lexicalAndType.indexOf('|') + 1));
+    final Graph single = new SimpleRdf().createGraph();
+    single.add(s, p, rdf.createLiteral(lexical, datatype));
+
+    final boolean storeAccepts = accepts(() -> {
+      final Repository repository = new SailRepository(new MemoryStore());
+      repository.init();
+      try {
+        new GraphStoreRdf4j(repository).add(rdf.createIRI(EX + "g"), single);
+      } finally {
+        repository.shutDown();
+      }
+    });
+    final boolean importAccepts = accepts(
+        () -> graphImport.readTurtle(turtle(typedLiteralDocument(lexical, datatype)), base));
+
+    assertThat(importAccepts).as("import accepts \"%s\"^^%s", lexical, datatype).isEqualTo(storeAccepts);
+  }
+
+  @Test
+  @DisplayName("\" 42\"^^xsd:integer is accepted by the store and therefore by the import, space included")
+  void leadingSpaceIntegerIsAcceptedLikeTheStore() {
+    final Graph graph = graphImport.readTurtle(turtle(typedLiteralDocument(" 42", xsd("integer"))), base);
+
+    assertThat(graph.contains(rdf.createTriple(s, p, rdf.createLiteral(" 42", xsd("integer"))))).isTrue();
+  }
+
+  private static boolean accepts(final Runnable action) {
+    try {
+      action.run();
+      return true;
+    } catch (final RuntimeException e) {
+      return false;
+    }
   }
 
   @Test

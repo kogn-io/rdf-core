@@ -15,7 +15,8 @@
  *   <li>{@link io.kogn.rdf.dataset.GraphImport} — parsing of a Turtle document from a byte
  *       stream into a new {@link io.kogn.rdf.terms.Graph}; touches no store</li>
  *   <li>{@link io.kogn.rdf.dataset.DatasetTransactor} — atomic unit-of-work boundary</li>
- *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — composes the three ports above into one
+ *   <li>{@link io.kogn.rdf.dataset.DatasetTx} — composes {@code GraphStore}, {@code SparqlQuery} and
+ *       {@code SparqlUpdate} into one
  *       atomic unit-of-work, plus the transaction-only pattern reads {@code contains} (the
  *       guard read) and {@code match} (the matching triples, observing only the pattern)</li>
  * </ul>
