@@ -39,7 +39,8 @@ import io.kogn.rdf.terms.IRI;
  * {@link GraphStore#add(IRI, io.kogn.rdf.terms.ReadableGraph)} of the same implementation would
  * accept it — the import applies the store's own rule, not one of its own — so an imported graph
  * can always be stored. An ill-typed literal such as {@code "abc"^^xsd:integer} or
- * {@code "2026-13-45"^^xsd:date} is therefore rejected, although RDF 1.1 would admit it. An
+ * {@code "2026-13-45"^^xsd:date} is therefore rejected, although RDF 1.1 would admit it, and so is
+ * a literal whose language tag the store refuses, such as {@code "x"@abcdefghi}. An
  * accepted literal keeps its lexical form and datatype, it is not normalized
  * ({@code "042"^^xsd:integer} stays {@code "042"}); language tags arrive lower-cased, as everywhere
  * in the data model.</p>
@@ -97,7 +98,8 @@ public interface GraphImport {
    *     that does not resolve to an absolute IRI, and bytes that are not UTF-8), holds content the
    *     data model cannot represent (an RDF 1.2 triple term, a directional language string, an
    *     {@code rdf:langString} literal without a language tag), holds a literal the store would
-   *     refuse (an ill-typed one), or reading from {@code in} fails
+   *     refuse (an ill-typed one, or one with an invalid language tag), or reading from {@code in}
+   *     fails
    */
   Graph readTurtle(InputStream in, IRI base);
 }

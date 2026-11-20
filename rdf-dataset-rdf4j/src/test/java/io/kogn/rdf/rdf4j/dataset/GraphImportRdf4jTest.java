@@ -260,7 +260,7 @@ class GraphImportRdf4jTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"abc|integer", "yes|boolean", "2026-13-45|date", "1.5|integer"})
-  @DisplayName("an ill-typed literal is rejected, with the line and column of the literal")
+  @DisplayName("an ill-typed literal is rejected, with the line of the literal")
   void illTypedLiteralIsRejected(final String lexicalAndType) {
     final String lexical = lexicalAndType.substring(0, lexicalAndType.indexOf('|'));
     final IRI datatype = xsd(lexicalAndType.substring(lexicalAndType.indexOf('|') + 1));
@@ -268,7 +268,32 @@ class GraphImportRdf4jTest {
     assertThatThrownBy(() -> graphImport.readTurtle(turtle(typedLiteralDocument(lexical, datatype)), base))
         .isExactlyInstanceOf(RDFImportException.class)
         .hasMessageContaining(lexical)
-        .hasMessageContaining("line 2");
+        .hasMessageContaining("store's rule")
+        .hasMessageContaining("[line 2]");
+  }
+
+  @Test
+  @DisplayName("a literal with an invalid language tag is rejected like the store rejects it, with its line")
+  void invalidLanguageTagIsRejected() {
+    final String document = "<https://example.org/s> <https://example.org/p>\n \"x\"@abcdefghi .";
+    final Graph single = new SimpleRdf().createGraph();
+    single.add(s, p, rdf.createLiteral("x", "abcdefghi"));
+    final boolean storeAccepts = accepts(() -> {
+      final Repository repository = new SailRepository(new MemoryStore());
+      repository.init();
+      try {
+        new GraphStoreRdf4j(repository).add(rdf.createIRI(EX + "g"), single);
+      } finally {
+        repository.shutDown();
+      }
+    });
+
+    assertThat(storeAccepts).isFalse();
+    assertThatThrownBy(() -> graphImport.readTurtle(turtle(document), base))
+        .isExactlyInstanceOf(RDFImportException.class)
+        .hasMessageContaining("abcdefghi")
+        .hasMessageContaining("store's rule")
+        .hasMessageContaining("[line 2]");
   }
 
   @ParameterizedTest

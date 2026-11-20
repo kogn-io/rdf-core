@@ -16,7 +16,8 @@ package io.kogn.rdf.dataset;
  *       directional language string, an {@code rdf:langString} literal without a language
  *       tag;</li>
  *   <li>it holds a literal the store would refuse — an ill-typed one such as
- *       {@code "abc"^^xsd:integer}, judged by the same rule as
+ *       {@code "abc"^^xsd:integer}, or one with an invalid language tag such as
+ *       {@code "x"@abcdefghi} — judged by the same rule as
  *       {@link GraphStore#add(io.kogn.rdf.terms.IRI, io.kogn.rdf.terms.ReadableGraph)};</li>
  *   <li>or reading the caller's stream fails.</li>
  * </ul>

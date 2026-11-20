@@ -52,8 +52,10 @@ import io.kogn.rdf.terms.SimpleRdf;
  * <p><strong>Rejected content.</strong> A directional language string, an {@code rdf:langString}
  * literal without a language tag and a literal the store would refuse — checked through the same
  * conversion {@code GraphStoreRdf4j#add} applies, so an ill-typed literal such as
- * {@code "abc"^^xsd:integer} fails here exactly when it would fail there — are refused while the
- * parser creates the literal, so the message carries the parser's line and column. A triple term is refused while the
+ * {@code "abc"^^xsd:integer} or a literal with an invalid language tag such as
+ * {@code "x"@abcdefghi} fails here exactly when it would fail there — are refused while the
+ * parser creates the literal, so the message carries the line the parser reports (RDF4J's Turtle
+ * parser gives no column for these). A triple term is refused while the
  * statement carrying it is handled, through the same check the read paths use
  * ({@code RDF4JConverters.requireNoTripleTerm}); that message names the line the parser had
  * reached. Either way a document fails at its first such content, not after it has been read
@@ -179,8 +181,8 @@ public class GraphImportRdf4j implements GraphImport {
    * or one written as {@code "x"^^rdf:dirLangString}) and an {@code rdf:langString} without a
    * language tag. RDF4J rewrites the last two to {@code xsd:string} before any value factory or
    * handler sees them, so the check sits here, where the datatype is still as written. It also
-   * refuses a literal the store would refuse, such as an ill-typed one. A refusal is a fatal parse
-   * error and carries the parser's line and column.
+   * refuses a literal the store would refuse, such as an ill-typed one or one with an invalid
+   * language tag. A refusal is a fatal parse error and carries the line the parser reports.
    */
   private static final class GuardedTurtleParser extends TurtleParser {
 
@@ -211,7 +213,8 @@ public class GraphImportRdf4j implements GraphImport {
       try {
         RDF4JConverters.toRDF4JValue(RDF4JValues.toTerm(literal, TERMS));
       } catch (final IllegalArgumentException e) {
-        reportFatalError("literal " + literal + " is not valid for its datatype (" + e.getMessage() + ")", e, lineNo,
+        // neutral wording: the store's rule refuses an ill-typed value as well as an invalid language tag
+        reportFatalError("literal " + literal + " is rejected by the store's rule: " + e.getMessage(), e, lineNo,
             columnNo);
       }
     }
