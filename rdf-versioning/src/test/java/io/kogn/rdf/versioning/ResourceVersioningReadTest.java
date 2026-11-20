@@ -168,7 +168,8 @@ class ResourceVersioningReadTest {
     final IRI withFragment = new SimpleIRI(generator.generateIRI(A, one(A, "one")).getIRIString() + "#part");
 
     assertThatThrownBy(() -> transactor.inTransaction(tx -> versioning.readVersionByCID(tx, withFragment)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("CID must not contain a fragment");
   }
 
   @Test

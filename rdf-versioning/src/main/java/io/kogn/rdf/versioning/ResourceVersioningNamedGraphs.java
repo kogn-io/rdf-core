@@ -249,7 +249,9 @@ public final class ResourceVersioningNamedGraphs implements ResourceVersioning {
     if (!cid.getIRIString().startsWith(CID_SCHEME)) {
       throw new IllegalArgumentException("not a CID, an ni: IRI is expected: " + cid.ntriplesString());
     }
-    requireProxy(cid);
+    if (cid.getIRIString().indexOf(FRAGMENT_SEPARATOR) >= 0) {
+      throw new IllegalArgumentException("CID must not contain a fragment: " + cid.ntriplesString());
+    }
     bindContentGraph(tx);
     return versionOf(tx, cid, recordedVersionFragments(tx, cid));
   }
