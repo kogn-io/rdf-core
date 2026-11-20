@@ -59,7 +59,7 @@ class ShaclReportTest {
 
   @Test
   void nullResultsAreRejected() {
-    assertThatThrownBy(() -> new ShaclReport(true, null)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new ShaclReport(true, null)).isExactlyInstanceOf(NullPointerException.class);
   }
 
   @Test

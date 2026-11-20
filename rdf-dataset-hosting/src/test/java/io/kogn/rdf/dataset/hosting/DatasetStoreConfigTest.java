@@ -21,7 +21,7 @@ class DatasetStoreConfigTest {
 
   @Test
   void nullPersistenceIsRejected() {
-    assertThatThrownBy(() -> new DatasetStoreConfig(null)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new DatasetStoreConfig(null)).isExactlyInstanceOf(NullPointerException.class);
   }
 
   @Test

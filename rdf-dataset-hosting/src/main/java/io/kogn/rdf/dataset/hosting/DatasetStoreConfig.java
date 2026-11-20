@@ -3,6 +3,8 @@
 
 package io.kogn.rdf.dataset.hosting;
 
+import java.util.Objects;
+
 /**
  * Backend-neutral store configuration for a {@link DatasetLifecycle}.
  *
@@ -32,12 +34,10 @@ public record DatasetStoreConfig(Persistence persistence) {
   /**
    * Validates the configuration.
    *
-   * @throws IllegalArgumentException if {@code persistence} is {@code null}
+   * @throws NullPointerException if {@code persistence} is {@code null}
    */
   public DatasetStoreConfig {
-    if (persistence == null) {
-      throw new IllegalArgumentException("persistence must not be null");
-    }
+    Objects.requireNonNull(persistence, "persistence must not be null");
   }
 
   /**

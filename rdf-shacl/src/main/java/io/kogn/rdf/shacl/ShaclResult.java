@@ -4,6 +4,7 @@
 package io.kogn.rdf.shacl;
 
 import java.util.List;
+import java.util.Objects;
 
 import io.kogn.rdf.terms.IRI;
 import io.kogn.rdf.terms.RDFTerm;
@@ -53,23 +54,14 @@ public record ShaclResult(RDFTerm focusNode, String path, Severity severity, IRI
   /**
    * Validates and defensively copies the result.
    *
-   * @throws IllegalArgumentException if {@code focusNode}, {@code severity},
-   *     {@code severityIRI} or {@code messages} is {@code null}
-   * @throws NullPointerException if {@code messages} contains {@code null}
+   * @throws NullPointerException if {@code focusNode}, {@code severity}, {@code severityIRI} or
+   *     {@code messages} is {@code null}, or {@code messages} contains {@code null}
    */
   public ShaclResult {
-    if (focusNode == null) {
-      throw new IllegalArgumentException("focusNode must not be null");
-    }
-    if (severity == null) {
-      throw new IllegalArgumentException("severity must not be null");
-    }
-    if (severityIRI == null) {
-      throw new IllegalArgumentException("severityIRI must not be null");
-    }
-    if (messages == null) {
-      throw new IllegalArgumentException("messages must not be null");
-    }
+    Objects.requireNonNull(focusNode, "focusNode must not be null");
+    Objects.requireNonNull(severity, "severity must not be null");
+    Objects.requireNonNull(severityIRI, "severityIRI must not be null");
+    Objects.requireNonNull(messages, "messages must not be null");
     messages = List.copyOf(messages);
   }
 }

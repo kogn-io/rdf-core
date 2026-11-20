@@ -19,7 +19,7 @@ class DatasetIdTest {
 
   @Test
   void nullValueIsRejected() {
-    assertThatThrownBy(() -> new DatasetId(null)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new DatasetId(null)).isExactlyInstanceOf(NullPointerException.class);
   }
 
   @Test

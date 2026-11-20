@@ -3,6 +3,8 @@
 
 package io.kogn.rdf.dataset.hosting;
 
+import java.util.Objects;
+
 /**
  * Opaque identifier for a dataset within a {@link DatasetLifecycle}.
  *
@@ -23,11 +25,13 @@ public record DatasetId(String value) {
   /**
    * Validates the identifier.
    *
-   * @throws IllegalArgumentException if {@code value} is {@code null} or blank
+   * @throws NullPointerException if {@code value} is {@code null}
+   * @throws IllegalArgumentException if {@code value} is blank
    */
   public DatasetId {
-    if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException("datasetId value must not be null or blank");
+    Objects.requireNonNull(value, "datasetId value must not be null");
+    if (value.isBlank()) {
+      throw new IllegalArgumentException("datasetId value must not be blank");
     }
   }
 }
