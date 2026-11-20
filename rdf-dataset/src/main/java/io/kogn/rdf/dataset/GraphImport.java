@@ -35,10 +35,14 @@ import io.kogn.rdf.terms.IRI;
  * throws; the triples read before a failure are discarded, never handed out as a partial
  * graph.</p>
  *
- * <p><strong>Literals as written.</strong> A literal keeps its lexical form and datatype; values
- * are neither validated nor normalized, so an ill-typed literal such as
- * {@code "abc"^^xsd:integer}, which is valid RDF, arrives unchanged. Language tags arrive
- * lower-cased, as everywhere in the data model.</p>
+ * <p><strong>As strict as the store.</strong> A literal is accepted exactly when
+ * {@link GraphStore#add(IRI, io.kogn.rdf.terms.ReadableGraph)} of the same implementation would
+ * accept it — the import applies the store's own rule, not one of its own — so an imported graph
+ * can always be stored. An ill-typed literal such as {@code "abc"^^xsd:integer} or
+ * {@code "2026-13-45"^^xsd:date} is therefore rejected, although RDF 1.1 would admit it. An
+ * accepted literal keeps its lexical form and datatype, it is not normalized
+ * ({@code "042"^^xsd:integer} stays {@code "042"}); language tags arrive lower-cased, as everywhere
+ * in the data model.</p>
  *
  * <p><strong>The RDF 1.1 data model.</strong> The port data model is RDF 1.1 (see
  * {@link io.kogn.rdf.terms}). A document holding content it cannot represent is rejected rather
@@ -49,7 +53,8 @@ import io.kogn.rdf.terms.IRI;
  *       syntax {@code << s p o >>} or an annotation {@code {| … |}};</li>
  *   <li>an RDF 1.2 directional language string — {@code "x"@en--ltr}, or a literal of datatype
  *       {@code rdf:dirLangString}. This rejection may be loosened once the data model's treatment
- *       of such literals is settled; no caller relying on it today can be broken by that;</li>
+ *       of such literals is settled, which would change the behaviour for a caller relying on
+ *       it;</li>
  *   <li>a literal of datatype {@code rdf:langString} without a language tag, which is not an RDF
  *       literal at all.</li>
  * </ul>
@@ -91,7 +96,8 @@ public interface GraphImport {
    * @throws RDFImportException if the document is not valid Turtle (including a relative reference
    *     that does not resolve to an absolute IRI, and bytes that are not UTF-8), holds content the
    *     data model cannot represent (an RDF 1.2 triple term, a directional language string, an
-   *     {@code rdf:langString} literal without a language tag), or reading from {@code in} fails
+   *     {@code rdf:langString} literal without a language tag), holds a literal the store would
+   *     refuse (an ill-typed one), or reading from {@code in} fails
    */
   Graph readTurtle(InputStream in, IRI base);
 }
