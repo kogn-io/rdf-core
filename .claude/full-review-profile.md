@@ -192,7 +192,7 @@ control cases against `DatasetTx` directly). Result: 1 P1 (#226), 1 P2 (#225, fi
 | Phase 5 — every documented promise against a test that would go red | **#229** (five promises without a test) and three concurrency promises without a test (into #222); all held in probes. |
 | Control cases first | `export` of another graph and `contains` with a narrow pattern never conflicted — that separated the module's pattern from the transactor and kept #226 from being misfiled as a backend bug. |
 
-What a later round should keep: the latch harness (`ResourceVersioningSliceTest.concurrentWriteOutcome`)
+What a later round should keep: the latch harness (`ResourceVersioningDraftTest.concurrentWriteOutcome`)
 is the right instrument for every "at most one commits" sentence; run it against the
 operation that makes the promise, not a neighbour that shares the helper.
 
