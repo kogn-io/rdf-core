@@ -26,7 +26,7 @@ import io.kogn.rdf.terms.Triple;
  * out by hand from the specification (UTF-8 byte lengths in ASCII decimal, unsigned byte order),
  * not computed by the code under test. Graphs without blank nodes, so RDFC-1.0 plays no part.
  */
-class SerializationEncodingTest {
+class HashedInputEncodingTest {
 
   private static final String EX = "http://example.org/";
   private static final String BASE = EX + "doc";

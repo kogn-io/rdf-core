@@ -62,7 +62,7 @@ class DerivationTest {
     triples.add(rdf.createTriple(x, v, rdf.createLiteral("1")));
     triples.add(rdf.createTriple(y, v, rdf.createLiteral("1")));
 
-    // When: serialize and inspect the bytes that were hashed
+    // When: encode and inspect the bytes that were hashed
     String hashed = hashed(self, triples);
 
     // Then: the two blank nodes went in under two distinct labels, not merged into one
@@ -140,7 +140,7 @@ class DerivationTest {
   @DisplayName("language tags are lower-cased before the blank node labels are issued")
   void languageTagsAreLowerCasedBeforeCanonicalization() {
     // The labels RDFC-1.0 issues depend on the language tags next to a blank node. Lower-casing
-    // only while serializing would let "EN" and "en" swap two labels for some values, so a few
+    // only while encoding the hashed input would let "EN" and "en" swap two labels for some values, so a few
     // dozen are tried.
     for (int i = 0; i < 32; i++) {
       assertThat(hashed(self, twoTaggedBlankNodes(i, "EN-GB"))).as("value %d", i)

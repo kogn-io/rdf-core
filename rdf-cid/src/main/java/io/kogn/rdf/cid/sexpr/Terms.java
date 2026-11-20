@@ -10,7 +10,7 @@ import io.kogn.rdf.terms.RDFTerm;
 
 /**
  * Term-level rules of ni-rdf/1 shared by the preconditions, the resource limit, the
- * canonicalization and the serialization, so that all four read a term the same way.
+ * canonicalization and the hashed-input encoding, so that all four read a term the same way.
  */
 final class Terms {
 
