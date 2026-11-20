@@ -126,12 +126,15 @@ class NullArgumentsTest {
         Arguments.of("ask(null)", (Consumer<SparqlCalls>) c -> c.ask(null, Map.of())),
         Arguments.of("ask(sparql, null)", (Consumer<SparqlCalls>) c -> c.ask(ASK, null)),
         Arguments.of("ask(sparql, {s=null})", (Consumer<SparqlCalls>) c -> c.ask(ASK, nullValue())),
+        Arguments.of("ask(sparql, {null=term})", (Consumer<SparqlCalls>) c -> c.ask(ASK, nullName())),
         Arguments.of("construct(null)", (Consumer<SparqlCalls>) c -> c.construct(null, Map.of())),
         Arguments.of("construct(sparql, null)", (Consumer<SparqlCalls>) c -> c.construct(CONSTRUCT, null)),
         Arguments.of("construct(sparql, {s=null})", (Consumer<SparqlCalls>) c -> c.construct(CONSTRUCT, nullValue())),
+        Arguments.of("construct(sparql, {null=term})", (Consumer<SparqlCalls>) c -> c.construct(CONSTRUCT, nullName())),
         Arguments.of("update(null)", (Consumer<SparqlCalls>) c -> c.update(null, Map.of())),
         Arguments.of("update(sparql, null)", (Consumer<SparqlCalls>) c -> c.update(UPDATE, null)),
-        Arguments.of("update(sparql, {s=null})", (Consumer<SparqlCalls>) c -> c.update(UPDATE, nullValue())));
+        Arguments.of("update(sparql, {s=null})", (Consumer<SparqlCalls>) c -> c.update(UPDATE, nullValue())),
+        Arguments.of("update(sparql, {null=term})", (Consumer<SparqlCalls>) c -> c.update(UPDATE, nullName())));
   }
 
   /** The four SPARQL operations, so one table drives both the standalone ports and a transaction. */
@@ -225,10 +228,15 @@ class NullArgumentsTest {
   void sparql_emptyOrBlank_isIllegalArgumentException(final String sparql) {
     final SparqlCalls ports = standalonePorts();
     final DatasetTransactorRdf4j transactor = new DatasetTransactorRdf4j(observed);
+    final List<Consumer<SparqlCalls>> operations = List.of(c -> c.select(sparql, Map.of()),
+        c -> c.ask(sparql, Map.of()), c -> c.construct(sparql, Map.of()), c -> c.update(sparql, Map.of()));
 
-    for (final Consumer<SparqlCalls> operation : List.<Consumer<SparqlCalls>>of(c -> c.select(sparql, Map.of()),
-        c -> c.ask(sparql, Map.of()), c -> c.construct(sparql, Map.of()), c -> c.update(sparql, Map.of()))) {
+    for (final Consumer<SparqlCalls> operation : operations) {
       assertThatThrownBy(() -> operation.accept(ports)).isExactlyInstanceOf(IllegalArgumentException.class);
+    }
+    assertThat(connectionsOpened).hasValue(0);
+
+    for (final Consumer<SparqlCalls> operation : operations) {
       assertThatThrownBy(() -> transactor.inTransaction(tx -> {
         operation.accept(transactional(tx));
         return null;
