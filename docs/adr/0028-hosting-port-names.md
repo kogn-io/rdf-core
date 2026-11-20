@@ -58,7 +58,8 @@ its correctness depends on.
 - Breaking for every caller of the renamed methods and types, and of the
   two-argument `DatasetStoreConfig` constructor and `fullTextSearch()`; and for
   anyone who subclassed `DatasetLifecycleRdf4j`. All of it sits in the 0.4.0 break
-  window; `DatasetShutdownOutcome` and `DatasetMaintenance` were not yet released.
+  window; `DatasetShutdownOutcome` (as `DatasetCloseOutcome`), `DatasetCleanupOutcome`
+  and `DatasetMaintenance` were not yet released.
 - An implementation of `DatasetLifecycle` outside this repository has to rename its
   `close(DatasetId)`.
 - The on-disk format is unchanged: a directory carrying `.deleting` is a deletion

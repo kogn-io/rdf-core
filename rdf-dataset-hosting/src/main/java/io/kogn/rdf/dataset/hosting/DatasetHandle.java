@@ -35,7 +35,7 @@ import io.kogn.rdf.dataset.SparqlUpdate;
  *
  * <pre>{@code
  * try (DatasetHandle ds = lifecycle.acquire(id)) {
- *     ds.graphStore().add(graphIri, triples);
+ *     ds.graphStore().add(graphIRI, triples);
  *     return ds.sparqlQuery().select(query).toList();
  * }
  * }</pre>

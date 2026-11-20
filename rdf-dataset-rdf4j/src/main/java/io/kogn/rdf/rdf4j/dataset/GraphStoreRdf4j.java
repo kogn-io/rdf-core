@@ -24,8 +24,7 @@ import io.kogn.rdf.terms.ReadableGraph;
  * RDF4J-based implementation of {@link GraphStore}.
  *
  * <p>Each operation opens a dedicated {@link RepositoryConnection} from the
- * underlying {@link Repository} and closes it immediately after, following
- * the same pattern used by the existing service layer.</p>
+ * underlying {@link Repository} and closes it immediately after.</p>
  *
  * <p>A failure of the backend — an I/O error of a file-backed store, a repository that is shut
  * down — reaches the caller as the neutral {@link DatasetStorageException}, never as an RDF4J

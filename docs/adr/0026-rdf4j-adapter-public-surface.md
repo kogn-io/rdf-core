@@ -56,7 +56,7 @@ The statement is narrowed to what holds and made true.
   it builds terms and graphs through the RDF4J-free `RDF4JFactory`, and converts
   terms to RDF4J values by the term interfaces. A language tag of an RDF4J
   literal passes through its normalised (lower-case) form.
-- A result graph (`match`, `construct`, `export`) is copied into a new graph
+- A result graph (`match`, `construct`, `snapshot`) is copied into a new graph
   instead of wrapping the `Model`. That is a chosen implementation, not a
   consequence of the visibility above: a package-private `ReadableGraph` view
   over the `Model` in `dataset` would avoid the copy without exposing an RDF4J
