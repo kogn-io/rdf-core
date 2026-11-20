@@ -66,8 +66,8 @@ over the data model rather than a call into a store (ADR-0014).
 | Module | Artifact | Role |
 |---|---|---|
 | `rdf-terms` | `io.kogn.rdf:rdf-terms` | The RDF data model: term interfaces (`IRI`, `BlankNode`, `Literal`, `RDFTerm`), the graph family (`Triple`, `ReadableGraph`, `Graph`, `RDFList`), the `RDF` factory and standard-vocabulary constants. Deliberately dependency-free. |
-| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetExport` (with `RdfFormat`), `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
-| `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository`. No RDF4J type appears in a public signature, except the caller-supplied `Repository` the dataset wrappers take by design and the `internal` package ([ADR-0026](docs/adr/0026-rdf4j-adapter-public-surface.md)). |
+| `rdf-dataset` | `io.kogn.rdf:rdf-dataset` | Technology-neutral dataset content ports: `GraphStore`, `SparqlQuery`, `SparqlUpdate`, `DatasetExport` (with `RdfFormat`), `GraphImport`, `DatasetTransactor`/`DatasetTx` (and `BindingSet`). Interfaces only — no backend, and no presumption that the library hosts the store. |
+| `rdf-dataset-rdf4j` | `io.kogn.rdf:rdf-dataset-rdf4j` | RDF4J implementation of the content ports — store-agnostic wrappers over a caller-supplied `Repository` (the Turtle import needs none). No RDF4J type appears in a public signature, except the caller-supplied `Repository` the dataset wrappers take by design and the `internal` package ([ADR-0026](docs/adr/0026-rdf4j-adapter-public-surface.md)). |
 | `rdf-dataset-hosting` | `io.kogn.rdf:rdf-dataset-hosting` | Multi-tenant dataset hosting port: `DatasetLifecycle` with `DatasetHandle`, `DatasetId`, `DatasetStoreConfig` and `DatasetStoreLockedException` (a dataset whose store another owner holds locked); `DatasetMaintenance` for the deletion leftover of a failed delete. Depends on `rdf-dataset` for the content-port types a handle exposes. Interfaces only — no backend. |
 | `rdf-dataset-hosting-rdf4j` | `io.kogn.rdf:rdf-dataset-hosting-rdf4j` | RDF4J implementation of the hosting port. Builds and owns `MemoryStore`/`NativeStore` repositories and composes the `rdf-dataset-rdf4j` wrappers behind leased handles. |
 | `rdf-shacl` | `io.kogn.rdf:rdf-shacl` | Technology-neutral SHACL validation port: `ShaclValidation.validate(data, shapes, options)` over `ReadableGraph`, returning `ShaclReport`/`ShaclResult`/`ShaclMessage`/`Severity` plus `ValidationOptions`. Interfaces and value objects only — no backend, and no dependency on the dataset ports. |
@@ -146,7 +146,9 @@ concern:
   term that cannot be converted, a `NullPointerException` for a `null` argument,
   an `IllegalArgumentException` for an empty or blank SPARQL string, and the
   `IllegalStateException` for an RDF 1.2 triple term in a stored graph that the
-  data model cannot represent. Every operation of a `DatasetTx` kept
+  data model cannot represent. (A triple term in a document handed to
+  `GraphImport` is different: the document is the input, not the store's state,
+  and it fails like any other unreadable document, with `RDFImportException`.) Every operation of a `DatasetTx` kept
   past the end of its transaction, the SPARQL ones as well as the graph ones,
   fails with an `IllegalStateException`, deliberately neither of the two neutral
   types, so retry logic keyed to them does not retry a programming error.
@@ -171,6 +173,17 @@ concern:
   optimistic-concurrency guard that price buys. For a snapshot atomic with other
   work, take `DatasetTx#snapshot(IRI)` inside the transaction and serialize it
   afterwards.
+- **`GraphImport`** — the reading direction for a single document: a Turtle
+  document from a byte stream into a new, caller-owned `Graph`, resolving
+  relative references against an absolute base IRI. It touches no store, so it
+  is not part of `DatasetTx` or of a hosting handle; to store the result, hand it
+  to `GraphStore#add`. The stream stays the caller's: read to its end, never
+  closed. Blank nodes are scoped to one call, so two imports never share one.
+  Every failure — a syntax error, an RDF 1.2 triple term the data model cannot
+  hold, a failing stream — surfaces as the neutral `RDFImportException` with the
+  backend's signal as cause, and no partial graph is handed out. Turtle only for
+  now; a further format is meant to arrive as a further operation, and a quad
+  format (TriG, N-Quads) needs a result other than a single `Graph`.
 - **`DatasetTransactor`** / **`DatasetTx`** — an atomic, all-or-nothing
   unit-of-work (`inTransaction(work)`; roll back on any `RuntimeException` or
   `Error` the work throws — the adapter catches `Throwable` itself rather than
@@ -273,6 +286,9 @@ public member names an RDF4J type:
   is built and a dataset larger than memory can still be dumped. The four writer
   modules that serve `RdfFormat` are runtime dependencies, resolved through
   `Rio`'s `ServiceLoader` registry.
+- `GraphImportRdf4j` is the one class here without a `Repository`: it runs
+  `Rio`'s Turtle parser and adds each statement to the result graph as it is
+  reported, rejecting a triple term with the same check the read paths use.
 - Foreign term implementations are accepted throughout via `RDF4JConverters`,
   so the adapter is a genuine portability layer rather than an RDF4J-only island
   ([ADR-0004](docs/adr/0004-converter-based-interop.md)).
@@ -662,8 +678,8 @@ and [CONTRIBUTING](CONTRIBUTING.md) for the day-to-day commands.
 - No default graph / full RDF 1.1 dataset semantics (see above).
 - No RDF 1.2 extensions: the data model is RDF 1.1. Triple terms and
   directional language strings have no representation; keeping them out of a
-  store is the caller's job, the read paths reject a triple term they meet, and
-  `DatasetExport` writes whatever the store holds.
+  store is the caller's job, the read paths and `GraphImport` reject a triple
+  term they meet, and `DatasetExport` writes whatever the store holds.
 - No SPARQL `DESCRIBE`.
 - No object mapping, and no general reasoning or inference layer — this is a
   data-model and store-access abstraction, not a framework. The one exception is
